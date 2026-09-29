@@ -1,0 +1,108 @@
+# =============================================================================
+# Apache / LiteSpeed configuration for Hostinger shared hosting.
+# Every block is wrapped in <IfModule> so a missing module never causes a
+# 500 error. Optional rules are commented out – remove the leading "#" to use.
+# =============================================================================
+
+# ---- Basics -----------------------------------------------------------------
+
+# Load index.php for the site root.
+DirectoryIndex index.php index.html
+
+# Stop the server from listing folder contents.
+Options -Indexes
+
+# Friendly 404 page.
+ErrorDocument 404 /404.php
+
+# ---- HTTPS (optional) -------------------------------------------------------
+# Easiest option: in hPanel go to Security > SSL and turn on "Force HTTPS".
+# If you prefer to do it here instead, uncomment the four lines below
+# (only AFTER the SSL certificate is active, otherwise the site will not load).
+#
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteCond %{HTTPS} off
+#     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
+
+# Optional: redirect www to the bare domain (or reverse the logic for the opposite).
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+#     RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+# </IfModule>
+
+# ---- Protect private files --------------------------------------------------
+
+# Block hidden files (.git, .env, …) and project notes, but keep .well-known
+# available for SSL certificate validation.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+</IfModule>
+
+<FilesMatch "\.(md|log|ini|sh|sql|bak|dist|lock|json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ---- Security headers -------------------------------------------------------
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+
+    # Optional: tell browsers to always use HTTPS for one year.
+    # Only enable once HTTPS works on the domain and every subdomain.
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # Optional: Content Security Policy. Test carefully before enabling.
+    # The theme script in includes/header.php is inline, so 'unsafe-inline'
+    # (or a hash of that script) is required for script-src.
+    # Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; form-action 'self'; frame-ancestors 'self'; base-uri 'self'"
+
+    # Hide PHP version information.
+    Header unset X-Powered-By
+</IfModule>
+
+# ---- Compression ------------------------------------------------------------
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml text/javascript
+    AddOutputFilterByType DEFLATE application/javascript application/json application/xml
+    AddOutputFilterByType DEFLATE image/svg+xml application/ld+json
+</IfModule>
+
+# ---- Browser caching --------------------------------------------------------
+# CSS and JS are loaded with a "?v=" version string that changes whenever the
+# file is edited, so they can be cached for a long time safely.
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 hour"
+
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType text/javascript "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/x-icon "access plus 1 month"
+
+    ExpiresByType font/woff2 "access plus 1 year"
+
+    ExpiresByType application/xml "access plus 1 day"
+    ExpiresByType text/xml "access plus 1 day"
+    ExpiresByType text/plain "access plus 1 day"
+</IfModule>

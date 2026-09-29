@@ -1,0 +1,9 @@
+# Allow all search engines to index the portfolio.
+User-agent: *
+Allow: /
+Disallow: /includes/
+Disallow: /data/
+Disallow: /contact.php
+
+# Replace the domain below with your live domain.
+Sitemap: https://www.yourdomain.com/sitemap.xml

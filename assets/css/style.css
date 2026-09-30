@@ -958,8 +958,29 @@ html:not(.js) .primary-nav {
 
 .timeline__role {
     margin-top: 6px;
+    color: var(--color-accent-text);
+    font-weight: 600;
+}
+
+.timeline__parent {
+    margin-top: 4px;
     color: var(--color-muted);
-    font-weight: 500;
+    font-size: 0.9375rem;
+}
+
+.timeline__location {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 10px;
+    color: var(--color-muted);
+    font-size: 0.9375rem;
+}
+
+.timeline__location .icon {
+    width: 16px;
+    height: 16px;
+    margin-top: 4px;
 }
 
 .timeline__people {
@@ -986,8 +1007,9 @@ html:not(.js) .primary-nav {
 
 .people-list li {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
+    min-width: 0;
 }
 
 .people-list li::before {
@@ -995,13 +1017,20 @@ html:not(.js) .primary-nav {
     width: 6px;
     height: 6px;
     flex-shrink: 0;
+    margin-top: 0.7em;
     border-radius: 50%;
     background: var(--color-accent);
 }
 
+.people-list__role {
+    display: block;
+    color: var(--color-muted);
+    font-size: 0.875rem;
+}
+
 @media (min-width: 640px) {
     .people-list {
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     }
 }
 

@@ -180,8 +180,9 @@ It works with JavaScript (the message sends without reloading the page) and with
 | Hero and About text | `index.php` (sections are clearly commented) |
 | Colours | Top of `assets/css/style.css` (`:root` variables; dark mode block below) |
 
-The experience entries accept optional `role`, `period` and `summary` fields that only appear
-once filled in.
+Experience entries accept optional `role`, `parent`, `location`, `duration`, `period`, `summary`,
+`responsibilities` and `worked_with` fields; each only appears once filled in (see the comment at
+the top of `data/experience.php`).
 
 ---
 

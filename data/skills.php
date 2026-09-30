@@ -27,6 +27,6 @@ return [
         'category'    => 'General',
         'icon'        => 'layers',
         'description' => 'Foundations that support everyday technical work.',
-        'skills'      => ['Computer Operations', 'Software Development Fundamentals'],
+        'skills'      => ['Computer Operations', 'Software Development Fundamentals', 'CCTV Installation'],
     ],
 ];

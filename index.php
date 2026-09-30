@@ -88,6 +88,11 @@ developer.<span class="tok-fn">grow</span>(); <span class="tok-comment">// every
                     skills in web and software technologies.
                 </p>
                 <p>
+                    My work experience includes seven years as a receptionist and supervisor at
+                    Jabin Olori Motel in Ughelli, where I was also responsible for CCTV installation, and three
+                    years as an accountant at Holy Spirit Catholic Church.
+                </p>
+                <p>
                     My goal is to obtain a computer-related position where I can apply my technical skills,
                     experience and problem-solving abilities, while continuing to learn, grow professionally and
                     contribute to the organisation I work with.
@@ -147,7 +152,7 @@ developer.<span class="tok-fn">grow</span>(); <span class="tok-comment">// every
             <header class="section-header reveal">
                 <p class="eyebrow">Experience</p>
                 <h2 class="section-title" id="experience-title">Experience &amp; Service</h2>
-                <p class="section-intro">Organisations I have worked and served with.</p>
+                <p class="section-intro">Roles I have held and the organisations I have worked with.</p>
             </header>
 
             <ol class="timeline">
@@ -165,15 +170,39 @@ developer.<span class="tok-fn">grow</span>(); <span class="tok-comment">// every
                                     <?= e(implode(' · ', array_filter([$item['role'] ?? '', $item['period'] ?? '']))) ?>
                                 </p>
                             <?php endif; ?>
+                            <?php if (!empty($item['parent'])): ?>
+                                <p class="timeline__parent"><?= e($item['parent']) ?></p>
+                            <?php endif; ?>
+                            <?php if (!empty($item['location'])): ?>
+                                <p class="timeline__location"><?= icon('map-pin') ?> <?= e($item['location']) ?></p>
+                            <?php endif; ?>
                             <?php if (!empty($item['summary'])): ?>
                                 <p class="card__text"><?= e($item['summary']) ?></p>
+                            <?php endif; ?>
+                            <?php if (!empty($item['responsibilities'])): ?>
+                                <div class="timeline__people">
+                                    <h4 class="timeline__subhead">Key responsibilities</h4>
+                                    <ul class="people-list">
+                                        <?php foreach ($item['responsibilities'] as $responsibility): ?>
+                                            <li><?= e($responsibility) ?></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
                             <?php endif; ?>
                             <?php if (!empty($item['worked_with'])): ?>
                                 <div class="timeline__people">
                                     <h4 class="timeline__subhead">Worked with</h4>
                                     <ul class="people-list">
-                                        <?php foreach ($item['worked_with'] as $name): ?>
-                                            <li><?= e($name) ?></li>
+                                        <?php foreach ($item['worked_with'] as $colleague): ?>
+                                            <?php $colleague = is_array($colleague) ? $colleague : ['name' => $colleague]; ?>
+                                            <li>
+                                                <span>
+                                                    <?= e($colleague['name'] ?? '') ?>
+                                                    <?php if (!empty($colleague['role'])): ?>
+                                                        <span class="people-list__role"><?= e($colleague['role']) ?></span>
+                                                    <?php endif; ?>
+                                                </span>
+                                            </li>
                                         <?php endforeach; ?>
                                     </ul>
                                 </div>

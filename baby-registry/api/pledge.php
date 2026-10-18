@@ -39,6 +39,7 @@ $qty      = max(1, (int) ($_POST['quantity'] ?? 1));
 $amountIn = (float) str_replace([',', ' '], '', (string) ($_POST['amount'] ?? '0'));
 $dateRaw  = (string) ($_POST['payment_date'] ?? '');
 $message  = trim((string) ($_POST['message'] ?? ''));
+$share    = !empty($_POST['share_message']) && $message !== '';
 
 if (mb_strlen($fullName) < 3 || mb_strlen($fullName) > 120 || !str_contains($fullName, ' ')) {
     $errors['full_name'] = 'Please enter your full name (first and last name).';
@@ -88,7 +89,9 @@ try {
         json_response(['ok' => false, 'error' => 'That gift is no longer available.'], 404);
     }
 
-    if ($item['is_open_amount']) {
+    // Cash funds, and items without a set price, let the guest choose the amount.
+    $chooseAmount = $item['is_open_amount'] || (float) $item['price'] <= 0;
+    if ($chooseAmount) {
         $qty = 1;
         $amount = round($amountIn, 2);
         if ($amount < 100 || $amount > 100000000) {
@@ -96,7 +99,9 @@ try {
             json_response(['ok' => false, 'error' => 'Please check the highlighted fields.',
                            'fields' => ['amount' => 'Please enter the amount you would like to give.']], 422);
         }
-    } else {
+    }
+
+    if (!$item['is_open_amount']) {
         $taken = $pdo->prepare("SELECT COALESCE(SUM(quantity), 0) FROM pledges WHERE item_id = ? AND status IN ('pending', 'paid')");
         $taken->execute([$itemId]);
         $remaining = (int) $item['quantity_needed'] - (int) $taken->fetchColumn();
@@ -110,16 +115,18 @@ try {
             json_response(['ok' => false, 'error' => "Only {$remaining} still needed – please lower the quantity.",
                            'fields' => ['quantity' => "Only {$remaining} still needed."]], 409);
         }
-        $amount = round((float) $item['price'] * $qty, 2);
+        if (!$chooseAmount) {
+            $amount = round((float) $item['price'] * $qty, 2);
+        }
     }
 
     $reference = new_pledge_reference();
     $pdo->prepare(
-        'INSERT INTO pledges (reference, item_id, full_name, phone, email, notify_via, quantity, amount, payment_date, message, ip_address)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pledges (reference, item_id, full_name, phone, email, notify_via, quantity, amount, payment_date, message, share_message, ip_address)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )->execute([
         $reference, $itemId, $fullName, $phone, $email, $whatsapp ? 'both' : 'email',
-        $qty, $amount, $payDate->format('Y-m-d'), $message, client_ip(),
+        $qty, $amount, $payDate->format('Y-m-d'), $message, $share ? 1 : 0, client_ip(),
     ]);
     $pledgeId = (int) $pdo->lastInsertId();
     $pdo->commit();

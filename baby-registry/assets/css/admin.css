@@ -132,3 +132,12 @@ label.check { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .login .card { display: block; }
 .login .btn { width: 100%; justify-content: center; }
 [hidden] { display: none !important; }
+
+/* Guesses & wishes */
+.select { display: block; width: 100%; margin-top: 4px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; }
+.tally-admin > div { display: grid; grid-template-columns: 70px 1fr auto; gap: 12px; align-items: center; margin-bottom: 10px; }
+.bar { height: 12px; background: #efe9e2; border-radius: 999px; overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: inherit; }
+.bar-boy { background: #6aa6e8; }
+.bar-girl { background: #e0699a; }
+.spaced { margin-top: 32px; }

@@ -27,14 +27,18 @@ return [
         'url'          => '',
 
         'title'        => 'Baby Registry',
+        'family_name'  => 'Uzorka',                   // CHANGE ME – "The Uzorka are expecting"
         'baby_name'    => 'Baby Uzorka',              // CHANGE ME
         'parents'      => 'Elvis & Partner Uzorka',   // CHANGE ME
-        'headline'     => 'A little one is on the way!',
-        'intro'        => "Thank you for celebrating with us. We have put together a few things that will help us "
-                        . "welcome our little one. Pick a gift, choose the day you would like to send it, and we will "
-                        . "remind you with our account details on that day. Your love and prayers mean the world to us.",
-        // Due date or birthday (YYYY-MM-DD). Shown as a countdown. Leave empty to hide.
+        'headline'     => 'Baby Uzorka Registry',
+        'intro'        => "Tap \"I'll get this\" on anything you would like to give, choose the day you will send it, "
+                        . "and we will remind you with our account details on that day. Thank you for celebrating with us.",
+        // Due date (YYYY-MM-DD), shown with a countdown. Leave empty to hide.
         'due_date'     => '2027-01-15',              // CHANGE ME
+        // Day of the big gender reveal (YYYY-MM-DD), shown as a countdown while it
+        // is still a secret. Leave empty to hide. The reveal itself is a switch in
+        // the admin dashboard (Guesses & wishes), where you also set the gender.
+        'reveal_date'  => '',
         'timezone'     => 'Africa/Lagos',
         'currency'     => '₦',
         // Latest payment date a guest may choose, counted in days from today.

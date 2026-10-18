@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS `pledges` (
   `amount`               DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `payment_date`         DATE         NOT NULL,
   `message`              VARCHAR(1000) NOT NULL DEFAULT '',
+  -- 1 = guest agreed to show their note on the wishes wall
+  `share_message`        TINYINT(1)   NOT NULL DEFAULT 0,
   -- 'pending', 'paid' or 'cancelled'
   `status`               VARCHAR(10)  NOT NULL DEFAULT 'pending',
   `admin_note`           VARCHAR(500) NOT NULL DEFAULT '',
@@ -83,19 +85,82 @@ CREATE TABLE IF NOT EXISTS `notification_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
--- Sample registry items (prices in Naira – change them to suit you).
+-- Gender guessing game: one guess per visitor.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `gender_guesses` (
+  `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `guess`      VARCHAR(4)   NOT NULL,           -- 'boy' or 'girl'
+  `name`       VARCHAR(60)  NOT NULL DEFAULT '',
+  `message`    VARCHAR(300) NOT NULL DEFAULT '',
+  `is_hidden`  TINYINT(1)   NOT NULL DEFAULT 0,  -- hidden from the wishes wall by the admin
+  `visitor_id` CHAR(32)     NOT NULL,
+  `ip_address` VARCHAR(45)  NOT NULL DEFAULT '',
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_guess_visitor` (`visitor_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- Settings changed from the admin dashboard (baby's gender, reveal switch).
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `settings` (
+  `name`  VARCHAR(40)  NOT NULL,
+  `value` VARCHAR(255) NOT NULL DEFAULT '',
+  PRIMARY KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `settings` (`name`, `value`) VALUES ('baby_gender', ''), ('revealed', '0');
+
+-- -----------------------------------------------------------------------------
+-- Sample registry items. PRICES ARE ROUGH ESTIMATES in Naira – please check
+-- and change them in the admin (Gift items). Set a price to 0 to let guests
+-- type the amount they want to send for that item.
 -- -----------------------------------------------------------------------------
 INSERT INTO `items` (`name`, `description`, `category`, `price`, `quantity_needed`, `is_open_amount`, `emoji`, `sort_order`) VALUES
-('Baby stroller',            'A sturdy, foldable stroller for walks and outings.',          'Gear',        150000.00, 1, 0, '🛒', 10),
-('Infant car seat',          'Rear-facing car seat to bring baby home safely.',             'Gear',        120000.00, 1, 0, '🚗', 20),
-('Cot with mattress',        'A safe and cosy place for baby to sleep.',                    'Nursery',     180000.00, 1, 0, '🛏️', 30),
-('Baby monitor',             'Audio/video monitor so we can rest easy.',                    'Nursery',      45000.00, 1, 0, '📹', 40),
-('Diapers (big pack)',       'We will need lots of these – every pack helps!',              'Diapering',    15000.00, 20, 0, '🧷', 50),
-('Baby wipes (carton)',      'Gentle, fragrance-free wipes.',                               'Diapering',     5000.00, 15, 0, '🧻', 60),
-('Feeding bottle set',       'Anti-colic bottles with teats and a brush.',                  'Feeding',      18000.00, 2, 0, '🍼', 70),
-('Breast pump',              'Electric breast pump for mum.',                               'Feeding',      60000.00, 1, 0, '🤱', 80),
-('Baby clothes bundle',      'Onesies, sleepsuits and socks (0–6 months).',                 'Clothing',     25000.00, 4, 0, '👶', 90),
-('Swaddle blankets',         'Soft muslin swaddles, pack of three.',                        'Clothing',     12000.00, 3, 0, '🧸', 100),
-('Bath tub & toiletries',    'Baby bath, towel, soap and lotion.',                          'Bath & Care',  20000.00, 1, 0, '🛁', 110),
-('Hospital bag essentials',  'Everything mum and baby need for the hospital stay.',         'Bath & Care',  35000.00, 1, 0, '👜', 120),
-('Cash gift – any amount',   'Prefer to give cash? Choose any amount you are comfortable with.', 'Cash Fund', 0.00, 1, 1, '💝', 130);
+('Diapers',                          'Newborn and size 1 packs',  'Diapering',               15000.00, 10, 0, '🧷', 10),
+('Baby wipes',                       '10 packs',                  'Diapering',               20000.00, 1, 0, '🧻', 20),
+('Diaper cream',                     '',                          'Diapering',                6000.00, 1, 0, '🧴', 30),
+('Changing mat, pad or table',       '',                          'Diapering',               25000.00, 1, 0, '🛏️', 40),
+('Diaper bag',                       '',                          'Diapering',               30000.00, 1, 0, '🎒', 50),
+('Baby feeding bottles',             '',                          'Feeding',                 18000.00, 1, 0, '🍼', 110),
+('Bottle brush',                     '',                          'Feeding',                  4000.00, 1, 0, '🪥', 120),
+('Steriliser',                       '',                          'Feeding',                 45000.00, 1, 0, '♨️', 130),
+('Bibs and burp cloths',             '',                          'Feeding',                  8000.00, 1, 0, '🧣', 140),
+('Bottle warmer and hot water flask','',                          'Feeding',                 30000.00, 1, 0, '🫖', 150),
+('High chair / Baby pocket',         '',                          'Feeding',                 60000.00, 1, 0, '🪑', 160),
+('Baby bathtub',                     '',                          'Laundry and Bathing',     15000.00, 1, 0, '🛁', 210),
+('Bathing sponge',                   '',                          'Laundry and Bathing',      2500.00, 1, 0, '🧽', 220),
+('Mild baby wash and shampoo',       '',                          'Laundry and Bathing',      9000.00, 1, 0, '🫧', 230),
+('Washcloths and towel',             '',                          'Laundry and Bathing',     12000.00, 1, 0, '🧺', 240),
+('Body lotion and oil',              '',                          'Laundry and Bathing',      9000.00, 1, 0, '🧴', 250),
+('Antiseptic liquid',                '',                          'Laundry and Bathing',      6000.00, 1, 0, '🧪', 260),
+('Baby laundry detergent',           '',                          'Laundry and Bathing',      8000.00, 1, 0, '🧼', 270),
+('Singlets',                         '',                          'Laundry and Bathing',      8000.00, 1, 0, '👕', 280),
+('Baby suits and sleepsuits',        '',                          'Clothing',                25000.00, 1, 0, '👶', 310),
+('Baby flannel',                     '',                          'Clothing',                 6000.00, 1, 0, '🧸', 320),
+('Socks, hats, mittens and cardigan','',                          'Clothing',                15000.00, 1, 0, '🧦', 330),
+('Clothing hangers and drying rack', '',                          'Clothing',                15000.00, 1, 0, '🪝', 340),
+('Outing clothes',                   '',                          'Clothing',                25000.00, 1, 0, '👗', 350),
+('Nursing bras',                     '',                          'For Mum: Breastfeeding',  20000.00, 1, 0, '🤱', 410),
+('Breast pads and nipple cream',     '',                          'For Mum: Breastfeeding',  10000.00, 1, 0, '💗', 420),
+('Breast pump',                      '',                          'For Mum: Breastfeeding',  60000.00, 1, 0, '🍼', 430),
+('Milk storage bags',                '',                          'For Mum: Breastfeeding',   8000.00, 1, 0, '🥛', 440),
+('Insulated cooler bag',             '',                          'For Mum: Breastfeeding',  15000.00, 1, 0, '❄️', 450),
+('Nursing cover',                    '',                          'For Mum: Breastfeeding',   8000.00, 1, 0, '🧕', 460),
+('Breastfeeding pillow',             '',                          'For Mum: Breastfeeding',  20000.00, 1, 0, '🛋️', 470),
+('Sanitary / maternity pads',        '12 pieces',                 'For Mum: Postpartum',      8000.00, 1, 0, '🩹', 510),
+('Disposable pants',                 '5 pieces',                  'For Mum: Postpartum',      7000.00, 1, 0, '🩲', 520),
+('Maternity gowns',                  '',                          'For Mum: Postpartum',     20000.00, 1, 0, '👘', 530),
+('Compression socks',                '',                          'For Mum: Postpartum',      8000.00, 1, 0, '🧦', 540),
+('Waist gutter / Tummy binder',      '',                          'For Mum: Postpartum',     12000.00, 1, 0, '🎗️', 550),
+('Crib or mattress',                 '',                          'Nursery',                150000.00, 1, 0, '🛏️', 610),
+('Baby blanket, shawl and swaddle',  '',                          'Nursery',                 18000.00, 1, 0, '🧸', 620),
+('Mosquito net',                     '',                          'Nursery',                 10000.00, 1, 0, '🦟', 630),
+('Rocking chair',                    '',                          'Nursery',                 80000.00, 1, 0, '🪑', 640),
+('Baby walker',                      '',                          'Nursery',                 35000.00, 1, 0, '🚼', 650),
+('Thermometer',                      '',                          'Nursery',                  8000.00, 1, 0, '🌡️', 660),
+('Nasal aspirator',                  '',                          'Nursery',                  5000.00, 1, 0, '👃', 670),
+('Nail trimmer',                     '',                          'Nursery',                  4000.00, 1, 0, '✂️', 680),
+('Hand sanitiser',                   '',                          'Nursery',                  4000.00, 1, 0, '🫧', 690),
+('Baby carrier',                     '',                          'Additional',              35000.00, 1, 0, '🦘', 710),
+('Cash gift – any amount',           'Prefer to give cash? Send whatever you are comfortable with.', 'Additional', 0.00, 1, 1, '💝', 720);

@@ -128,6 +128,27 @@ function start_secure_session(): void
     session_start();
 }
 
+/** Anonymous ID kept in a cookie so each visitor can only guess once. */
+function visitor_id(): string
+{
+    $id = $_COOKIE['reg_vid'] ?? '';
+    if (is_string($id) && preg_match('/^[a-f0-9]{32}$/', $id)) {
+        return $id;
+    }
+    $id = bin2hex(random_bytes(16));
+    if (!headers_sent()) {
+        setcookie('reg_vid', $id, [
+            'expires'  => time() + 2 * 365 * 86400,
+            'path'     => '/',
+            'secure'   => is_https(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+    $_COOKIE['reg_vid'] = $id;
+    return $id;
+}
+
 function csrf_token(): string
 {
     if (empty($_SESSION['csrf'])) {

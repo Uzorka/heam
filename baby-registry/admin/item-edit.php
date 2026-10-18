@@ -40,8 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($values['name'] === '' || mb_strlen($values['name']) > 150) {
         $errors[] = 'Please enter a name (up to 150 characters).';
     }
-    if (!$values['is_open_amount'] && $values['price'] <= 0) {
-        $errors[] = 'Please enter a price, or tick "Any amount".';
+    if ($values['price'] < 0) {
+        $errors[] = 'The price cannot be negative.';
     }
     // Keep an uploaded photo unless a link is entered instead.
     $oldImage = $item['image'] ?? '';
@@ -129,7 +129,8 @@ admin_header($item ? 'Edit item' : 'Add item', 'items.php');
     <label class="check span-2"><input type="checkbox" name="is_open_amount" value="1" id="open-amount" <?= $values['is_open_amount'] ? 'checked' : '' ?>>
         Any amount (cash fund – guests choose how much, never runs out)</label>
 
-    <label data-fixed>Price (<?= e(registry_config()['site']['currency']) ?>) <input type="text" name="price" inputmode="decimal" value="<?= e($values['price'] ?: '') ?>"></label>
+    <label data-fixed>Price (<?= e(registry_config()['site']['currency']) ?>) <input type="text" name="price" inputmode="decimal" value="<?= e($values['price'] ?: '') ?>">
+        <small class="muted">Leave empty or 0 to let guests type the amount they will send.</small></label>
     <label data-fixed>How many do you need? <input type="number" name="quantity_needed" min="1" value="<?= (int) $values['quantity_needed'] ?>"></label>
 
     <label>Upload photo <input type="file" name="image_file" accept="image/jpeg,image/png,image/webp,image/gif"></label>

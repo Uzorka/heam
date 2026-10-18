@@ -101,3 +101,66 @@ function log_notification(?int $pledgeId, string $channel, string $type, string 
         error_log('Registry: could not write notification log: ' . $e->getMessage());
     }
 }
+
+/* ---- Settings changed from the admin ------------------------------------ */
+
+function get_setting(string $name, string $default = ''): string
+{
+    try {
+        $stmt = db()->prepare('SELECT value FROM settings WHERE name = ?');
+        $stmt->execute([$name]);
+        $value = $stmt->fetchColumn();
+        return $value === false ? $default : (string) $value;
+    } catch (Throwable $e) {
+        return $default;
+    }
+}
+
+function set_setting(string $name, string $value): void
+{
+    db()->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)')
+        ->execute([$name, $value]);
+}
+
+/**
+ * The reveal state. 'gender' is only filled in once the admin has revealed it,
+ * so the answer can never leak to the browser early.
+ */
+function reveal_state(): array
+{
+    $gender   = get_setting('baby_gender');
+    $revealed = get_setting('revealed') === '1' && in_array($gender, ['boy', 'girl'], true);
+    return ['revealed' => $revealed, 'gender' => $revealed ? $gender : null];
+}
+
+/* ---- Gender guesses ------------------------------------------------------ */
+
+function guess_tally(): array
+{
+    $rows = db()->query('SELECT guess, COUNT(*) AS n FROM gender_guesses GROUP BY guess')->fetchAll(PDO::FETCH_KEY_PAIR);
+    $boy  = (int) ($rows['boy'] ?? 0);
+    $girl = (int) ($rows['girl'] ?? 0);
+    return ['boy' => $boy, 'girl' => $girl, 'total' => $boy + $girl];
+}
+
+function visitor_guess(string $visitorId): ?array
+{
+    if ($visitorId === '') {
+        return null;
+    }
+    $stmt = db()->prepare('SELECT guess, name FROM gender_guesses WHERE visitor_id = ?');
+    $stmt->execute([$visitorId]);
+    return $stmt->fetch() ?: null;
+}
+
+/** Notes from guesses and pledges that may be shown on the wishes wall, newest first. */
+function fetch_wishes(int $limit = 60): array
+{
+    $sql = "(SELECT 'guess' AS source, g.id, g.name, g.message, g.guess, g.created_at
+             FROM gender_guesses g WHERE g.is_hidden = 0 AND g.message <> '')
+            UNION ALL
+            (SELECT 'pledge' AS source, p.id, p.full_name AS name, p.message, NULL AS guess, p.created_at
+             FROM pledges p WHERE p.share_message = 1 AND p.message <> '' AND p.status <> 'cancelled')
+            ORDER BY created_at DESC LIMIT " . (int) $limit;
+    return db()->query($sql)->fetchAll();
+}

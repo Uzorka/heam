@@ -45,7 +45,8 @@ admin_header($p['full_name'], 'index.php');
             <?php if ($p['paid_at']): ?><dt>Paid on</dt><dd><?= e(date('j M Y, H:i', strtotime($p['paid_at']))) ?></dd><?php endif; ?>
         </dl>
         <?php if ($p['message'] !== ''): ?>
-            <blockquote class="note"><?= nl2br(e($p['message'])) ?></blockquote>
+            <blockquote class="note"><?= nl2br(e($p['message'])) ?>
+                <div class="small muted"><?= $p['share_message'] ? 'Shown on the wishes wall' : 'Private note' ?> · <a href="reveal.php">manage</a></div></blockquote>
         <?php endif; ?>
 
         <form method="post" action="action.php" class="actions-row">

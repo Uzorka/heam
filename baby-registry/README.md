@@ -7,6 +7,16 @@ settings file.
 
 **What it does**
 
+- **Guess the gender game:** the page opens with a balloon. Guests pick 💙 Boy or 💗 Girl (they can add
+  their name and a wish), then **tap to pop the balloon**, with confetti, a pop sound and vibration on phones.
+  - *While it's still a secret:* popping shows a live vote count ("67% think girl") and a countdown
+    to your reveal day.
+  - *After you press "Reveal now" in the admin:* popping shows **"It's a girl!"** or **"It's a boy!"**,
+    tells each guest whether they guessed right, and the whole page turns pink or blue. Guests who
+    guessed earlier get to pop the balloon again for the real answer.
+  - The gender is **never sent to the browser before you reveal it**, so nobody can peek in the
+    page source.
+- **Wishes wall:** the notes guests leave with their guess or gift (if they agree to share them).
 - Guests browse the registry, pick a gift (or give any amount to a cash fund), and enter their
   **full name, phone number, email and the date they want to pay**.
 - They get a **confirmation email** straight away. **On the date they chose, they get a reminder**
@@ -36,6 +46,7 @@ settings file.
 baby-registry/
 ├── index.php                 The public registry page
 ├── api/pledge.php            Saves a pledge and sends the confirmation
+├── api/guess.php             Saves a boy/girl guess and returns the vote count
 ├── admin/                    Admin dashboard (login, pledges, items, CSV export)
 ├── cron/send-reminders.php   Sends the reminders, run once a day
 ├── includes/config.php       ← ALL your settings live here
@@ -52,8 +63,13 @@ baby-registry/
 2. Click **Enter phpMyAdmin** next to the new database.
 3. Open the **Import** tab, choose `database/schema.sql` and click **Import**.
 
-This creates the tables and 13 sample gifts (stroller, diapers, cash gift and so on). You can
-change all of them later from the admin.
+This creates the tables and the gift list from your sample (Diapering, Feeding, Laundry and
+Bathing, Clothing, For Mum, Nursery, Additional), plus a cash gift option. **The prices are rough
+estimates**, so please check them in the admin (Gift items). An item with price 0 lets the guest
+type the amount they will send.
+
+If you already imported an earlier version of `schema.sql`, delete the tables in phpMyAdmin first
+(select all → Drop), then import again.
 
 ## 4. Upload the files
 
@@ -73,7 +89,9 @@ Open it in File Manager (right-click → Edit). Everything marked `CHANGE ME`:
 | --- | --- |
 | `site.url` | Full address, e.g. `https://yourdomain.com/registry` (used in email links) |
 | `site.baby_name`, `parents`, `headline`, `intro` | The text on your page |
-| `site.due_date` | `YYYY-MM-DD`, shown as a countdown (`''` hides it) |
+| `site.family_name` | Shown as "The *Uzorka* are expecting" |
+| `site.due_date` | `YYYY-MM-DD`, used for the "Baby arrives in … days" countdown (`''` hides it) |
+| `site.reveal_date` | `YYYY-MM-DD` of your reveal, shown as a countdown while it is a secret (optional) |
 | `site.currency` | `₦` by default |
 | `db.*` | The database name, user and password from step 3 (host stays `localhost`) |
 | `bank_accounts` | Your bank name, account name and number. Add more blocks for more accounts |
@@ -175,6 +193,7 @@ Email is always sent either way, so WhatsApp is an extra.
 
 | Page | What you can do |
 | --- | --- |
+| **Guesses & wishes** | Set the baby's gender (kept secret), press **🎉 Reveal now** on reveal day (you can undo it), see the boy/girl vote count and who guessed right, and hide or delete any wish from the wall. |
 | **Pledges** | Tabs: *Needs action* (due or overdue), Pending, Paid, Cancelled, All. Search by name, phone, email or reference. **✓ Mark paid** sends the thank-you. **Send reminder** sends it right now. **WhatsApp** opens a ready-written chat. |
 | Pledge details (click a name) | Change the payment date (a new reminder is scheduled for the new date), add a private note, see every email/WhatsApp sent and whether it worked, cancel (frees up the gift), mark as not paid, delete. |
 | **Gift items** | Add, edit, hide or delete gifts. Set price and quantity needed (e.g. 20 packs of diapers), upload a photo or use an emoji, choose a category and display order. Tick *Any amount* for a cash fund. |
@@ -186,8 +205,9 @@ description, so you can match payments in your bank app.
 ## 10. Changing the wording or look
 
 - **Email / WhatsApp wording:** `includes/notifications.php` → `pledge_message()`.
-- **Colours and fonts:** the variables at the top of `assets/css/style.css`. For example, change
-  `--accent` to a blue or pink.
+- **Colours and fonts:** the variables at the top of `assets/css/style.css`. The page is dark,
+  with a gold accent while the gender is a secret, then pink (girl) or blue (boy) after the reveal.
+  Each theme has its own line (`[data-theme="girl"]` and so on).
 - **Page text:** `includes/config.php` (`headline`, `intro`), plus the *How it works* section in
   `index.php`.
 

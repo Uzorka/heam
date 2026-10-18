@@ -52,7 +52,7 @@ function redirect(string $to): never
 /** Only allow redirecting back to admin pages in this folder. */
 function safe_return(?string $to, string $default = 'index.php'): string
 {
-    return (is_string($to) && preg_match('#^(index|pledge|items|item-edit)\.php(\?[A-Za-z0-9_=&%.\-]*)?$#', $to)) ? $to : $default;
+    return (is_string($to) && preg_match('#^(index|pledge|items|item-edit|reveal)\.php(\?[A-Za-z0-9_=&%.\-]*)?$#', $to)) ? $to : $default;
 }
 
 function status_badge(string $status, string $paymentDate = ''): string
@@ -80,7 +80,7 @@ function pledge_whatsapp_link(array $pledge, ?string $type = null): string
 function admin_header(string $title, string $active = ''): void
 {
     $site = registry_config()['site'];
-    $nav = ['index.php' => 'Pledges', 'items.php' => 'Gift items'];
+    $nav = ['index.php' => 'Pledges', 'items.php' => 'Gift items', 'reveal.php' => 'Guesses & wishes'];
     ?>
 <!doctype html>
 <html lang="en">

@@ -683,16 +683,19 @@
     }
 
     /* Quick date choices: Today, Tomorrow, Friday, End of month. */
+    /* Quick choices (Today, Tomorrow, Month end) plus "Pick a date", which opens the calendar. */
+    var datePick = $('#date-pick');
+
     function buildDateChips() {
         var box = $('#date-chips');
-        box.innerHTML = '';
+        $$('[data-date]', box).forEach(function (b) { b.remove(); });
         var base = new Date(cfg.today + 'T00:00:00');
-        var add = function (days) { var d = new Date(base); d.setDate(d.getDate() + days); return d; };
-        var friday = add(((5 - base.getDay() + 7) % 7) || 7);
+        var tomorrow = new Date(base);
+        tomorrow.setDate(tomorrow.getDate() + 1);
         var monthEnd = new Date(base.getFullYear(), base.getMonth() + 1, 0);
-        if (isoDate(monthEnd) <= isoDate(add(1))) { monthEnd = new Date(base.getFullYear(), base.getMonth() + 2, 0); }
+        if (isoDate(monthEnd) <= isoDate(tomorrow)) { monthEnd = new Date(base.getFullYear(), base.getMonth() + 2, 0); }
 
-        [['Today', base], ['Tomorrow', add(1)], ['This Friday', friday], ['Month end', monthEnd]].forEach(function (opt) {
+        [['Today', base], ['Tomorrow', tomorrow], ['Month end', monthEnd]].forEach(function (opt) {
             var iso = isoDate(opt[1]);
             if (iso > cfg.maxDate) { return; }
             var b = document.createElement('button');
@@ -700,14 +703,32 @@
             b.className = 'chip';
             b.textContent = opt[0];
             b.dataset.date = iso;
-            b.addEventListener('click', function () { dateInput.value = iso; syncDateChips(); });
-            box.appendChild(b);
+            b.addEventListener('click', function () { dateInput.value = iso; syncDateChips(); vibrate(10); });
+            box.insertBefore(b, datePick);
         });
         syncDateChips();
     }
 
+    // Phones open their calendar when the (invisible) date field is tapped; on
+    // computers the field needs showPicker() to open its calendar.
+    dateInput.addEventListener('click', function () {
+        if (typeof dateInput.showPicker === 'function') {
+            try { dateInput.showPicker(); } catch (e) { /* the browser opens it itself */ }
+        }
+    });
+
     function syncDateChips() {
-        $$('#date-chips .chip').forEach(function (c) { c.classList.toggle('is-active', c.dataset.date === dateInput.value); });
+        var quick = false;
+        $$('#date-chips [data-date]').forEach(function (c) {
+            var on = c.dataset.date === dateInput.value;
+            c.classList.toggle('is-active', on);
+            quick = quick || on;
+        });
+        var picked = !!dateInput.value && !quick;
+        datePick.classList.toggle('is-active', picked);
+        $('#date-pick-label').textContent = picked
+            ? '📅 ' + new Date(dateInput.value + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+            : '📅 Pick a date';
         if (!dateInput.value) { return; }
         $('#date-hint').textContent = daysUntil(dateInput.value) === 0
             ? "You'll get our account details right away in your confirmation."

@@ -366,9 +366,15 @@ header('Cache-Control: no-store');
             </div>
 
             <div class="field">
-                <label for="f-date" id="f-date-label">When will you send them?</label>
-                <div class="chips" id="date-chips"></div>
-                <input type="date" id="f-date" name="payment_date" required min="<?= e($today) ?>" max="<?= e($maxDate) ?>" value="<?= e($today) ?>">
+                <p class="field-label" id="f-date-label">When will you send them?</p>
+                <div class="date-options" id="date-chips" role="group" aria-labelledby="f-date-label">
+                    <!-- Today / Tomorrow / Month end are added by registry.js before this one. -->
+                    <span class="chip chip-pick" id="date-pick">
+                        <span id="date-pick-label">📅 Pick a date</span>
+                        <!-- The real date field, invisible, laid over the button so a tap opens the phone's calendar. -->
+                        <input type="date" id="f-date" name="payment_date" required min="<?= e($today) ?>" max="<?= e($maxDate) ?>" value="<?= e($today) ?>" aria-label="Pick a date">
+                    </span>
+                </div>
                 <p class="hint" id="date-hint">We'll remind you with our account details on this day.</p>
                 <p class="field-error" data-error="payment_date"></p>
             </div>

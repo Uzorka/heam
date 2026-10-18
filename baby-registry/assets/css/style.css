@@ -299,7 +299,19 @@ button { font: inherit; color: inherit; }
 @media (max-width: 520px) { .field-row { grid-template-columns: 1fr; gap: 0; } }
 .field > label { display: block; font-weight: 500; font-size: .9rem; margin-bottom: 6px; }
 .optional { color: var(--muted); font-weight: 400; }
-.field input[type="date"] { color-scheme: dark; }
+.field-label { display: block; font-weight: 500; font-size: .9rem; margin: 0 0 6px; }
+
+/* Payment day: four equal buttons (two rows on narrow phones). */
+.date-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 420px) { .date-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.date-options .chip { width: 100%; min-height: 44px; padding: 10px 8px; font-size: .9rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip-pick { position: relative; display: flex; align-items: center; justify-content: center; }
+.chip-pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field .chip-pick input[type="date"] {
+    position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; margin: 0; padding: 0;
+    opacity: 0; border: 0; cursor: pointer; color-scheme: dark; -webkit-appearance: none; appearance: none;
+}
+.chip-pick input[type="date"]::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .field.has-error input, .field.has-error textarea { border-color: #ff9b8a; }
 .field-error { color: #ff9b8a; font-size: .85rem; margin: 4px 0 0; }
 .field-error:empty { display: none; }

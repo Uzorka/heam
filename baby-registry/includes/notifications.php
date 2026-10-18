@@ -256,3 +256,28 @@ function send_reveal_notifications(): array
 
     return $summary;
 }
+
+/* ---- "Your guess is in" email ---------------------------------------------- */
+
+/** Sent straight after a guest locks in their guess, if they left an email. */
+function send_guess_received(array $guess): array
+{
+    $site  = registry_config()['site'];
+    $first = trim(explode(' ', trim($guess['name']))[0]) ?: 'there';
+    $what  = $guess['guess'] === 'boy' ? 'a boy 💙' : 'a girl 💗';
+    $link  = registry_url() . '/';
+    $days  = $site['reveal_date'] !== '' ? (int) floor((strtotime($site['reveal_date']) - strtotime('today')) / 86400) : 0;
+
+    $subject = 'Your guess is in! 🎈';
+    $text = "Hi {$first},\n\n"
+          . "Thank you for joining the fun! You guessed {$what}"
+          . ($guess['baby_name'] !== '' ? " and suggested the name \"{$guess['baby_name']}\"" : '') . ".\n\n"
+          . 'It is still a secret for now' . ($days > 0 ? " – the big reveal is in {$days} day" . ($days === 1 ? '' : 's') : '')
+          . ". We will email you the moment it is revealed so you can see if you were right.\n\n"
+          . "While you wait, you can see the baby registry here:\n{$link}\n\n"
+          . "With love,\n{$site['parents']}";
+
+    $result = send_email($guess['email'], $guess['name'], $subject, email_html($subject, $text, false, $link), $text);
+    log_notification(null, 'email', 'guess', $guess['email'], ...$result);
+    return $result;
+}

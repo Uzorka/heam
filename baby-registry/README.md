@@ -12,7 +12,8 @@ Guests move through the site one screen at a time:
 1. **Welcome.** "Welcome to the Uzorka family", a floating balloon and one big **Take a guess**
    button. The registry is not shown here; a small "skip" link is there for guests who only want it.
 2. **Guess.** Pick 💙 Boy or 💗 Girl, **suggest a name for the baby**, add your name and a wish.
-   Guests can also leave an email or WhatsApp number to be told when the gender is revealed.
+   Guests can also leave an email or WhatsApp number to be told when the gender is revealed;
+   with an email they get a "Your guess is in!" message straight away.
 3. **Pop the balloon.** One tap bursts it, with confetti, a pop sound and vibration on phones.
 4. **Result.**
    - *While it's still a secret:* "It's still a secret 🤫", the live vote count ("75% think girl"),
@@ -208,8 +209,12 @@ Email is always sent either way, so WhatsApp is an extra.
 
 ## 9. Using the admin dashboard
 
+The admin has a side menu (on phones, tap ☰):
+
 | Page | What you can do |
 | --- | --- |
+| **Overview** | Summary cards (gifts picked, guests, received, due today, guesses), a "Needs your attention" list with one-tap **Paid** and **WhatsApp** buttons, upcoming payment days, progress per category and recent activity. |
+| **Email & settings** | Shows your email setup and points out common mistakes, **Send test email** / **Send test WhatsApp** buttons that show the exact error if something fails, the cron path for daily reminders, and a log of every message sent. |
 | **Guesses & wishes** | Set the baby's gender (kept secret), press **🎉 Reveal now** on reveal day (this also emails/WhatsApps everyone who asked to be told; you can undo the reveal), see the boy/girl vote count, every suggested baby name and who guessed right, and hide or delete any wish from the wall. If WhatsApp is not set up, guests who only left a WhatsApp number are listed with a button each to send them the news by hand. |
 | **Pledges** | Tabs: *Needs action* (due or overdue), Pending, Paid, Cancelled, All. Search by name, phone, email or reference. **✓ Mark paid** sends the thank-you. **Send reminder** sends it right now. **WhatsApp** opens a ready-written chat. |
 | Pledge details (click a name) | Change the payment date (a new reminder is scheduled for the new date), add a private note, see every email/WhatsApp sent and whether it worked, cancel (frees up the gift), mark as not paid, delete. |
@@ -245,7 +250,7 @@ description, so you can match payments in your bank app.
 | Problem | Fix |
 | --- | --- |
 | "The registry is being set up" | The database details in `config.php` are wrong, or `schema.sql` was not imported. |
-| Emails don't arrive | Open a pledge in the admin and check *Messages sent* for the error. Check the SMTP mailbox/password, and look in spam. |
+| Emails don't arrive | Admin → **Email & settings** → **Send test email**. The exact error appears on the page and in the message log. Check the SMTP mailbox/password, and look in spam. |
 | Reminders not sent | Check the cron job path. Open the web-key URL by hand to see its output. |
 | Photo upload fails | Make sure the `uploads/` folder exists and is writable (permissions 755). |
 | Wrong times/dates | Set `site.timezone` (default `Africa/Lagos`). |

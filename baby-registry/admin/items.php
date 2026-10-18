@@ -38,7 +38,7 @@ $token = csrf_token();
 admin_header('Gift items', 'items.php');
 ?>
 <div class="toolbar">
-    <h1>Gift items</h1>
+    <p class="muted toolbar-note">Everything guests can choose on the registry. Hidden items stay in your records but are not shown.</p>
     <a class="btn" href="item-edit.php">+ Add item</a>
 </div>
 

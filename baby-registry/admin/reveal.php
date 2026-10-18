@@ -86,7 +86,6 @@ $pct = static fn(int $n): int => $tally['total'] ? (int) round($n / $tally['tota
 
 admin_header('Guesses & wishes', 'reveal.php');
 ?>
-<h1>Gender reveal &amp; wishes</h1>
 
 <div class="detail">
     <section class="card">

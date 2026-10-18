@@ -28,4 +28,18 @@
         open.addEventListener('change', sync);
         sync();
     }
+
+    // Phones: the sidebar slides in from the left.
+    var menuBtn = document.getElementById('menu-btn');
+    var scrim = document.getElementById('side-scrim');
+    if (menuBtn && scrim) {
+        var setMenu = function (open) {
+            document.body.classList.toggle('menu-open', open);
+            menuBtn.setAttribute('aria-expanded', String(open));
+            scrim.hidden = !open;
+        };
+        menuBtn.addEventListener('click', function () { setMenu(!document.body.classList.contains('menu-open')); });
+        scrim.addEventListener('click', function () { setMenu(false); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { setMenu(false); } });
+    }
 }());

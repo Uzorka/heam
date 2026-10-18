@@ -61,6 +61,14 @@ try {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([$guess, $name, $babyName, $message, $email, $phone, $visitor, client_ip()]);
         $existing = ['guess' => $guess, 'name' => $name];
+
+        if ($email !== '') {
+            try {
+                send_guess_received(['guess' => $guess, 'name' => $name, 'baby_name' => $babyName, 'email' => $email]);
+            } catch (Throwable $e) {
+                error_log('Registry guess email error: ' . $e->getMessage());
+            }
+        }
     }
 
     json_response([

@@ -119,3 +119,37 @@ function whatsapp_click_link(string $phoneDigits, string $text): string
 {
     return 'https://wa.me/' . rawurlencode($phoneDigits) . '?text=' . rawurlencode($text);
 }
+
+/**
+ * Sends a test WhatsApp message from the admin settings page.
+ * Meta: uses the "hello_world" template every new WhatsApp Business account has.
+ * @return array{0: bool, 1: string}
+ */
+function whatsapp_test(string $phoneDigits): array
+{
+    $wa = registry_config()['whatsapp'];
+    if ($phoneDigits === '') {
+        return [false, 'Please enter a valid WhatsApp number.'];
+    }
+    if (($wa['provider'] ?? 'none') === 'meta') {
+        $meta = $wa['meta'];
+        if ($meta['access_token'] === '' || $meta['phone_number_id'] === '') {
+            return [false, 'Meta WhatsApp settings incomplete (access_token / phone_number_id).'];
+        }
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to'                => $phoneDigits,
+            'type'              => 'template',
+            'template'          => ['name' => 'hello_world', 'language' => ['code' => 'en_US']],
+        ];
+        $url = 'https://graph.facebook.com/' . $meta['api_version'] . '/' . rawurlencode($meta['phone_number_id']) . '/messages';
+        return http_post($url, json_encode($payload), [
+            'Authorization: Bearer ' . $meta['access_token'],
+            'Content-Type: application/json',
+        ]);
+    }
+    if (($wa['provider'] ?? 'none') === 'twilio') {
+        return whatsapp_twilio($wa['twilio'], $phoneDigits, 'Test message from your baby registry. WhatsApp is working! 🎉');
+    }
+    return [false, "WhatsApp provider is 'none', so nothing is sent automatically."];
+}

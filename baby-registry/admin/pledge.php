@@ -12,7 +12,7 @@ $id = (int) ($_GET['id'] ?? 0);
 $p  = fetch_pledge($id);
 if (!$p) {
     flash('error', 'That pledge no longer exists.');
-    redirect('index.php');
+    redirect('pledges.php');
 }
 
 $log = db()->prepare('SELECT * FROM notification_log WHERE pledge_id = ? ORDER BY id DESC');
@@ -23,14 +23,14 @@ $sum    = pledge_summary($p);
 $token  = csrf_token();
 $return = 'pledge.php?id=' . $id;
 
-admin_header($p['full_name'], 'index.php');
+admin_header($p['full_name'], 'pledges.php');
 ?>
-<p><a href="index.php">← All pledges</a></p>
+<p class="crumb"><a href="pledges.php">← All pledges</a></p>
 
 <div class="detail">
     <section class="card">
         <div class="detail-head">
-            <h1><?= e($p['full_name']) ?></h1>
+            <h2 class="detail-name"><?= e($p['full_name']) ?></h2>
             <?= status_badge($p['status'], $p['payment_date']) ?>
         </div>
         <dl class="dl">

@@ -11,7 +11,7 @@ require_post_csrf();
 
 $id     = (int) ($_POST['id'] ?? 0);
 $action = (string) ($_POST['action'] ?? '');
-$return = safe_return($_POST['return'] ?? null);
+$return = safe_return($_POST['return'] ?? null, 'pledges.php');
 $pledge = fetch_pledge($id);
 
 if (!$pledge) {
@@ -110,7 +110,7 @@ switch ($action) {
         $pdo->prepare('DELETE FROM pledge_items WHERE pledge_id = ?')->execute([$id]);
         $pdo->prepare('DELETE FROM pledges WHERE id = ?')->execute([$id]);
         flash('info', 'Pledge deleted.');
-        redirect('index.php');
+        redirect('pledges.php');
 
     default:
         flash('error', 'Unknown action.');

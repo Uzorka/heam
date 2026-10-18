@@ -109,8 +109,7 @@ $preview = item_image($values, '../');
 
 admin_header($item ? 'Edit item' : 'Add item', 'items.php');
 ?>
-<p><a href="items.php">← All items</a></p>
-<h1><?= $item ? 'Edit item' : 'Add item' ?></h1>
+<p class="crumb"><a href="items.php">← All items</a></p>
 
 <?php foreach ($errors as $error): ?><p class="flash flash-error"><?= e($error) ?></p><?php endforeach; ?>
 

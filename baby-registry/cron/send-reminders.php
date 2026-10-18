@@ -75,5 +75,11 @@ foreach ($jobs as $type => $pledges) {
     }
 }
 
+// Catch up on reveal announcements that failed earlier (e.g. the mail server was down).
+$news = send_reveal_notifications();
+if ($news['sent'] || $news['failed']) {
+    out("reveal news: {$news['sent']} sent, {$news['failed']} failed");
+}
+
 out("Done. {$sent} pledge(s) processed.");
 flock($lock, LOCK_UN);

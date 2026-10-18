@@ -31,8 +31,8 @@ return [
         'baby_name'    => 'Baby Uzorka',              // CHANGE ME
         'parents'      => 'Elvis & Partner Uzorka',   // CHANGE ME
         'headline'     => 'Baby Uzorka Registry',
-        'intro'        => "Tap \"I'll get this\" on anything you would like to give, choose the day you will send it, "
-                        . "and we will remind you with our account details on that day. Thank you for celebrating with us.",
+        'intro'        => "Tap \"I'll get this\" on anything you would like to give and choose the day you will send it. "
+                        . "We will remind you on that day. Thank you for celebrating with us.",
         // Due date (YYYY-MM-DD), shown with a countdown. Leave empty to hide.
         'due_date'     => '2027-01-15',              // CHANGE ME
         // Day of the big gender reveal (YYYY-MM-DD), shown as a countdown while it
@@ -133,6 +133,7 @@ return [
                 'reminder'     => 'gift_payment_reminder',
                 'followup'     => 'gift_payment_reminder',
                 'thankyou'     => 'gift_thank_you',
+                'reveal'       => 'gender_reveal_news',
             ],
         ],
 

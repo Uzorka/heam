@@ -127,11 +127,12 @@ admin_header($item ? 'Edit item' : 'Add item', 'items.php');
     <label>Emoji (shown when there is no photo) <input type="text" name="emoji" value="<?= e($values['emoji']) ?>" maxlength="8"></label>
 
     <label class="check span-2"><input type="checkbox" name="is_open_amount" value="1" id="open-amount" <?= $values['is_open_amount'] ? 'checked' : '' ?>>
-        Any amount (cash fund – guests choose how much, never runs out)</label>
+        Cash gift (any number of guests can pick it; it is never greyed out)</label>
 
-    <label data-fixed>Price (<?= e(registry_config()['site']['currency']) ?>) <input type="text" name="price" inputmode="decimal" value="<?= e($values['price'] ?: '') ?>">
-        <small class="muted">Leave empty or 0 to let guests type the amount they will send.</small></label>
-    <label data-fixed>How many do you need? <input type="number" name="quantity_needed" min="1" value="<?= (int) $values['quantity_needed'] ?>"></label>
+    <label data-fixed>Estimated value (<?= e(registry_config()['site']['currency']) ?>) <input type="text" name="price" inputmode="decimal" value="<?= e($values['price'] ?: '') ?>">
+        <small class="muted">Private, for your own records. Guests never see it. Can be left empty.</small></label>
+    <label data-fixed>How many people can pick it? <input type="number" name="quantity_needed" min="1" value="<?= (int) $values['quantity_needed'] ?>">
+        <small class="muted">Usually 1. When that many have picked it, it is greyed out on the registry.</small></label>
 
     <label>Upload photo <input type="file" name="image_file" accept="image/jpeg,image/png,image/webp,image/gif"></label>
     <label>…or photo link <input type="url" name="image_url" value="<?= e(str_starts_with($values['image'], 'uploads/') ? '' : $values['image']) ?>" placeholder="https://…"></label>

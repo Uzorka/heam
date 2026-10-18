@@ -91,7 +91,12 @@ CREATE TABLE IF NOT EXISTS `gender_guesses` (
   `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `guess`      VARCHAR(4)   NOT NULL,           -- 'boy' or 'girl'
   `name`       VARCHAR(60)  NOT NULL DEFAULT '',
+  `baby_name`  VARCHAR(60)  NOT NULL DEFAULT '',  -- the name they suggest for the baby
   `message`    VARCHAR(300) NOT NULL DEFAULT '',
+  -- Optional contact details, used only to tell them when the gender is revealed.
+  `email`      VARCHAR(190) NOT NULL DEFAULT '',
+  `phone`      VARCHAR(20)  NOT NULL DEFAULT '',
+  `notified_at` DATETIME    NULL DEFAULT NULL,
   `is_hidden`  TINYINT(1)   NOT NULL DEFAULT 0,  -- hidden from the wishes wall by the admin
   `visitor_id` CHAR(32)     NOT NULL,
   `ip_address` VARCHAR(45)  NOT NULL DEFAULT '',
@@ -112,13 +117,13 @@ CREATE TABLE IF NOT EXISTS `settings` (
 INSERT IGNORE INTO `settings` (`name`, `value`) VALUES ('baby_gender', ''), ('revealed', '0');
 
 -- -----------------------------------------------------------------------------
--- Sample registry items. PRICES ARE ROUGH ESTIMATES in Naira – please check
--- and change them in the admin (Gift items). Set a price to 0 to let guests
--- type the amount they want to send for that item.
+-- Sample registry items. Guests only ever see the item names. The price column
+-- is a private estimate for your own reference (admin only) and may be 0.
+-- quantity_needed = how many people can pick the item before it is greyed out.
 -- -----------------------------------------------------------------------------
 INSERT INTO `items` (`name`, `description`, `category`, `price`, `quantity_needed`, `is_open_amount`, `emoji`, `sort_order`) VALUES
-('Diapers',                          'Newborn and size 1 packs',  'Diapering',               15000.00, 10, 0, '🧷', 10),
-('Baby wipes',                       '10 packs',                  'Diapering',               20000.00, 1, 0, '🧻', 20),
+('Diapers',                          '',                          'Diapering',                15000.00, 1, 0, '🧷', 10),
+('Baby wipes',                       '',                          'Diapering',               20000.00, 1, 0, '🧻', 20),
 ('Diaper cream',                     '',                          'Diapering',                6000.00, 1, 0, '🧴', 30),
 ('Changing mat, pad or table',       '',                          'Diapering',               25000.00, 1, 0, '🛏️', 40),
 ('Diaper bag',                       '',                          'Diapering',               30000.00, 1, 0, '🎒', 50),
@@ -163,4 +168,4 @@ INSERT INTO `items` (`name`, `description`, `category`, `price`, `quantity_neede
 ('Nail trimmer',                     '',                          'Nursery',                  4000.00, 1, 0, '✂️', 680),
 ('Hand sanitiser',                   '',                          'Nursery',                  4000.00, 1, 0, '🫧', 690),
 ('Baby carrier',                     '',                          'Additional',              35000.00, 1, 0, '🦘', 710),
-('Cash gift – any amount',           'Prefer to give cash? Send whatever you are comfortable with.', 'Additional', 0.00, 1, 1, '💝', 720);
+('Cash gift',                        'Send whatever you are comfortable with', 'Additional', 0.00, 1, 1, '💝', 720);

@@ -141,3 +141,6 @@ label.check { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .bar-boy { background: #6aa6e8; }
 .bar-girl { background: #e0699a; }
 .spaced { margin-top: 32px; }
+.name-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+.name-chip { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-weight: 600; }
+.name-chip small { color: var(--muted); font-weight: 400; }

@@ -156,10 +156,10 @@ function visitor_guess(string $visitorId): ?array
 /** Notes from guesses and pledges that may be shown on the wishes wall, newest first. */
 function fetch_wishes(int $limit = 60): array
 {
-    $sql = "(SELECT 'guess' AS source, g.id, g.name, g.message, g.guess, g.created_at
-             FROM gender_guesses g WHERE g.is_hidden = 0 AND g.message <> '')
+    $sql = "(SELECT 'guess' AS source, g.id, g.name, g.message, g.guess, g.baby_name, g.created_at
+             FROM gender_guesses g WHERE g.is_hidden = 0 AND (g.message <> '' OR g.baby_name <> ''))
             UNION ALL
-            (SELECT 'pledge' AS source, p.id, p.full_name AS name, p.message, NULL AS guess, p.created_at
+            (SELECT 'pledge' AS source, p.id, p.full_name AS name, p.message, NULL AS guess, '' AS baby_name, p.created_at
              FROM pledges p WHERE p.share_message = 1 AND p.message <> '' AND p.status <> 'cancelled')
             ORDER BY created_at DESC LIMIT " . (int) $limit;
     return db()->query($sql)->fetchAll();

@@ -44,7 +44,7 @@ admin_header('Gift items', 'items.php');
 
 <div class="table-wrap">
 <table class="table">
-    <thead><tr><th>Item</th><th>Category</th><th>Price</th><th>Pledged</th><th>Shown</th><th class="right">Actions</th></tr></thead>
+    <thead><tr><th>Item</th><th>Category</th><th>Est. value</th><th>Pledged</th><th>Shown</th><th class="right">Actions</th></tr></thead>
     <tbody>
     <?php foreach ($items as $item): ?>
         <tr class="<?= $item['is_active'] ? '' : 'is-muted' ?>">
@@ -52,7 +52,7 @@ admin_header('Gift items', 'items.php');
                 <a class="strong" href="item-edit.php?id=<?= $item['id'] ?>"><?= e($item['emoji'] . ' ' . $item['name']) ?></a>
             </td>
             <td data-label="Category"><?= e($item['category']) ?></td>
-            <td data-label="Price" class="nowrap"><?= $item['is_open_amount'] ? 'Any amount' : ($item['price'] > 0 ? e(money($item['price'])) : 'Guest chooses') ?></td>
+            <td data-label="Price" class="nowrap"><?= $item['is_open_amount'] ? 'Cash gift' : ($item['price'] > 0 ? e(money($item['price'])) : '–') ?></td>
             <td data-label="Pledged">
                 <?= $item['is_open_amount']
                     ? e($item['pledged_qty'] . ' gifts · ' . money((float) $item['pledged_amount']))

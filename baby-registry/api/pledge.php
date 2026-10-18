@@ -35,8 +35,6 @@ $phoneRaw = trim((string) ($_POST['phone'] ?? ''));
 $phone    = normalize_phone($phoneRaw);
 $email    = trim((string) ($_POST['email'] ?? ''));
 $whatsapp = !empty($_POST['whatsapp']);
-$qty      = max(1, (int) ($_POST['quantity'] ?? 1));
-$amountIn = (float) str_replace([',', ' '], '', (string) ($_POST['amount'] ?? '0'));
 $dateRaw  = (string) ($_POST['payment_date'] ?? '');
 $message  = trim((string) ($_POST['message'] ?? ''));
 $share    = !empty($_POST['share_message']) && $message !== '';
@@ -89,34 +87,17 @@ try {
         json_response(['ok' => false, 'error' => 'That gift is no longer available.'], 404);
     }
 
-    // Cash funds, and items without a set price, let the guest choose the amount.
-    $chooseAmount = $item['is_open_amount'] || (float) $item['price'] <= 0;
-    if ($chooseAmount) {
-        $qty = 1;
-        $amount = round($amountIn, 2);
-        if ($amount < 100 || $amount > 100000000) {
-            $pdo->rollBack();
-            json_response(['ok' => false, 'error' => 'Please check the highlighted fields.',
-                           'fields' => ['amount' => 'Please enter the amount you would like to give.']], 422);
-        }
-    }
+    // Guests pick an item, not an amount: one per pledge. The stored amount is the
+    // item's private estimate (0 when none), which only the admin ever sees.
+    $qty = 1;
+    $amount = round((float) $item['price'], 2);
 
     if (!$item['is_open_amount']) {
         $taken = $pdo->prepare("SELECT COALESCE(SUM(quantity), 0) FROM pledges WHERE item_id = ? AND status IN ('pending', 'paid')");
         $taken->execute([$itemId]);
-        $remaining = (int) $item['quantity_needed'] - (int) $taken->fetchColumn();
-
-        if ($remaining <= 0) {
+        if ((int) $item['quantity_needed'] - (int) $taken->fetchColumn() <= 0) {
             $pdo->rollBack();
-            json_response(['ok' => false, 'error' => 'Someone has just picked the last one of this gift. Please choose another.'], 409);
-        }
-        if ($qty > $remaining) {
-            $pdo->rollBack();
-            json_response(['ok' => false, 'error' => "Only {$remaining} still needed – please lower the quantity.",
-                           'fields' => ['quantity' => "Only {$remaining} still needed."]], 409);
-        }
-        if (!$chooseAmount) {
-            $amount = round((float) $item['price'] * $qty, 2);
+            json_response(['ok' => false, 'error' => 'Someone has just picked this gift. Please choose another one.'], 409);
         }
     }
 
@@ -164,7 +145,6 @@ json_response([
     ],
     'summary'   => [
         'gift'         => pledge_summary($pledge)['label'],
-        'amount'       => money((float) $pledge['amount']),
         'payment_date' => nice_date($pledge['payment_date']),
         'date_iso'     => $pledge['payment_date'],
         'is_today'     => $pledge['payment_date'] <= date('Y-m-d'),

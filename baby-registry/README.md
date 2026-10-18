@@ -7,26 +7,35 @@ settings file.
 
 **What it does**
 
-- **Guess the gender game:** the page opens with a balloon. Guests pick 💙 Boy or 💗 Girl (they can add
-  their name and a wish), then **tap to pop the balloon**, with confetti, a pop sound and vibration on phones.
-  - *While it's still a secret:* popping shows a live vote count ("67% think girl") and a countdown
-    to your reveal day.
-  - *After you press "Reveal now" in the admin:* popping shows **"It's a girl!"** or **"It's a boy!"**,
-    tells each guest whether they guessed right, and the whole page turns pink or blue. Guests who
-    guessed earlier get to pop the balloon again for the real answer.
-  - The gender is **never sent to the browser before you reveal it**, so nobody can peek in the
-    page source.
-- **Wishes wall:** the notes guests leave with their guess or gift (if they agree to share them).
-- Guests browse the registry, pick a gift (or give any amount to a cash fund), and enter their
-  **full name, phone number, email and the date they want to pay**.
-- They get a **confirmation email** straight away. **On the date they chose, they get a reminder**
-  by email, and by WhatsApp if they ticked that option. The reminder names the gift, the amount
-  and your **bank account details**.
+Guests move through the site one screen at a time:
+
+1. **Welcome.** "Welcome to the Uzorka family", a floating balloon and one big **Take a guess**
+   button. The registry is not shown here; a small "skip" link is there for guests who only want it.
+2. **Guess.** Pick 💙 Boy or 💗 Girl, **suggest a name for the baby**, add your name and a wish.
+   Guests can also leave an email or WhatsApp number to be told when the gender is revealed.
+3. **Pop the balloon.** One tap bursts it, with confetti, a pop sound and vibration on phones.
+4. **Result.**
+   - *While it's still a secret:* "It's still a secret 🤫", the live vote count ("75% think girl"),
+     a countdown to your reveal day, and "We'll message you the moment it's revealed".
+   - *After you press "Reveal now" in the admin:* **"It's a girl!"** or **"It's a boy!"**, whether
+     the guest guessed right, and the page turns pink or blue. Everyone who left an email or
+     WhatsApp number is sent the news automatically, and earlier guests get to pop the balloon
+     again for the real answer.
+   - The gender is **never sent to the browser before you reveal it**, so nobody can peek.
+5. **Registry.** Only the **names** of the items: no prices and no quantities. Guests tap
+   **I'll get this** and give their **full name, phone, email and the day they will send it**.
+   Anything someone has already picked is **greyed out** ("Someone has picked this 💛").
+
+After that:
+
+- Guests get a **confirmation email** straight away, and **on the day they chose, a reminder**
+  by email (and WhatsApp if they ticked it) with the gift and your **bank account details**.
 - If a gift is still unpaid a few days later, one gentle follow-up goes out (optional).
-- When someone picks the last of an item, it shows as *Gifted* so nobody buys it twice.
+- The **wishes wall** shows the wishes and suggested names guests chose to share.
 - The **admin dashboard** lists every pledge. Click **Mark paid** and the guest automatically gets a
   **thank-you email/WhatsApp**. You can also send reminders by hand, change dates, cancel pledges,
-  export everything to Excel/CSV, and add, edit or hide gift items (with photos).
+  see every guess and suggested baby name, export everything to Excel/CSV, and add, edit or hide
+  gift items (with photos).
 
 ---
 
@@ -64,9 +73,9 @@ baby-registry/
 3. Open the **Import** tab, choose `database/schema.sql` and click **Import**.
 
 This creates the tables and the gift list from your sample (Diapering, Feeding, Laundry and
-Bathing, Clothing, For Mum, Nursery, Additional), plus a cash gift option. **The prices are rough
-estimates**, so please check them in the admin (Gift items). An item with price 0 lets the guest
-type the amount they will send.
+Bathing, Clothing, For Mum, Nursery, Additional), plus a cash gift option. Guests only ever see
+the item names. Each item has an optional *estimated value*, which only you see in the admin
+(the sample values are rough guesses; change or clear them as you like).
 
 If you already imported an earlier version of `schema.sql`, delete the tables in phpMyAdmin first
 (select all → Drop), then import again.
@@ -164,20 +173,23 @@ month are free. You need:
 2. A phone number for the business. It cannot also be used in the normal WhatsApp app.
 3. A **permanent access token** (System User in Business Settings) and the **Phone number ID**.
    Put both in `config.php`.
-4. **Three message templates**, created and approved in WhatsApp Manager
+4. **Four message templates**, created and approved in WhatsApp Manager
    (category *Utility*, language *English*). Use these names, or change the names in `config.php`.
    Each `{{n}}` must be in this order:
 
    **gift_pledge_confirmation**
-   > Hi {{1}}, thank you for pledging {{2}} ({{3}}) for our baby! You chose to send it on {{4}}.
-   > Account details: {{5}}. Please use reference {{6}} as the transfer description.
+   > Hi {{1}}, thank you for choosing to get {{2}} for our baby! You chose to send it on {{3}}.
+   > Account details: {{4}}. Please use reference {{5}} as the transfer description.
 
    **gift_payment_reminder** (also used for the follow-up)
-   > Hi {{1}}, this is a friendly reminder about your gift for our baby: {{2}} ({{3}}).
-   > Please send it to {{4}} using reference {{5}}. Thank you so much!
+   > Hi {{1}}, this is a friendly reminder about your gift for our baby: {{2}}.
+   > Please send it to {{3}} using reference {{4}}. Thank you so much!
 
    **gift_thank_you**
    > Hi {{1}}, we have received your gift ({{2}}). Thank you so much for your love and support! – {{3}}
+
+   **gender_reveal_news**
+   > Hi {{1}}, the secret is out: we are expecting {{2}}! {{3}} Come and see the registry: {{4}}
 
 You can reword the templates as you like, as long as the number and order of `{{n}}` stay the
 same.
@@ -193,7 +205,7 @@ Email is always sent either way, so WhatsApp is an extra.
 
 | Page | What you can do |
 | --- | --- |
-| **Guesses & wishes** | Set the baby's gender (kept secret), press **🎉 Reveal now** on reveal day (you can undo it), see the boy/girl vote count and who guessed right, and hide or delete any wish from the wall. |
+| **Guesses & wishes** | Set the baby's gender (kept secret), press **🎉 Reveal now** on reveal day (this also emails/WhatsApps everyone who asked to be told; you can undo the reveal), see the boy/girl vote count, every suggested baby name and who guessed right, and hide or delete any wish from the wall. If WhatsApp is not set up, guests who only left a WhatsApp number are listed with a button each to send them the news by hand. |
 | **Pledges** | Tabs: *Needs action* (due or overdue), Pending, Paid, Cancelled, All. Search by name, phone, email or reference. **✓ Mark paid** sends the thank-you. **Send reminder** sends it right now. **WhatsApp** opens a ready-written chat. |
 | Pledge details (click a name) | Change the payment date (a new reminder is scheduled for the new date), add a private note, see every email/WhatsApp sent and whether it worked, cancel (frees up the gift), mark as not paid, delete. |
 | **Gift items** | Add, edit, hide or delete gifts. Set price and quantity needed (e.g. 20 packs of diapers), upload a photo or use an emoji, choose a category and display order. Tick *Any amount* for a cash fund. |

@@ -1,7 +1,8 @@
-/* Baby Registry – public page behaviour:
- *   1. Gender guess + balloon pop (with confetti, sound and vibration)
- *   2. Registry list: category scroll-spy, reveal animations, hide taken
- *   3. Pledge bottom sheet
+/* Baby Registry – public page behaviour.
+ *
+ * The page is a sequence of screens, switched with the address hash so the
+ * phone's back button works:
+ *   #welcome → #guess → #pop → #result → #registry
  */
 (function () {
     'use strict';
@@ -21,11 +22,6 @@
      * Helpers
      * =================================================================== */
 
-    function money(n) {
-        var decimals = Math.floor(n) === n ? 0 : 2;
-        return cfg.currency + Number(n).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    }
-
     function toast(text) {
         var el = document.createElement('div');
         el.className = 'toast';
@@ -43,7 +39,7 @@
     function store(key, value) {
         try {
             if (value === undefined) { return JSON.parse(localStorage.getItem(key) || 'null'); }
-            if (value === null) { localStorage.removeItem(key); } else { localStorage.setItem(key, JSON.stringify(value)); }
+            localStorage.setItem(key, JSON.stringify(value));
         } catch (e) { return null; }
         return null;
     }
@@ -64,6 +60,8 @@
         return fetch(url, { method: 'POST', body: formData, credentials: 'same-origin' })
             .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Unexpected server response.' }; }); });
     }
+
+    function guessLabel(g) { return g === 'boy' ? 'Boy 💙' : 'Girl 💗'; }
 
     /* A short "pop" made with the Web Audio API (no sound file needed). */
     var audioCtx = null;
@@ -108,12 +106,10 @@
             var speed = 4 + Math.random() * 9;
             particles.push({
                 x: originX, y: originY,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 6,
+                vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 6,
                 w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
                 r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
-                color: colors[i % colors.length],
-                life: 0
+                color: colors[i % colors.length], life: 0
             });
         }
         if (!running) { running = true; requestAnimationFrame(frame); }
@@ -147,115 +143,207 @@
     };
 
     /* =====================================================================
-     * 1. Gender guess + balloon
+     * Visitor state
      * =================================================================== */
 
-    var intro = $('#intro');
-    var stage = $('#stage');
-    var result = $('#result');
-    var balloon = $('#balloon');
-    var hint = $('#balloon-hint');
-    var guessPanel = $('#guess-panel');
-    var guessForm = $('#guess-form');
-    var picked = data.myGuess || null;     // 'boy' | 'girl'
-    var locked = !!data.myGuess;           // guess saved on the server
-    var POP_KEY = 'registry_popped';
+    var STATE_KEY = 'registry_state';
+    var saved = store(STATE_KEY) || {};
+    var state = {
+        guess: data.myGuess || saved.guess || null,   // 'boy' | 'girl'
+        locked: !!data.myGuess,                        // guess saved on the server
+        notify: !!saved.notify,                        // left contact details for the reveal
+        popped: saved.popped || null                   // 'secret' | 'boy' | 'girl': what the balloon showed
+    };
+    function persist() { store(STATE_KEY, { guess: state.guess, notify: state.notify, popped: state.popped }); }
+    function poppedCurrent() { return state.popped === (reveal.revealed ? reveal.gender : 'secret'); }
 
-    function canPop() { return !!picked && (locked || reveal.revealed); }
+    if (reveal.revealed && poppedCurrent()) { setTheme(reveal.gender); }
+
+    /* =====================================================================
+     * Screens
+     * =================================================================== */
+
+    var SCREENS = ['welcome', 'guess', 'pop', 'result', 'registry'];
+    var REGISTRY_ANCHORS = /^(cat-|reg|wishes|bank)/;
+
+    function go(name, replace) {
+        if (replace) { history.replaceState(null, '', '#' + name); route(); } else { location.hash = name; }
+    }
+
+    function showScreen(name) {
+        SCREENS.forEach(function (s) { document.getElementById(s).hidden = s !== name; });
+        if (screenInit[name]) { screenInit[name](); }
+    }
+
+    function route() {
+        var hash = decodeURIComponent(location.hash.slice(1));
+
+        if (REGISTRY_ANCHORS.test(hash)) {
+            if ($('#registry').hidden) {
+                showScreen('registry');
+                var target = document.getElementById(hash);
+                if (target) { setTimeout(function () { target.scrollIntoView(); }, 0); }
+            }
+            return;
+        }
+        if (SCREENS.indexOf(hash) === -1) { hash = 'welcome'; }
+
+        // Guards, so a screen is never shown out of order.
+        if (hash === 'guess' && state.locked && !reveal.revealed) { return go('pop', true); }
+        if (hash === 'pop' && !state.guess) { return go('guess', true); }
+        if (hash === 'result' && !poppedCurrent()) { return go(state.guess ? 'pop' : 'welcome', true); }
+
+        showScreen(hash);
+        window.scrollTo(0, 0);
+    }
+
+    var screenInit = {
+        welcome: function () {
+            var q = $('#welcome-q');
+            var cta = $('#welcome-cta');
+            var skip = $('#welcome-skip');
+            updateTallyMini();
+            skip.textContent = 'Skip to the baby registry';
+
+            if (reveal.revealed && !poppedCurrent()) {
+                q.textContent = 'The secret is out! 🎉';
+                cta.textContent = state.guess ? 'Pop the balloon to find out 🎈' : 'Take a guess, then find out 🎈';
+                cta.href = state.guess ? '#pop' : '#guess';
+            } else if (poppedCurrent()) {
+                q.textContent = reveal.revealed
+                    ? (reveal.gender === 'girl' ? "It's a girl! 💗" : "It's a boy! 💙")
+                    : 'You guessed ' + guessLabel(state.guess) + '. The reveal is coming soon!';
+                cta.textContent = 'See the baby registry →';
+                cta.href = '#registry';
+                skip.textContent = reveal.revealed ? 'See the result again' : 'See what everyone guessed';
+                skip.href = '#result';
+                return;
+            } else if (state.guess) {
+                q.textContent = 'You guessed ' + guessLabel(state.guess) + '. Ready to pop the balloon?';
+                cta.textContent = 'Pop the balloon 🎈';
+                cta.href = '#pop';
+            } else {
+                q.textContent = 'Boy or girl? What do you think?';
+                cta.textContent = 'Take a guess 🎈';
+                cta.href = '#guess';
+            }
+            skip.href = '#registry';
+        },
+        guess: function () {
+            $('#notify-box').hidden = reveal.revealed;
+            if (state.guess) { pick(state.guess, true); }
+        },
+        pop: function () {
+            balloon.classList.remove('is-popping', 'is-gone');
+            $('#shards').innerHTML = '';
+            if (!poppedCurrent()) { setTheme('neutral'); }
+            $('#pop-sub').textContent = 'You guessed ' + guessLabel(state.guess) +
+                (reveal.revealed ? '. Pop it to see if you were right!' : '. Pop it to see what everyone thinks!');
+            setTimeout(function () { balloon.focus({ preventScroll: true }); }, 300);
+        },
+        result: function () { renderResult(); },
+        registry: function () {
+            var due = $('[data-due]');
+            if (due) {
+                var d = daysUntil(due.dataset.due);
+                due.textContent = d > 1 ? '👶 Baby arrives in about ' + d + ' days' : (d >= 0 ? '👶 Baby is due any moment!' : '');
+            }
+        }
+    };
+
+    window.addEventListener('hashchange', route);
 
     function updateTallyMini() {
         var el = $('#tally-mini');
-        if (!el) { return; }
         el.textContent = tally.total > 0
             ? tally.total + (tally.total === 1 ? ' person has' : ' people have') + ' guessed so far'
             : 'Be the first to guess!';
     }
 
-    function guessLabel(g) { return g === 'boy' ? 'Boy 💙' : 'Girl 💗'; }
+    /* =====================================================================
+     * Guess screen
+     * =================================================================== */
 
-    function refreshStage() {
-        intro.classList.toggle('can-pop', canPop());
-        $$('.guess-btn').forEach(function (b) {
-            b.classList.toggle('is-picked', b.dataset.guess === picked);
-            b.disabled = locked;
+    var guessForm = $('#guess-form');
+    var babyName = $('#g-baby-name');
+
+    function pick(guess, quiet) {
+        if (state.locked && guess !== state.guess) { return; }
+        state.guess = guess;
+        $$('.pick-card').forEach(function (b) {
+            b.setAttribute('aria-checked', String(b.dataset.guess === guess));
+            b.disabled = state.locked && b.dataset.guess !== guess;
         });
-
-        if (locked) {
-            guessForm.hidden = true;
-            hint.textContent = reveal.revealed
-                ? 'Your guess was ' + guessLabel(picked) + '. Tap the balloon to see if you were right!'
-                : 'Your guess: ' + guessLabel(picked) + ' is locked in. Now tap the balloon!';
-        } else if (canPop()) {
-            hint.textContent = 'You picked ' + guessLabel(picked) + '. Now tap the balloon to pop it!';
-        } else if (picked) {
-            hint.textContent = 'Lock in your guess, then pop the balloon';
-        } else {
-            hint.textContent = 'Boy or girl? Make your guess, then tap the balloon';
-        }
+        babyName.placeholder = guess === 'boy' ? 'e.g. Chidi, Daniel, Tobi' : 'e.g. Amara, Zara, Ada';
+        $('[data-error="guess"]').textContent = '';
+        if (!quiet) { vibrate(15); }
     }
 
-    function pick(guess) {
-        if (locked) { return; }
-        picked = guess;
-        vibrate(15);
-        // Once the gender is revealed, guesses are just for fun and are not saved.
-        guessForm.hidden = reveal.revealed;
-        if (!reveal.revealed) {
-            setTimeout(function () { guessForm.querySelector('input[name="name"]').focus({ preventScroll: true }); }, 50);
-        }
-        refreshStage();
-    }
-
-    $$('.guess-btn').forEach(function (btn) {
+    $$('.pick-card').forEach(function (btn) {
         btn.addEventListener('click', function () { pick(btn.dataset.guess); });
     });
 
-    if (guessForm) {
-        guessForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            if (!picked) { return; }
-            var btn = $('#guess-submit');
-            var errorEl = $('#guess-error');
-            errorEl.textContent = '';
-            btn.classList.add('is-loading');
+    guessForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var errorEl = $('#guess-error');
+        errorEl.textContent = '';
+        $$('[data-error]', guessForm).forEach(function (p) { p.textContent = ''; });
 
-            var fd = new FormData(guessForm);
-            fd.append('guess', picked);
-            fd.append('token', data.token);
-
-            post('api/guess.php', fd).then(function (res) {
-                if (!res.ok) { errorEl.textContent = res.error || 'Please try again.'; return; }
-                picked = res.guess;
-                locked = true;
-                tally = res.tally || tally;
-                updateTallyMini();
-                var msg = guessForm.message.value.trim();
-                if (msg) { addWish(guessForm.name.value.trim(), msg, 'guess', picked); }
-                refreshStage();
-                vibrate([20, 40, 20]);
-                balloon.focus({ preventScroll: true });
-            }).catch(function () {
-                errorEl.textContent = 'Network error – please check your connection.';
-            }).then(function () { btn.classList.remove('is-loading'); });
-        });
-    }
-
-    balloon.addEventListener('click', function () {
-        if (!canPop()) {
-            balloon.classList.remove('is-wiggling');
-            void balloon.offsetWidth;
-            balloon.classList.add('is-wiggling');
-            guessPanel.classList.remove('is-shaking');
-            void guessPanel.offsetWidth;
-            guessPanel.classList.add('is-shaking');
-            hint.textContent = picked ? 'Lock in your guess first 👇' : 'Make your guess first 👇';
+        if (!state.guess) {
+            $('[data-error="guess"]').textContent = 'Tap Boy or Girl first.';
+            var cards = $('.pick');
+            cards.classList.remove('is-shaking');
+            void cards.offsetWidth;
+            cards.classList.add('is-shaking');
             vibrate(30);
             return;
         }
-        popBalloon();
+
+        // After the reveal, guesses are just for fun and are not saved.
+        if (reveal.revealed || state.locked) {
+            persist();
+            go('pop');
+            return;
+        }
+
+        var btn = $('#guess-submit');
+        btn.classList.add('is-loading');
+        var fd = new FormData(guessForm);
+        fd.append('guess', state.guess);
+        fd.append('token', data.token);
+
+        post('api/guess.php', fd).then(function (res) {
+            if (!res.ok) {
+                errorEl.textContent = res.error || 'Please try again.';
+                Object.keys(res.fields || {}).forEach(function (k) {
+                    var p = $('[data-error="' + k + '"]', guessForm);
+                    if (p) { p.textContent = res.fields[k]; }
+                });
+                return;
+            }
+            state.guess = res.guess;
+            state.locked = true;
+            state.notify = !!res.notify;
+            tally = res.tally || tally;
+            persist();
+            var msg = guessForm.message.value.trim();
+            var name = babyName.value.trim();
+            if (msg || name) { addWish(guessForm.name.value.trim(), msg, 'guess', state.guess, name); }
+            vibrate([20, 40, 20]);
+            go('pop');
+        }).catch(function () {
+            errorEl.textContent = 'Network error. Please check your connection and try again.';
+        }).then(function () { btn.classList.remove('is-loading'); });
     });
 
-    function popBalloon() {
+    /* =====================================================================
+     * Pop screen
+     * =================================================================== */
+
+    var balloon = $('#balloon');
+
+    balloon.addEventListener('click', function () {
+        if (balloon.classList.contains('is-popping')) { return; }
         var rect = balloon.getBoundingClientRect();
         var cx = rect.left + rect.width / 2;
         var cy = rect.top + rect.height * 0.35;
@@ -269,9 +357,11 @@
             if (reveal.revealed) { setTheme(reveal.gender); }
             burstShards();
             confetti(PALETTE[reveal.revealed ? reveal.gender : 'neutral'], cx, cy, 220);
-            setTimeout(function () { showResult(false); }, reducedMotion ? 0 : 750);
+            state.popped = reveal.revealed ? reveal.gender : 'secret';
+            persist();
+            setTimeout(function () { go('result'); }, reducedMotion ? 0 : 900);
         }, reducedMotion ? 0 : 260);
-    }
+    });
 
     function burstShards() {
         var box = $('#shards');
@@ -289,17 +379,18 @@
                 });
             }(s, Math.cos(a) * d, Math.sin(a) * d + 40, Math.random() * 360));
         }
-        setTimeout(function () { box.innerHTML = ''; }, 1200);
     }
 
-    function showResult(instant) {
-        stage.hidden = true;
-        result.hidden = false;
-        if (instant) { result.style.animation = 'none'; }
+    /* =====================================================================
+     * Result screen
+     * =================================================================== */
 
+    function renderResult() {
         var title = $('#result-title');
         var you = $('#result-you');
+        var notify = $('#result-notify');
         var family = cfg.familyName;
+        notify.textContent = '';
 
         if (reveal.revealed) {
             var g = reveal.gender;
@@ -308,16 +399,11 @@
             title.textContent = g === 'girl' ? "It's a girl!" : "It's a boy!";
             title.classList.remove('is-secret');
             $('#result-sub').textContent = 'Welcome, Baby ' + (g === 'girl' ? 'Girl' : 'Boy') + ' ' + family;
-            if (picked) {
-                you.textContent = picked === g
-                    ? 'You guessed right! 🎉'
-                    : 'You guessed ' + (picked === 'boy' ? 'boy' : 'girl') + '. So close! 😄';
-            } else {
-                you.textContent = '';
-            }
-            var right = tally[g] || 0;
+            you.textContent = state.guess === g
+                ? 'You guessed right! 🎉'
+                : 'You guessed ' + state.guess + '. So close! 😄';
             $('#tally-total').textContent = tally.total
-                ? Math.round(right / tally.total * 100) + '% of ' + tally.total + ' guests guessed right'
+                ? Math.round((tally[g] || 0) / tally.total * 100) + '% of ' + tally.total + ' guests guessed right'
                 : '';
             $('#result-countdown').textContent = cfg.dueDate && daysUntil(cfg.dueDate) > 0
                 ? 'Arriving in about ' + daysUntil(cfg.dueDate) + ' days'
@@ -325,11 +411,14 @@
         } else {
             setTheme('neutral');
             $('#result-kicker').textContent = 'Your guess is in';
-            title.textContent = "It's still a secret…";
+            title.textContent = "It's still a secret 🤫";
             title.classList.add('is-secret');
-            $('#result-sub').textContent = picked ? 'You guessed ' + guessLabel(picked) + '. Here is what everyone thinks:' : '';
+            $('#result-sub').textContent = 'You guessed ' + guessLabel(state.guess) + '. Here is what everyone thinks:';
             you.textContent = '';
             $('#tally-total').textContent = tally.total + (tally.total === 1 ? ' guess' : ' guesses') + ' so far';
+            notify.textContent = state.notify
+                ? "🔔 We'll message you the moment it's revealed."
+                : '';
             var days = daysUntil(cfg.revealDate);
             $('#result-countdown').textContent = days !== null && days > 0
                 ? 'The big reveal is in ' + days + (days === 1 ? ' day' : ' days') + '. Come back to pop the real balloon! 🎈'
@@ -342,46 +431,16 @@
             $('[data-pct="' + k + '"]').textContent = pct + '%';
             var bar = $('[data-bar="' + k + '"]');
             bar.style.width = '0';
-            setTimeout(function () { bar.style.width = pct + '%'; }, instant ? 0 : 150);
+            setTimeout(function () { bar.style.width = pct + '%'; }, 200);
         });
-
-        store(POP_KEY, { guess: picked, gender: reveal.revealed ? reveal.gender : null });
     }
 
-    $('#replay').addEventListener('click', function () {
-        result.hidden = true;
-        stage.hidden = false;
-        balloon.classList.remove('is-popping', 'is-gone');
-        setTheme('neutral');
-        refreshStage();
-        intro.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' });
-    });
-
-    // Starting state: returning visitors who already popped this version of the balloon
-    // see their result straight away. If the gender was revealed since, they pop again.
-    (function initIntro() {
-        updateTallyMini();
-        var popped = store(POP_KEY);
-        if (popped && popped.guess && !picked) { picked = popped.guess; }
-        var sameState = popped && (reveal.revealed ? popped.gender === reveal.gender : popped.gender === null);
-        if (sameState && picked) {
-            balloon.classList.add('is-gone');
-            showResult(true);
-        } else if (popped && reveal.revealed && popped.gender === null) {
-            refreshStage();
-            hint.textContent = canPop()
-                ? 'The secret is out! You guessed ' + guessLabel(picked) + '. Pop the balloon 🎈'
-                : 'The secret is out! Make your guess, then pop the balloon 🎈';
-        } else {
-            refreshStage();
-        }
-    }());
+    $('#replay').addEventListener('click', function () { go('pop'); });
 
     /* =====================================================================
-     * 2. Registry list
+     * Registry screen
      * =================================================================== */
 
-    var registry = $('#reg');
     var navLinks = $$('#cat-nav a');
 
     // Highlight the category currently on screen and keep its chip visible.
@@ -402,42 +461,19 @@
         $$('.cat').forEach(function (c) { spy.observe(c); });
     }
 
-    // Rows gently slide in as you scroll.
-    if ('IntersectionObserver' in window && !reducedMotion) {
-        var appear = new IntersectionObserver(function (entries) {
-            entries.forEach(function (entry) {
-                if (entry.isIntersecting) {
-                    entry.target.classList.remove('will-reveal');
-                    appear.unobserve(entry.target);
-                }
-            });
-        }, { rootMargin: '0px 0px -8% 0px' });
-        $$('.row').forEach(function (row) {
-            if (row.getBoundingClientRect().top > window.innerHeight) {
-                row.classList.add('will-reveal');
-                appear.observe(row);
-            }
+    // Category chips scroll within the registry without changing screens.
+    navLinks.forEach(function (a) {
+        a.addEventListener('click', function (e) {
+            var target = document.getElementById(a.dataset.target);
+            if (!target) { return; }
+            e.preventDefault();
+            target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' });
         });
-    }
+    });
 
     var hideTaken = $('#hide-taken');
     if (hideTaken) {
-        hideTaken.addEventListener('change', function () { registry.classList.toggle('hide-done', hideTaken.checked); });
-    }
-
-    var due = $('[data-due]');
-    if (due) {
-        var d = daysUntil(due.dataset.due);
-        due.textContent = d > 1 ? '👶 Baby arrives in about ' + d + ' days' : (d >= 0 ? '👶 Baby is due any moment!' : '');
-    }
-
-    function updateTakenCount() {
-        var fixed = data.items.filter(function (i) { return !i.open; });
-        var taken = fixed.filter(function (i) { return i.remaining === 0; }).length;
-        var count = $('#taken-count');
-        var bar = $('#taken-bar');
-        if (count) { count.textContent = taken; }
-        if (bar) { bar.style.width = Math.round(taken / Math.max(1, fixed.length) * 100) + '%'; }
+        hideTaken.addEventListener('change', function () { $('#reg').classList.toggle('hide-done', hideTaken.checked); });
     }
 
     $$('[data-copy]').forEach(function (btn) {
@@ -454,21 +490,28 @@
     });
 
     /* Wishes wall */
-    function addWish(name, message, source, guess) {
+    function addWish(name, message, source, guess, suggested) {
         var wall = $('#wall');
-        if (!wall || !message) { return; }
+        if (!wall || !(message || suggested)) { return; }
         var fig = document.createElement('figure');
         fig.className = 'wish';
-        var q = document.createElement('blockquote');
-        q.textContent = message;
+        if (message) {
+            var q = document.createElement('blockquote');
+            q.textContent = message;
+            fig.appendChild(q);
+        }
         var cap = document.createElement('figcaption');
-        cap.textContent = name || 'A loved one';
-        var tag = document.createElement('span');
-        tag.className = 'tag';
-        tag.textContent = source === 'guess' ? (guess === 'boy' ? '💙 guessed boy' : '💗 guessed girl') : '🎁 sent a gift';
-        cap.appendChild(document.createTextNode(' '));
-        cap.appendChild(tag);
-        fig.appendChild(q);
+        cap.textContent = (name || 'A loved one') + ' ';
+        var tags = source === 'guess'
+            ? [guess === 'boy' ? '💙 guessed boy' : '💗 guessed girl'].concat(suggested ? ['suggests “' + suggested + '”'] : [])
+            : ['🎁 picked a gift'];
+        tags.forEach(function (t) {
+            var tag = document.createElement('span');
+            tag.className = 'tag';
+            tag.textContent = t;
+            cap.appendChild(tag);
+            cap.appendChild(document.createTextNode(' '));
+        });
         fig.appendChild(cap);
         wall.insertBefore(fig, wall.firstChild);
         var empty = $('#wall-empty');
@@ -476,24 +519,19 @@
     }
 
     /* =====================================================================
-     * 3. Pledge bottom sheet
+     * Gift form (bottom sheet)
      * =================================================================== */
 
     var modal = $('#pledge-modal');
     var form = $('#pledge-form');
-    if (!modal || !form) { return; }
 
     var stepForm = $('[data-step="form"]', form);
     var stepDone = $('[data-step="done"]', form);
-    var qtyInput = $('#f-quantity');
-    var amountInput = $('#f-amount');
     var dateInput = $('#f-date');
     var submitBtn = $('#submit-btn');
     var formError = $('#form-error');
     var current = null;
     var lastTrigger = null;
-
-    function choosesAmount(item) { return item.open || !(item.price > 0); }
 
     function showStep(name) {
         stepForm.hidden = name !== 'form';
@@ -516,18 +554,6 @@
         });
         var first = $('.has-error input, .has-error textarea', form);
         if (first) { first.focus(); }
-    }
-
-    function updatePrice() {
-        if (!current) { return; }
-        var price = $('#modal-price');
-        if (choosesAmount(current)) {
-            var amt = parseFloat(amountInput.value.replace(/[, ]/g, ''));
-            price.textContent = amt > 0 ? money(amt) : 'You choose the amount';
-        } else {
-            var q = Math.max(1, parseInt(qtyInput.value, 10) || 1);
-            price.textContent = money(current.price * q) + (q > 1 ? ' (' + q + ' × ' + money(current.price) + ')' : '');
-        }
     }
 
     /* Quick date choices: Today, Tomorrow, Friday, End of month. */
@@ -556,27 +582,13 @@
 
     function syncDateChips() {
         $$('#date-chips .chip').forEach(function (c) { c.classList.toggle('is-active', c.dataset.date === dateInput.value); });
-        var hintEl = $('#date-hint');
         if (!dateInput.value) { return; }
-        var days = daysUntil(dateInput.value);
-        hintEl.textContent = days === 0
+        $('#date-hint').textContent = daysUntil(dateInput.value) === 0
             ? "You'll get our account details right away in your confirmation."
             : "We'll remind you with our account details on " +
               new Date(dateInput.value + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) + '.';
     }
     dateInput.addEventListener('change', syncDateChips);
-
-    $$('#amount-chips .chip').forEach(function (chip) {
-        chip.addEventListener('click', function () {
-            amountInput.value = Number(chip.dataset.amount).toLocaleString('en-US');
-            $$('#amount-chips .chip').forEach(function (c) { c.classList.toggle('is-active', c === chip); });
-            updatePrice();
-        });
-    });
-    amountInput.addEventListener('input', function () {
-        $$('#amount-chips .chip').forEach(function (c) { c.classList.remove('is-active'); });
-        updatePrice();
-    });
 
     function openModal(id, trigger) {
         current = itemsById[id];
@@ -588,17 +600,8 @@
         $('#f-item').value = current.id;
         $('#modal-title').textContent = current.name;
         $('#modal-emoji').textContent = current.emoji;
-
-        var amount = choosesAmount(current);
-        $('#field-quantity').hidden = amount || !(current.remaining > 1);
-        $('#field-amount').hidden = !amount;
-        qtyInput.value = 1;
-        qtyInput.max = current.remaining || 1;
-        amountInput.value = '';
-        $$('#amount-chips .chip').forEach(function (c) { c.classList.remove('is-active'); });
         if (!dateInput.value || dateInput.value < cfg.today) { dateInput.value = cfg.today; }
         buildDateChips();
-        updatePrice();
 
         if (typeof modal.showModal === 'function') { modal.showModal(); } else { modal.setAttribute('open', ''); }
         vibrate(10);
@@ -615,16 +618,6 @@
     $$('[data-close]', form).forEach(function (btn) { btn.addEventListener('click', closeModal); });
     modal.addEventListener('click', function (e) { if (e.target === modal) { closeModal(); } });
 
-    $$('[data-qty]', form).forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var max = parseInt(qtyInput.max, 10) || 1;
-            var next = (parseInt(qtyInput.value, 10) || 1) + parseInt(btn.dataset.qty, 10);
-            qtyInput.value = Math.min(max, Math.max(1, next));
-            updatePrice();
-        });
-    });
-    qtyInput.addEventListener('input', updatePrice);
-
     function validate() {
         var errors = {};
         var name = form.full_name.value.trim();
@@ -632,9 +625,6 @@
         if (form.phone.value.replace(/\D/g, '').length < 8) { errors.phone = 'Please enter a valid phone number.'; }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.value.trim())) { errors.email = 'Please enter a valid email address.'; }
         if (!dateInput.value) { errors.payment_date = 'Please choose the day you will send it.'; }
-        if (current && choosesAmount(current) && !(parseFloat(amountInput.value.replace(/[, ]/g, '')) >= 100)) {
-            errors.amount = 'Please enter the amount you would like to send.';
-        }
         return errors;
     }
 
@@ -665,7 +655,7 @@
             updateRow(res.item);
             form.message.value = '';
         }).catch(function () {
-            formError.textContent = 'Network error – please check your connection and try again.';
+            formError.textContent = 'Network error. Please check your connection and try again.';
         }).then(function () {
             submitBtn.classList.remove('is-loading');
             submitBtn.textContent = 'Confirm my gift';
@@ -681,13 +671,14 @@
 
         var dl = $('#done-summary');
         dl.innerHTML = '';
-        [['Gift', s.gift], ['Amount', s.amount], ['Send on', s.payment_date], ['Reference', res.reference]].forEach(function (row) {
+        [['Gift', s.gift], ['Send on', s.payment_date], ['Reference', res.reference]].forEach(function (row) {
             var dt = document.createElement('dt'); dt.textContent = row[0];
             var dd = document.createElement('dd'); dd.textContent = row[1];
             dl.appendChild(dt); dl.appendChild(dd);
         });
         $('#done-email').textContent = s.email_sent ? 'A confirmation has been sent to ' + form.email.value.trim() + '.' : '';
-        $('#calendar-link').href = calendarFile(s, res.reference);
+        var cal = $('#calendar-link');
+        if (cal) { cal.href = calendarFile(s, res.reference); }
         showStep('done');
 
         var theme = document.documentElement.getAttribute('data-theme');
@@ -698,27 +689,17 @@
     function updateRow(item) {
         if (!item || item.remaining === null) { return; }
         itemsById[item.id].remaining = item.remaining;
-
         var row = $('.row[data-id="' + item.id + '"]');
         if (!row) { return; }
-        var total = item.remaining + item.pledged;
-        var bar = $('.mini-bar span', row);
-        if (bar) { bar.style.width = Math.round(item.pledged / Math.max(1, total) * 100) + '%'; }
-        var stock = $('[data-stock-text]', row);
-
         if (item.remaining <= 0) {
             row.classList.add('is-done');
             var btn = $('[data-gift]', row);
             btn.disabled = true;
-            btn.textContent = 'Taken ✓';
-            if (stock) { stock.textContent = 'All taken'; }
-        } else if (stock) {
-            stock.textContent = item.remaining + ' of ' + total + ' still needed';
+            btn.textContent = 'Picked';
         }
         row.classList.remove('is-flash');
         void row.offsetWidth;
         row.classList.add('is-flash');
-        updateTakenCount();
     }
 
     /* A small .ics calendar file so guests can add the payment day to their phone. */
@@ -732,11 +713,14 @@
             'UID:' + ref + '@baby-registry',
             'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z',
             'DTSTART;VALUE=DATE:' + d, 'DTEND;VALUE=DATE:' + isoDate(next).replace(/-/g, ''),
-            'SUMMARY:' + esc('Gift for ' + cfg.babyName + ': ' + s.gift + ' (' + s.amount + ')'),
+            'SUMMARY:' + esc('Gift for ' + cfg.babyName + ': ' + s.gift),
             'DESCRIPTION:' + esc('Reference ' + ref + '. Account details are in your reminder email.'),
             'BEGIN:VALARM', 'TRIGGER:PT9H', 'ACTION:DISPLAY', 'DESCRIPTION:Gift reminder', 'END:VALARM',
             'END:VEVENT', 'END:VCALENDAR'
         ].join('\r\n');
         return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
     }
+
+    /* Start on whatever screen the address asks for. */
+    route();
 }());

@@ -6,6 +6,8 @@
  *   reminder     – on the payment date they chose (cron/send-reminders.php)
  *   followup     – a few days later if still unpaid (optional)
  *   thankyou     – when the admin marks the gift as paid
+ *   reveal       – to everyone who guessed and left contact details, when the
+ *                  admin reveals the gender (reveal_message() below)
  *
  * Edit the wording in pledge_message() below.
  */
@@ -39,14 +41,14 @@ function pledge_message(array $pledge, string $type): array
             $subject = "Thank you for your gift pledge for {$baby} 💛";
             $text = "Hi {$first},\n\n"
                   . "Thank you so much for choosing to bless {$baby}! Here is what you picked:\n\n"
-                  . "Gift: {$sum['label']}\nAmount: {$sum['amount']}\nPayment date: {$date}\nReference: {$ref}\n\n"
+                  . "Gift: {$sum['label']}\nPayment date: {$date}\nReference: {$ref}\n\n"
                   . ($pledge['payment_date'] <= date('Y-m-d')
                       ? "Here are our account details for today:\n\n{$bank}\n\n"
                       : "We will send you a reminder with our account details on {$date}. "
                       . "If you would like to send it earlier, here are the details:\n\n{$bank}\n\n")
                   . "Please use {$ref} as the transfer description so we can match your gift.\n\n"
                   . "With love,\n{$parents}";
-            $params = [$first, $sum['label'], $sum['amount'], $date, bank_details_inline(), $ref];
+            $params = [$first, $sum['label'], $date, bank_details_inline(), $ref];
             break;
 
         case 'reminder':
@@ -59,11 +61,11 @@ function pledge_message(array $pledge, string $type): array
                 : "Just a gentle reminder about the gift you kindly pledged for {$baby} on {$date}. "
                 . "If you have already sent it, thank you – please ignore this message.";
             $text = "Hi {$first},\n\n{$intro}\n\n"
-                  . "Gift: {$sum['label']}\nAmount: {$sum['amount']}\nReference: {$ref}\n\n"
+                  . "Gift: {$sum['label']}\nReference: {$ref}\n\n"
                   . "Please send it to:\n\n{$bank}\n\n"
                   . "Use {$ref} as the transfer description so we can match your gift.\n\n"
                   . "With love and gratitude,\n{$parents}";
-            $params = [$first, $sum['label'], $sum['amount'], bank_details_inline(), $ref];
+            $params = [$first, $sum['label'], bank_details_inline(), $ref];
             break;
 
         case 'thankyou':
@@ -163,11 +165,88 @@ function notify_admin_new_pledge(array $pledge): void
     $sum  = pledge_summary($pledge);
     $text = "New gift pledge on the registry.\n\n"
           . "Name: {$pledge['full_name']}\nPhone: " . display_phone($pledge['phone']) . "\nEmail: {$pledge['email']}\n"
-          . "Gift: {$sum['label']}\nAmount: {$sum['amount']}\nPayment date: " . nice_date($pledge['payment_date']) . "\n"
+          . "Gift: {$sum['label']}\n"
+          . ((float) $pledge['amount'] > 0 ? "Estimated value: {$sum['amount']}\n" : '')
+          . "Payment date: " . nice_date($pledge['payment_date']) . "\n"
           . "Reference: {$pledge['reference']}"
           . ($pledge['message'] !== '' ? "\n\nMessage:\n{$pledge['message']}" : '');
 
     $subject = "New pledge: {$sum['label']} from {$pledge['full_name']}";
     $result  = send_email($to, '', $subject, email_html($subject, $text, false, registry_url() . '/admin/'), $text);
     log_notification((int) $pledge['id'], 'email', 'admin', $to, ...$result);
+}
+
+/* ---- Gender reveal announcement ------------------------------------------ */
+
+/** The "it's a girl/boy!" message for one guess. */
+function reveal_message(array $guess, string $gender): array
+{
+    $site    = registry_config()['site'];
+    $first   = trim(explode(' ', trim($guess['name']))[0]) ?: 'there';
+    $what    = $gender === 'girl' ? 'a baby girl' : 'a baby boy';
+    $right   = $guess['guess'] === $gender;
+    $result  = $right
+        ? 'You guessed ' . $guess['guess'] . ' – you were right! 🎉'
+        : 'You guessed ' . $guess['guess'] . ' – so close! 😄';
+    $link    = registry_url() . '/';
+
+    $subject = ($gender === 'girl' ? "It's a girl! 💗" : "It's a boy! 💙") . ' The ' . $site['family_name'] . ' baby news';
+    $text = "Hi {$first},\n\n"
+          . "The secret is out: the {$site['family_name']} family are expecting {$what}!\n\n"
+          . $result
+          . ($guess['baby_name'] !== '' ? "\n\nThank you for suggesting the name \"{$guess['baby_name']}\"." : '')
+          . "\n\nCome and pop the balloon and see the baby registry:\n{$link}\n\n"
+          . "With love,\n{$site['parents']}";
+
+    return [
+        'subject' => $subject,
+        'text'    => $text,
+        'html'    => email_html($subject, $text, false, $link),
+        'params'  => [$first, $what, $result, $link],
+    ];
+}
+
+/**
+ * Sends the reveal news to every guest who left an email or WhatsApp number
+ * and has not been told yet. Safe to run again: each guest is told only once.
+ *
+ * @return array{sent: int, failed: int, manual: array<int, array>} manual = guests to message by hand on WhatsApp
+ */
+function send_reveal_notifications(): array
+{
+    $state = reveal_state();
+    $summary = ['sent' => 0, 'failed' => 0, 'manual' => []];
+    if (!$state['revealed']) {
+        return $summary;
+    }
+
+    $guesses = db()->query(
+        "SELECT * FROM gender_guesses WHERE notified_at IS NULL AND (email <> '' OR phone <> '') ORDER BY id"
+    )->fetchAll();
+
+    foreach ($guesses as $g) {
+        $msg = reveal_message($g, $state['gender']);
+        $results = [];
+
+        if ($g['email'] !== '') {
+            $results['email'] = send_email($g['email'], $g['name'], $msg['subject'], $msg['html'], $msg['text']);
+            log_notification(null, 'email', 'reveal', $g['email'], ...$results['email']);
+        }
+        if ($g['phone'] !== '') {
+            if (whatsapp_enabled()) {
+                $results['whatsapp'] = send_whatsapp($g['phone'], 'reveal', $msg['params'], $msg['text']);
+                log_notification(null, 'whatsapp', 'reveal', display_phone($g['phone']), ...$results['whatsapp']);
+            } elseif ($g['email'] === '') {
+                $summary['manual'][] = $g + ['link' => whatsapp_click_link($g['phone'], $msg['text'])];
+            }
+        }
+
+        $ok = in_array(true, array_column($results, 0), true);
+        if ($ok || $results === []) {
+            db()->prepare('UPDATE gender_guesses SET notified_at = NOW() WHERE id = ?')->execute([(int) $g['id']]);
+        }
+        $ok ? $summary['sent']++ : ($results ? $summary['failed']++ : null);
+    }
+
+    return $summary;
 }

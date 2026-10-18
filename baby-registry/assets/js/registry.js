@@ -153,6 +153,12 @@
      * =================================================================== */
 
     var STATE_KEY = 'registry_state';
+
+    // After "Start fresh" in the admin, forget this browser's old guess and chosen gifts.
+    if (store('registry_version') !== String(data.dataVersion || '1')) {
+        try { localStorage.removeItem(STATE_KEY); localStorage.removeItem('registry_chosen'); } catch (e) { /* storage blocked */ }
+        store('registry_version', String(data.dataVersion || '1'));
+    }
     var saved = store(STATE_KEY) || {};
     var state = {
         guess: data.myGuess || saved.guess || null,   // 'boy' | 'girl'

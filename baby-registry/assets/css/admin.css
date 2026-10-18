@@ -277,3 +277,11 @@ label.check { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .login .card { display: block; }
 .login .btn { width: 100%; }
 .content-login > .flash { position: absolute; top: 16px; left: 16px; right: 16px; }
+
+/* Start fresh */
+.danger-zone { border-color: #f0c7bf; }
+.danger-zone h2 { color: var(--danger); }
+.danger-zone p { margin: 0 0 8px; }
+.btn-danger-solid { background: var(--danger); color: #fff; }
+.btn-danger-solid:hover { background: #8f1e17; }
+.reset-gender { flex-basis: 100%; margin: 4px 0 0 !important; font-weight: 500; }

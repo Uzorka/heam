@@ -28,6 +28,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : flash('error', "The email could not be sent: {$detail}");
             break;
 
+        case 'reset_data':
+            if (trim((string) ($_POST['confirm'] ?? '')) !== 'CLEAR') {
+                flash('error', 'Nothing was cleared. Type CLEAR (in capital letters) to confirm.');
+                break;
+            }
+            $pdo = db();
+            $pdo->beginTransaction();
+            try {
+                foreach (['pledge_items', 'notification_log', 'pledges', 'gender_guesses'] as $table) {
+                    $pdo->exec("DELETE FROM {$table}");
+                }
+                set_setting('revealed', '0');
+                if (!empty($_POST['reset_gender'])) {
+                    set_setting('baby_gender', '');
+                }
+                // Tells guests' browsers to forget any saved guess or chosen gifts.
+                set_setting('data_version', (string) time());
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                error_log('Registry reset error: ' . $e->getMessage());
+                flash('error', 'Could not clear the data: ' . $e->getMessage());
+                break;
+            }
+            // Start numbering from 1 again (outside the transaction: ALTER TABLE commits on its own).
+            foreach (['pledges', 'gender_guesses', 'notification_log'] as $table) {
+                try {
+                    $pdo->exec("ALTER TABLE {$table} AUTO_INCREMENT = 1");
+                } catch (Throwable $e) {
+                    // Not important if the host does not allow it.
+                }
+            }
+            flash('success', 'All guesses, pledges and messages were cleared. The registry is ready for your guests. 🎉');
+            break;
+
         case 'test_whatsapp':
             $phone = normalize_phone((string) ($_POST['phone'] ?? ''));
             [$ok, $detail] = whatsapp_test($phone);
@@ -65,6 +100,10 @@ if ($config['admin']['notify_email'] !== '' && !filter_var($config['admin']['not
 }
 
 $cronPath = REGISTRY_ROOT . '/cron/send-reminders.php';
+$counts = db()->query(
+    "SELECT (SELECT COUNT(*) FROM gender_guesses) AS guesses, (SELECT COUNT(*) FROM pledges) AS pledges,
+            (SELECT COUNT(*) FROM notification_log) AS messages"
+)->fetch();
 $token = csrf_token();
 
 admin_header('Email & settings', 'settings.php');
@@ -148,6 +187,24 @@ admin_header('Email & settings', 'settings.php');
     </table>
     </div>
     <?php endif; ?>
+</section>
+
+<section class="panel danger-zone">
+    <div class="panel-head"><h2>Start fresh</h2></div>
+    <p>Clears all test activity so the registry starts clean before you share the link:
+        <strong><?= (int) $counts['guesses'] ?></strong> guess(es), <strong><?= (int) $counts['pledges'] ?></strong> pledge(s)
+        (every gift becomes available again) and <strong><?= (int) $counts['messages'] ?></strong> logged message(s).
+        The gender reveal goes back to "secret".</p>
+    <p class="muted small">Kept: your gift list, photos, settings and admin password. Browsers that visited before
+        (like your own phone) also forget their old guess and chosen gifts. This cannot be undone.</p>
+    <form method="post" class="form inline-form">
+        <input type="hidden" name="token" value="<?= e($token) ?>">
+        <label>Type <strong>CLEAR</strong> to confirm
+            <input type="text" name="confirm" autocomplete="off" placeholder="CLEAR" required>
+        </label>
+        <button class="btn btn-danger-solid" name="action" value="reset_data" data-confirm="Clear all guesses, pledges and messages? This cannot be undone.">Clear all test data</button>
+        <label class="check small reset-gender"><input type="checkbox" name="reset_gender" value="1"> Also clear the baby's gender setting</label>
+    </form>
 </section>
 
 <?php admin_footer(); ?>

@@ -20,6 +20,7 @@ $wishes  = [];
 $reveal  = ['revealed' => false, 'gender' => null];
 $tally   = ['boy' => 0, 'girl' => 0, 'total' => 0];
 $myGuess = null;
+$dataVersion = '1';
 $dbError = false;
 try {
     $items   = fetch_items();
@@ -27,6 +28,7 @@ try {
     $tally   = guess_tally();
     $myGuess = visitor_guess($visitor)['guess'] ?? null;
     $wishes  = fetch_wishes();
+    $dataVersion = get_setting('data_version', '1');
 } catch (Throwable $e) {
     error_log('Registry page DB error: ' . $e->getMessage());
     $dbError = true;
@@ -66,6 +68,7 @@ $jsData = [
     'reveal'  => $reveal,
     'tally'   => $tally,
     'myGuess' => $myGuess,
+    'dataVersion' => $dataVersion,
 ];
 
 header('Cache-Control: no-store');

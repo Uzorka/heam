@@ -192,13 +192,14 @@ month are free. You need:
    > Please send it to {{3}} using reference {{4}}. Thank you so much!
 
    **gift_thank_you**
-   > Hi {{1}}, we have received your gift ({{2}}). Thank you so much for your love and support! – {{3}}
+   > Hi {{1}}, we have received your gift ({{2}}). Thank you so much for your love and support! With love, {{3}}. 💛
 
    **gender_reveal_news**
-   > Hi {{1}}, the secret is out: we are expecting {{2}}! {{3}} Come and see the registry: {{4}}
+   > Hi {{1}}, the secret is out: we are expecting {{2}}! {{3}} Come and see the registry at {{4}} – thank you for guessing!
 
 You can reword the templates as you like, as long as the number and order of `{{n}}` stay the
-same.
+same. Meta's rules: the text must not start or end with a `{{n}}`, and the template language must
+match `language` in `config.php` (English = `en`, English (US) = `en_US`).
 
 ### `'twilio'` (automatic, paid)
 Fill in `account_sid`, `auth_token` and `from_number`. The Twilio sandbox number works for

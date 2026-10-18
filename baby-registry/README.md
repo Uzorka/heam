@@ -23,7 +23,8 @@ Guests move through the site one screen at a time:
      again for the real answer.
    - The gender is **never sent to the browser before you reveal it**, so nobody can peek.
 5. **Registry.** Only the **names** of the items: no prices and no quantities. Guests tap
-   **I'll get this** on as many items as they like (tap again to undo). A small bar at the bottom
+   **I'll get this** on as many items as they like (tap again to undo). The page is in the colour
+   of their guess: baby blue for boy, baby pink for girl. A small bar at the bottom
    shows "You're giving 3 gifts · Continue". Continue opens one short form listing their gifts
    (they can remove any), where they give their **full name, phone, email and the day they will
    send them**. Anything someone has already picked is **greyed out** ("Someone has picked this 💛").
@@ -221,9 +222,11 @@ description, so you can match payments in your bank app.
 ## 10. Changing the wording or look
 
 - **Email / WhatsApp wording:** `includes/notifications.php` → `pledge_message()`.
-- **Colours and fonts:** the variables at the top of `assets/css/style.css`. The page is dark,
-  with a gold accent while the gender is a secret, then pink (girl) or blue (boy) after the reveal.
-  Each theme has its own line (`[data-theme="girl"]` and so on).
+- **Colours and fonts:** the three theme blocks at the top of `assets/css/style.css`. The welcome
+  screen is a very deep black. As soon as a guest taps Boy or Girl, the whole page fades to
+  **baby blue** (deeper blue buttons, warm yellow accent) or **baby pink** (deeper rose buttons,
+  soft plum accent), and stays that colour through the balloon, result and registry. After you
+  reveal, popping the balloon switches the page to the real answer's colour.
 - **Page text:** `includes/config.php` (`headline`, `intro`), plus the *How it works* section in
   `index.php`.
 

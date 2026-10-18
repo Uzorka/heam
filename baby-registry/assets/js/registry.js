@@ -34,7 +34,13 @@
         if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) { /* not supported */ } }
     }
 
-    function setTheme(theme) { document.documentElement.setAttribute('data-theme', theme); }
+    /* Page colours: 'neutral' (deep black), 'boy' (baby blue) or 'girl' (baby pink). */
+    var THEME_BAR = { neutral: '#0a0909', boy: '#cfe5fa', girl: '#f8d7e3' };
+    function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) { meta.setAttribute('content', THEME_BAR[theme] || THEME_BAR.neutral); }
+    }
 
     function store(key, value) {
         try {
@@ -157,7 +163,14 @@
     function persist() { store(STATE_KEY, { guess: state.guess, notify: state.notify, popped: state.popped }); }
     function poppedCurrent() { return state.popped === (reveal.revealed ? reveal.gender : 'secret'); }
 
-    if (reveal.revealed && poppedCurrent()) { setTheme(reveal.gender); }
+    /* The welcome screen is always black. Everywhere else the page takes the
+     * colour of the guest's guess, or of the real answer once they have popped
+     * the balloon after the reveal. */
+    function themeFor(screen) {
+        if (screen === 'welcome') { return 'neutral'; }
+        if (screen !== 'guess' && reveal.revealed && poppedCurrent()) { return reveal.gender; }
+        return state.guess || 'neutral';
+    }
 
     /* =====================================================================
      * Screens
@@ -172,6 +185,7 @@
 
     function showScreen(name) {
         SCREENS.forEach(function (s) { document.getElementById(s).hidden = s !== name; });
+        setTheme(themeFor(name));
         if (screenInit[name]) { screenInit[name](); }
     }
 
@@ -236,7 +250,6 @@
         pop: function () {
             balloon.classList.remove('is-popping', 'is-gone');
             $('#shards').innerHTML = '';
-            if (!poppedCurrent()) { setTheme('neutral'); }
             $('#pop-sub').textContent = 'You guessed ' + guessLabel(state.guess) +
                 (reveal.revealed ? '. Pop it to see if you were right!' : '. Pop it to see what everyone thinks!');
             setTimeout(function () { balloon.focus({ preventScroll: true }); }, 300);
@@ -275,6 +288,7 @@
             b.disabled = state.locked && b.dataset.guess !== guess;
         });
         babyName.placeholder = guess === 'boy' ? 'e.g. Chidi, Daniel, Tobi' : 'e.g. Amara, Zara, Ada';
+        setTheme(guess);
         $('[data-error="guess"]').textContent = '';
         if (!quiet) { vibrate(15); }
     }
@@ -356,7 +370,7 @@
             balloon.classList.add('is-gone');
             if (reveal.revealed) { setTheme(reveal.gender); }
             burstShards();
-            confetti(PALETTE[reveal.revealed ? reveal.gender : 'neutral'], cx, cy, 220);
+            confetti(PALETTE[reveal.revealed ? reveal.gender : (state.guess || 'neutral')], cx, cy, 220);
             state.popped = reveal.revealed ? reveal.gender : 'secret';
             persist();
             setTimeout(function () { go('result'); }, reducedMotion ? 0 : 900);
@@ -409,7 +423,6 @@
                 ? 'Arriving in about ' + daysUntil(cfg.dueDate) + ' days'
                 : '';
         } else {
-            setTheme('neutral');
             $('#result-kicker').textContent = 'Your guess is in';
             title.textContent = "It's still a secret 🤫";
             title.classList.add('is-secret');

@@ -35,8 +35,8 @@ admin_header($p['full_name'], 'index.php');
         </div>
         <dl class="dl">
             <dt>Reference</dt><dd><?= e($p['reference']) ?></dd>
-            <dt>Gift</dt><dd><?= e($p['item_emoji'] . ' ' . $sum['label']) ?></dd>
-            <dt>Amount</dt><dd><?= e($sum['amount']) ?></dd>
+            <dt>Gifts</dt><dd><?= implode('<br>', array_map('e', pledge_items_list($p))) ?></dd>
+            <?php if ((float) $p['amount'] > 0): ?><dt>Est. value</dt><dd><?= e($sum['amount']) ?></dd><?php endif; ?>
             <dt>Payment date</dt><dd><?= e(nice_date($p['payment_date'])) ?></dd>
             <dt>Phone</dt><dd><a href="tel:+<?= e($p['phone']) ?>"><?= e(display_phone($p['phone'])) ?></a></dd>
             <dt>Email</dt><dd><a href="mailto:<?= e($p['email']) ?>"><?= e($p['email']) ?></a></dd>

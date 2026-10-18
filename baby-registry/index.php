@@ -251,7 +251,7 @@ header('Cache-Control: no-store');
                             <?php if ($item['description'] !== ''): ?><span class="row-sub"><?= e($item['description']) ?></span><?php endif; ?>
                             <span class="row-taken">Someone has picked this 💛</span>
                         </div>
-                        <button type="button" class="pill" data-gift="<?= $item['id'] ?>"<?= $done ? ' disabled' : '' ?>>
+                        <button type="button" class="pill" data-gift="<?= $item['id'] ?>" aria-pressed="false"<?= $done ? ' disabled' : '' ?>>
                             <?= $done ? 'Picked' : "I'll get this" ?>
                         </button>
                     </li>
@@ -291,8 +291,8 @@ header('Cache-Control: no-store');
         <div class="container narrow">
             <h2 class="section-title">How it works</h2>
             <ol class="steps">
-                <li><span>1</span><div><strong>Pick a gift</strong><p>Tap "I'll get this" on anything in the registry.</p></div></li>
-                <li><span>2</span><div><strong>Choose a day</strong><p>Tell us your name, phone, email and the day you would like to send it.</p></div></li>
+                <li><span>1</span><div><strong>Choose your gifts</strong><p>Tap "I'll get this" on as many things as you like.</p></div></li>
+                <li><span>2</span><div><strong>Choose a day</strong><p>Tap Continue, then tell us your name, phone, email and the day you would like to send them.</p></div></li>
                 <li><span>3</span><div><strong>We remind you</strong><p>On that day we will send you our account details by email<?= whatsapp_enabled() ? ' and WhatsApp' : '' ?>.</p></div></li>
             </ol>
 
@@ -316,6 +316,17 @@ header('Cache-Control: no-store');
         <p>Made with love for <?= e($site['baby_name']) ?> · <?= e($site['parents']) ?></p>
         <a href="#welcome" class="link-btn">🎈 Back to the balloon</a>
     </footer>
+
+    <!-- The gifts this guest has chosen so far (appears after the first "I'll get this"). -->
+    <div class="gift-bar" id="gift-bar" hidden>
+        <div class="gift-bar-inner">
+            <div class="gift-bar-text">
+                <strong id="gift-bar-count">You're giving 1 gift</strong>
+                <span id="gift-bar-names"></span>
+            </div>
+            <button type="button" class="btn btn-accent" id="gift-bar-go">Continue</button>
+        </div>
+    </div>
 </div>
 
 <!-- ===================================================================== -->
@@ -327,16 +338,12 @@ header('Cache-Control: no-store');
         <button type="button" class="sheet-close" data-close aria-label="Close">×</button>
 
         <div data-step="form">
-            <div class="sheet-head">
-                <span class="sheet-emoji" id="modal-emoji" aria-hidden="true">🎁</span>
-                <div>
-                    <p class="kicker">You're getting</p>
-                    <h2 id="modal-title">Gift</h2>
-                </div>
-            </div>
+            <p class="kicker">Your gifts for <?= e($site['baby_name']) ?></p>
+            <h2 class="sheet-title" id="modal-title">Thank you for your kindness 💛</h2>
+            <ul class="chosen-list" id="chosen-list"></ul>
+            <button type="button" class="link-btn add-more" data-close>+ Add more gifts</button>
 
             <input type="hidden" name="token" value="<?= e($token) ?>">
-            <input type="hidden" name="item_id" id="f-item">
             <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
             <div class="field">
@@ -359,7 +366,7 @@ header('Cache-Control: no-store');
             </div>
 
             <div class="field">
-                <label for="f-date">When will you send it?</label>
+                <label for="f-date" id="f-date-label">When will you send them?</label>
                 <div class="chips" id="date-chips"></div>
                 <input type="date" id="f-date" name="payment_date" required min="<?= e($today) ?>" max="<?= e($maxDate) ?>" value="<?= e($today) ?>">
                 <p class="hint" id="date-hint">We'll remind you with our account details on this day.</p>
@@ -379,7 +386,7 @@ header('Cache-Control: no-store');
             </div>
 
             <p class="form-error" id="form-error" role="alert"></p>
-            <button type="submit" class="btn btn-accent btn-block" id="submit-btn">Confirm my gift</button>
+            <button type="submit" class="btn btn-accent btn-block" id="submit-btn">Confirm my gifts</button>
         </div>
 
         <div data-step="done" hidden>

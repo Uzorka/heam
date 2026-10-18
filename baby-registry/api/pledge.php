@@ -29,7 +29,8 @@ if (($_POST['website'] ?? '') !== '' || ($formTime && time() - $formTime < $limi
 // ---- Validate ---------------------------------------------------------------
 
 $errors   = [];
-$itemId   = (int) ($_POST['item_id'] ?? 0);
+// One or more items, sent as item_ids[] (max 60, duplicates ignored).
+$itemIds  = array_slice(array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['item_ids'] ?? []))))), 0, 60);
 $fullName = trim(preg_replace('/\s+/', ' ', (string) ($_POST['full_name'] ?? '')));
 $phoneRaw = trim((string) ($_POST['phone'] ?? ''));
 $phone    = normalize_phone($phoneRaw);
@@ -79,37 +80,54 @@ try {
 
     $pdo->beginTransaction();
 
-    $stmt = $pdo->prepare('SELECT * FROM items WHERE id = ? AND is_active = 1 FOR UPDATE');
-    $stmt->execute([$itemId]);
-    $item = $stmt->fetch();
-    if (!$item) {
+    if (!$itemIds) {
         $pdo->rollBack();
-        json_response(['ok' => false, 'error' => 'That gift is no longer available.'], 404);
+        json_response(['ok' => false, 'error' => 'Please choose at least one gift.'], 422);
     }
 
-    // Guests pick an item, not an amount: one per pledge. The stored amount is the
-    // item's private estimate (0 when none), which only the admin ever sees.
-    $qty = 1;
-    $amount = round((float) $item['price'], 2);
+    // Lock the chosen items so two guests cannot take the last of something at once.
+    $marks = implode(',', array_fill(0, count($itemIds), '?'));
+    $stmt  = $pdo->prepare("SELECT * FROM items WHERE id IN ({$marks}) AND is_active = 1 ORDER BY sort_order, id FOR UPDATE");
+    $stmt->execute($itemIds);
+    $locked = $stmt->fetchAll();
+    // Counted only after the lock is held, so it includes any pledge committed just before.
+    $count = $pdo->prepare("SELECT pi.item_id, COUNT(*) FROM pledge_items pi JOIN pledges p ON p.id = pi.pledge_id
+                            WHERE pi.item_id IN ({$marks}) AND p.status IN ('pending', 'paid') GROUP BY pi.item_id");
+    $count->execute($itemIds);
+    $taken = $count->fetchAll(PDO::FETCH_KEY_PAIR);
+    $items = array_map(static fn($i) => decorate_item($i + ['pledged_qty' => $taken[$i['id']] ?? 0]), $locked);
 
-    if (!$item['is_open_amount']) {
-        $taken = $pdo->prepare("SELECT COALESCE(SUM(quantity), 0) FROM pledges WHERE item_id = ? AND status IN ('pending', 'paid')");
-        $taken->execute([$itemId]);
-        if ((int) $item['quantity_needed'] - (int) $taken->fetchColumn() <= 0) {
-            $pdo->rollBack();
-            json_response(['ok' => false, 'error' => 'Someone has just picked this gift. Please choose another one.'], 409);
-        }
+    $gone = array_merge(
+        array_diff($itemIds, array_column($items, 'id')),
+        array_column(array_filter($items, static fn($i) => $i['remaining'] <= 0), 'id')
+    );
+    if ($gone) {
+        $pdo->rollBack();
+        $names = array_column(array_filter($items, static fn($i) => in_array($i['id'], $gone, true)), 'name');
+        json_response([
+            'ok'    => false,
+            'error' => ($names ? implode(', ', $names) : 'One of your gifts') . ' has just been picked by someone else. '
+                     . 'We have taken it off your list – please check and confirm again.',
+            'gone'  => array_values(array_map('intval', $gone)),
+        ], 409);
     }
+
+    // The stored amount is the items' private estimate (admin only; may be 0).
+    $amount = round(array_sum(array_column($items, 'price')), 2);
 
     $reference = new_pledge_reference();
     $pdo->prepare(
-        'INSERT INTO pledges (reference, item_id, full_name, phone, email, notify_via, quantity, amount, payment_date, message, share_message, ip_address)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pledges (reference, full_name, phone, email, notify_via, amount, payment_date, message, share_message, ip_address)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )->execute([
-        $reference, $itemId, $fullName, $phone, $email, $whatsapp ? 'both' : 'email',
-        $qty, $amount, $payDate->format('Y-m-d'), $message, $share ? 1 : 0, client_ip(),
+        $reference, $fullName, $phone, $email, $whatsapp ? 'both' : 'email',
+        $amount, $payDate->format('Y-m-d'), $message, $share ? 1 : 0, client_ip(),
     ]);
     $pledgeId = (int) $pdo->lastInsertId();
+    $link = $pdo->prepare('INSERT INTO pledge_items (pledge_id, item_id) VALUES (?, ?)');
+    foreach ($items as $item) {
+        $link->execute([$pledgeId, $item['id']]);
+    }
     $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
@@ -133,18 +151,18 @@ try {
     error_log('Registry notify error: ' . $e->getMessage());
 }
 
-$updated = fetch_item($itemId);
+$updated = array_map(static function (int $id): array {
+    $item = fetch_item($id);
+    return ['id' => $id, 'remaining' => $item['is_open_amount'] ? null : $item['remaining']];
+}, $itemIds);
 
 json_response([
     'ok'        => true,
     'reference' => $reference,
-    'item'      => [
-        'id'        => $updated['id'],
-        'remaining' => $updated['is_open_amount'] ? null : $updated['remaining'],
-        'pledged'   => $updated['pledged_qty'],
-    ],
+    'items'     => $updated,
     'summary'   => [
         'gift'         => pledge_summary($pledge)['label'],
+        'gifts'        => pledge_items_list($pledge),
         'payment_date' => nice_date($pledge['payment_date']),
         'date_iso'     => $pledge['payment_date'],
         'is_today'     => $pledge['payment_date'] <= date('Y-m-d'),

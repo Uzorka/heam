@@ -519,6 +519,108 @@
     }
 
     /* =====================================================================
+     * Choosing gifts
+     * Tapping "I'll get this" adds an item to the guest's list; a bar at the
+     * bottom shows how many they have chosen, and "Continue" opens the form.
+     * =================================================================== */
+
+    var CHOSEN_KEY = 'registry_chosen';
+    var chosen = (store(CHOSEN_KEY) || []).filter(function (id) {
+        var it = itemsById[id];
+        return it && (it.open || it.remaining > 0);
+    });
+    var bar = $('#gift-bar');
+
+    function saveChosen() { store(CHOSEN_KEY, chosen); }
+    function isChosen(id) { return chosen.indexOf(id) !== -1; }
+    function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+    function paintRow(id) {
+        var row = $('.row[data-id="' + id + '"]');
+        if (!row) { return; }
+        var btn = $('[data-gift]', row);
+        var on = isChosen(id);
+        row.classList.toggle('is-chosen', on);
+        if (!row.classList.contains('is-done')) {
+            btn.setAttribute('aria-pressed', String(on));
+            btn.textContent = on ? '💛 Chosen' : "I'll get this";
+        }
+    }
+
+    function paintBar(bump) {
+        var n = chosen.length;
+        bar.hidden = n === 0 || $('#registry').hidden;
+        $('#gift-bar-count').textContent = "You're giving " + plural(n, 'gift', 'gifts');
+        var names = chosen.map(function (id) { return itemsById[id].name; });
+        $('#gift-bar-names').textContent = names.length > 2 ? names.slice(0, 2).join(', ') + ' +' + (names.length - 2) + ' more' : names.join(', ');
+        if (bump) {
+            bar.classList.remove('is-bump');
+            void bar.offsetWidth;
+            bar.classList.add('is-bump');
+        }
+    }
+
+    function toggleGift(id, btn) {
+        var it = itemsById[id];
+        if (!it || (!it.open && it.remaining <= 0)) { return; }
+        if (isChosen(id)) {
+            chosen.splice(chosen.indexOf(id), 1);
+            vibrate(10);
+        } else {
+            chosen.push(id);
+            vibrate(20);
+            floatHeart(btn);
+        }
+        saveChosen();
+        paintRow(id);
+        paintBar(true);
+    }
+
+    /* A little heart that floats from the button down to the bar. */
+    function floatHeart(btn) {
+        if (reducedMotion || !btn) { return; }
+        var from = btn.getBoundingClientRect();
+        var heart = document.createElement('span');
+        heart.className = 'fly-heart';
+        heart.textContent = '💛';
+        heart.style.left = (from.left + from.width / 2) + 'px';
+        heart.style.top = (from.top + from.height / 2) + 'px';
+        document.body.appendChild(heart);
+        requestAnimationFrame(function () {
+            heart.style.transform = 'translate(' + (window.innerWidth / 2 - from.left - from.width / 2) + 'px,' +
+                (window.innerHeight - 60 - from.top - from.height / 2) + 'px) scale(.6)';
+            heart.style.opacity = '0';
+        });
+        setTimeout(function () { heart.remove(); }, 800);
+    }
+
+    function markTaken(id) {
+        var it = itemsById[id];
+        if (it && !it.open) { it.remaining = 0; }
+        var i = chosen.indexOf(id);
+        if (i !== -1) { chosen.splice(i, 1); }
+        var row = $('.row[data-id="' + id + '"]');
+        if (row && it && !it.open) {
+            row.classList.add('is-done');
+            row.classList.remove('is-chosen');
+            var btn = $('[data-gift]', row);
+            btn.disabled = true;
+            btn.textContent = 'Picked';
+            btn.setAttribute('aria-pressed', 'false');
+        }
+    }
+
+    $$('[data-gift]').forEach(function (btn) {
+        btn.addEventListener('click', function () { toggleGift(parseInt(btn.dataset.gift, 10), btn); });
+    });
+    chosen.forEach(paintRow);
+
+    // The bar only belongs on the registry screen.
+    var showRegistry = screenInit.registry;
+    screenInit.registry = function () { showRegistry(); paintBar(false); };
+    window.addEventListener('hashchange', function () { paintBar(false); });
+
+    /* =====================================================================
      * Gift form (bottom sheet)
      * =================================================================== */
 
@@ -530,8 +632,6 @@
     var dateInput = $('#f-date');
     var submitBtn = $('#submit-btn');
     var formError = $('#form-error');
-    var current = null;
-    var lastTrigger = null;
 
     function showStep(name) {
         stepForm.hidden = name !== 'form';
@@ -554,6 +654,32 @@
         });
         var first = $('.has-error input, .has-error textarea', form);
         if (first) { first.focus(); }
+    }
+
+    function renderChosenList() {
+        var list = $('#chosen-list');
+        list.innerHTML = '';
+        chosen.forEach(function (id) {
+            var it = itemsById[id];
+            var li = document.createElement('li');
+            var label = document.createElement('span');
+            label.textContent = it.emoji + '  ' + it.name;
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'chosen-remove';
+            remove.setAttribute('aria-label', 'Remove ' + it.name);
+            remove.textContent = '×';
+            remove.addEventListener('click', function () {
+                toggleGift(id);
+                if (!chosen.length) { closeModal(); return; }
+                renderChosenList();
+            });
+            li.appendChild(label);
+            li.appendChild(remove);
+            list.appendChild(li);
+        });
+        submitBtn.textContent = chosen.length === 1 ? 'Confirm my gift' : 'Confirm my ' + chosen.length + ' gifts';
+        $('#f-date-label').textContent = chosen.length === 1 ? 'When will you send it?' : 'When will you send them?';
     }
 
     /* Quick date choices: Today, Tomorrow, Friday, End of month. */
@@ -590,31 +716,23 @@
     }
     dateInput.addEventListener('change', syncDateChips);
 
-    function openModal(id, trigger) {
-        current = itemsById[id];
-        if (!current) { return; }
-        lastTrigger = trigger;
-
+    function openModal() {
+        if (!chosen.length) { return; }
         clearErrors();
         showStep('form');
-        $('#f-item').value = current.id;
-        $('#modal-title').textContent = current.name;
-        $('#modal-emoji').textContent = current.emoji;
+        renderChosenList();
         if (!dateInput.value || dateInput.value < cfg.today) { dateInput.value = cfg.today; }
         buildDateChips();
-
         if (typeof modal.showModal === 'function') { modal.showModal(); } else { modal.setAttribute('open', ''); }
         vibrate(10);
     }
 
     function closeModal() {
         if (typeof modal.close === 'function') { modal.close(); } else { modal.removeAttribute('open'); }
-        if (lastTrigger) { lastTrigger.focus({ preventScroll: true }); }
+        paintBar(false);
     }
 
-    $$('[data-gift]').forEach(function (btn) {
-        btn.addEventListener('click', function () { openModal(parseInt(btn.dataset.gift, 10), btn); });
-    });
+    $('#gift-bar-go').addEventListener('click', openModal);
     $$('[data-close]', form).forEach(function (btn) { btn.addEventListener('click', closeModal); });
     modal.addEventListener('click', function (e) { if (e.target === modal) { closeModal(); } });
 
@@ -624,7 +742,7 @@
         if (name.length < 3 || name.indexOf(' ') === -1) { errors.full_name = 'Please enter your full name (first and last name).'; }
         if (form.phone.value.replace(/\D/g, '').length < 8) { errors.phone = 'Please enter a valid phone number.'; }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.value.trim())) { errors.email = 'Please enter a valid email address.'; }
-        if (!dateInput.value) { errors.payment_date = 'Please choose the day you will send it.'; }
+        if (!dateInput.value) { errors.payment_date = 'Please choose the day you will send them.'; }
         return errors;
     }
 
@@ -640,38 +758,58 @@
             return;
         }
 
+        var label = submitBtn.textContent;
         submitBtn.classList.add('is-loading');
         submitBtn.textContent = 'Saving…';
 
-        post(form.action, new FormData(form)).then(function (res) {
+        var fd = new FormData(form);
+        chosen.forEach(function (id) { fd.append('item_ids[]', id); });
+
+        post(form.action, fd).then(function (res) {
             if (!res.ok) {
+                // Someone else took one of the gifts meanwhile: drop it from the list.
+                (res.gone || []).forEach(markTaken);
+                if (res.gone && res.gone.length) {
+                    saveChosen();
+                    paintBar(false);
+                    if (!chosen.length) { closeModal(); toast(res.error); return; }
+                    renderChosenList();
+                }
                 formError.textContent = res.error || 'Something went wrong.';
                 showErrors(res.fields);
                 return;
             }
             var msg = form.message.value.trim();
             if (msg && form.share_message.checked) { addWish(form.full_name.value.trim(), msg, 'pledge'); }
+            (res.items || []).forEach(function (it) {
+                if (it.remaining === 0) { markTaken(it.id); }
+                var row = $('.row[data-id="' + it.id + '"]');
+                if (row) { row.classList.remove('is-chosen', 'is-flash'); void row.offsetWidth; row.classList.add('is-flash'); }
+            });
+            chosen.forEach(function (id) { var r = $('.row[data-id="' + id + '"]'); if (r) { r.classList.remove('is-chosen'); $('[data-gift]', r).textContent = "I'll get this"; } });
+            chosen = [];
+            saveChosen();
             showDone(res);
-            updateRow(res.item);
             form.message.value = '';
         }).catch(function () {
             formError.textContent = 'Network error. Please check your connection and try again.';
         }).then(function () {
             submitBtn.classList.remove('is-loading');
-            submitBtn.textContent = 'Confirm my gift';
+            if (submitBtn.textContent === 'Saving…') { submitBtn.textContent = label; }
         });
     });
 
     function showDone(res) {
         var s = res.summary;
         var firstName = form.full_name.value.trim().split(' ')[0];
-        $('#done-text').textContent = firstName + ', your gift has been noted. ' + (s.is_today
+        var gifts = s.gifts || [s.gift];
+        $('#done-text').textContent = firstName + ', thank you so much! ' + (s.is_today
             ? 'Our account details are in your confirmation email' + ($('#bank') ? ' and at the bottom of this page.' : '.')
             : 'We will remind you on ' + s.payment_date + ' with our account details.');
 
         var dl = $('#done-summary');
         dl.innerHTML = '';
-        [['Gift', s.gift], ['Send on', s.payment_date], ['Reference', res.reference]].forEach(function (row) {
+        [[gifts.length === 1 ? 'Gift' : 'Gifts', gifts.join('\n')], ['Send on', s.payment_date], ['Reference', res.reference]].forEach(function (row) {
             var dt = document.createElement('dt'); dt.textContent = row[0];
             var dd = document.createElement('dd'); dd.textContent = row[1];
             dl.appendChild(dt); dl.appendChild(dd);
@@ -680,26 +818,11 @@
         var cal = $('#calendar-link');
         if (cal) { cal.href = calendarFile(s, res.reference); }
         showStep('done');
+        paintBar(false);
 
         var theme = document.documentElement.getAttribute('data-theme');
         confetti(PALETTE[theme] || PALETTE.neutral, window.innerWidth / 2, window.innerHeight * 0.45, 160);
         vibrate([30, 40, 30]);
-    }
-
-    function updateRow(item) {
-        if (!item || item.remaining === null) { return; }
-        itemsById[item.id].remaining = item.remaining;
-        var row = $('.row[data-id="' + item.id + '"]');
-        if (!row) { return; }
-        if (item.remaining <= 0) {
-            row.classList.add('is-done');
-            var btn = $('[data-gift]', row);
-            btn.disabled = true;
-            btn.textContent = 'Picked';
-        }
-        row.classList.remove('is-flash');
-        void row.offsetWidth;
-        row.classList.add('is-flash');
     }
 
     /* A small .ics calendar file so guests can add the payment day to their phone. */
@@ -713,7 +836,7 @@
             'UID:' + ref + '@baby-registry',
             'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z',
             'DTSTART;VALUE=DATE:' + d, 'DTEND;VALUE=DATE:' + isoDate(next).replace(/-/g, ''),
-            'SUMMARY:' + esc('Gift for ' + cfg.babyName + ': ' + s.gift),
+            'SUMMARY:' + esc('Gifts for ' + cfg.babyName + ': ' + s.gift),
             'DESCRIPTION:' + esc('Reference ' + ref + '. Account details are in your reminder email.'),
             'BEGIN:VALARM', 'TRIGGER:PT9H', 'ACTION:DISPLAY', 'DESCRIPTION:Gift reminder', 'END:VALARM',
             'END:VEVENT', 'END:VCALENDAR'

@@ -26,17 +26,26 @@ function db(): PDO
     return $pdo;
 }
 
-/** SQL fragment: how many of an item have been pledged (pending or paid). */
-const PLEDGED_QTY_SQL = "(SELECT COALESCE(SUM(p.quantity), 0) FROM pledges p
-                          WHERE p.item_id = i.id AND p.status IN ('pending', 'paid'))";
+/** SQL fragment: how many pledges (pending or paid) include an item. */
+const PLEDGED_QTY_SQL = "(SELECT COUNT(*) FROM pledge_items pi JOIN pledges p ON p.id = pi.pledge_id
+                          WHERE pi.item_id = i.id AND p.status IN ('pending', 'paid'))";
+
+/**
+ * SELECT for pledges with their items: item_names / item_emojis are the items
+ * joined by new lines (in registry order), item_ids by commas.
+ */
+const PLEDGE_SELECT_SQL = "SELECT p.*,
+        (SELECT GROUP_CONCAT(i.name ORDER BY i.sort_order, i.id SEPARATOR '\n')
+           FROM pledge_items pi JOIN items i ON i.id = pi.item_id WHERE pi.pledge_id = p.id) AS item_names,
+        (SELECT GROUP_CONCAT(i.emoji ORDER BY i.sort_order, i.id SEPARATOR '')
+           FROM pledge_items pi JOIN items i ON i.id = pi.item_id WHERE pi.pledge_id = p.id) AS item_emojis,
+        (SELECT GROUP_CONCAT(pi.item_id) FROM pledge_items pi WHERE pi.pledge_id = p.id) AS item_ids
+     FROM pledges p";
 
 /** Active items with how many are still available. */
 function fetch_items(bool $includeInactive = false): array
 {
-    $sql = 'SELECT i.*, ' . PLEDGED_QTY_SQL . ' AS pledged_qty,
-                   (SELECT COALESCE(SUM(p.amount), 0) FROM pledges p
-                     WHERE p.item_id = i.id AND p.status IN (\'pending\', \'paid\')) AS pledged_amount
-            FROM items i'
+    $sql = 'SELECT i.*, ' . PLEDGED_QTY_SQL . ' AS pledged_qty FROM items i'
          . ($includeInactive ? '' : ' WHERE i.is_active = 1')
          . ' ORDER BY i.sort_order, i.id';
 
@@ -46,7 +55,7 @@ function fetch_items(bool $includeInactive = false): array
 
 function fetch_item(int $id): ?array
 {
-    $stmt = db()->prepare('SELECT i.*, ' . PLEDGED_QTY_SQL . ' AS pledged_qty, 0 AS pledged_amount FROM items i WHERE i.id = ?');
+    $stmt = db()->prepare('SELECT i.*, ' . PLEDGED_QTY_SQL . ' AS pledged_qty FROM items i WHERE i.id = ?');
     $stmt->execute([$id]);
     $item = $stmt->fetch();
     return $item ? decorate_item($item) : null;
@@ -68,12 +77,15 @@ function decorate_item(array $item): array
 
 function fetch_pledge(int $id): ?array
 {
-    $stmt = db()->prepare(
-        'SELECT p.*, i.name AS item_name, i.emoji AS item_emoji, i.price AS item_price, i.is_open_amount
-         FROM pledges p JOIN items i ON i.id = p.item_id WHERE p.id = ?'
-    );
+    $stmt = db()->prepare(PLEDGE_SELECT_SQL . ' WHERE p.id = ?');
     $stmt->execute([$id]);
     return $stmt->fetch() ?: null;
+}
+
+/** The pledge's item ids as integers. */
+function pledge_item_ids(array $pledge): array
+{
+    return array_map('intval', array_filter(explode(',', (string) ($pledge['item_ids'] ?? ''))));
 }
 
 /** A short, readable reference such as "BR-7K3QX9" that guests can quote. */

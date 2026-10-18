@@ -29,6 +29,12 @@ function pledge_message(array $pledge, string $type): array
     $site    = registry_config()['site'];
     $first   = trim(explode(' ', trim($pledge['full_name']))[0]);
     $sum     = pledge_summary($pledge);
+    $items   = pledge_items_list($pledge);
+    $many    = count($items) > 1;
+    $gifts   = $many ? "Your gifts:\n• " . implode("\n• ", $items) . "\n" : "Gift: {$sum['label']}\n";
+    $your    = $many ? 'your gifts' : 'your gift';
+    $the     = $many ? 'the gifts' : 'the gift';
+    $it      = $many ? 'them' : 'it';
     $date    = nice_date($pledge['payment_date']);
     $ref     = $pledge['reference'];
     $bank    = bank_details_text();
@@ -38,15 +44,15 @@ function pledge_message(array $pledge, string $type): array
 
     switch ($type) {
         case 'confirmation':
-            $subject = "Thank you for your gift pledge for {$baby} 💛";
+            $subject = 'Thank you for ' . ($many ? 'your gifts' : 'your gift') . " for {$baby} 💛";
             $text = "Hi {$first},\n\n"
                   . "Thank you so much for choosing to bless {$baby}! Here is what you picked:\n\n"
-                  . "Gift: {$sum['label']}\nPayment date: {$date}\nReference: {$ref}\n\n"
+                  . "{$gifts}Payment date: {$date}\nReference: {$ref}\n\n"
                   . ($pledge['payment_date'] <= date('Y-m-d')
                       ? "Here are our account details for today:\n\n{$bank}\n\n"
                       : "We will send you a reminder with our account details on {$date}. "
-                      . "If you would like to send it earlier, here are the details:\n\n{$bank}\n\n")
-                  . "Please use {$ref} as the transfer description so we can match your gift.\n\n"
+                      . "If you would like to send {$it} earlier, here are the details:\n\n{$bank}\n\n")
+                  . "Please use {$ref} as the transfer description so we can match {$your}.\n\n"
                   . "With love,\n{$parents}";
             $params = [$first, $sum['label'], $date, bank_details_inline(), $ref];
             break;
@@ -54,24 +60,24 @@ function pledge_message(array $pledge, string $type): array
         case 'reminder':
         case 'followup':
             $subject = $type === 'reminder'
-                ? "Reminder: your gift for {$baby} is due today"
-                : "Gentle reminder: your gift for {$baby}";
+                ? "Reminder: {$your} for {$baby} – today is the day"
+                : "Gentle reminder: {$your} for {$baby}";
             $intro = $type === 'reminder'
-                ? "Today is the day you chose to send your gift for {$baby}. Thank you for remembering us!"
-                : "Just a gentle reminder about the gift you kindly pledged for {$baby} on {$date}. "
-                . "If you have already sent it, thank you – please ignore this message.";
+                ? "Today is the day you chose to send {$your} for {$baby}. Thank you for remembering us!"
+                : "Just a gentle reminder about {$the} you kindly pledged for {$baby} on {$date}. "
+                . "If you have already sent {$it}, thank you – please ignore this message.";
             $text = "Hi {$first},\n\n{$intro}\n\n"
-                  . "Gift: {$sum['label']}\nReference: {$ref}\n\n"
-                  . "Please send it to:\n\n{$bank}\n\n"
-                  . "Use {$ref} as the transfer description so we can match your gift.\n\n"
+                  . "{$gifts}Reference: {$ref}\n\n"
+                  . "Please send {$it} to:\n\n{$bank}\n\n"
+                  . "Use {$ref} as the transfer description so we can match {$your}.\n\n"
                   . "With love and gratitude,\n{$parents}";
             $params = [$first, $sum['label'], bank_details_inline(), $ref];
             break;
 
         case 'thankyou':
-            $subject = "We received your gift – thank you! 💛";
+            $subject = "We received {$your} – thank you! 💛";
             $text = "Hi {$first},\n\n"
-                  . "We have received your gift ({$sum['label']}) for {$baby}. "
+                  . "We have received {$your} ({$sum['label']}) for {$baby}. "
                   . "Thank you so much for your love, kindness and support – it means more than words can say.\n\n"
                   . "With love and gratitude,\n{$parents}";
             $params = [$first, $sum['label'], $parents];
@@ -165,7 +171,7 @@ function notify_admin_new_pledge(array $pledge): void
     $sum  = pledge_summary($pledge);
     $text = "New gift pledge on the registry.\n\n"
           . "Name: {$pledge['full_name']}\nPhone: " . display_phone($pledge['phone']) . "\nEmail: {$pledge['email']}\n"
-          . "Gift: {$sum['label']}\n"
+          . "Gifts: {$sum['label']}\n"
           . ((float) $pledge['amount'] > 0 ? "Estimated value: {$sum['amount']}\n" : '')
           . "Payment date: " . nice_date($pledge['payment_date']) . "\n"
           . "Reference: {$pledge['reference']}"

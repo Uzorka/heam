@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case 'delete':
-            $count = db()->prepare('SELECT COUNT(*) FROM pledges WHERE item_id = ?');
+            $count = db()->prepare('SELECT COUNT(*) FROM pledge_items WHERE item_id = ?');
             $count->execute([$id]);
             if ((int) $count->fetchColumn() > 0) {
                 flash('error', 'This item has pledges, so it cannot be deleted. Hide it instead.');
@@ -55,7 +55,7 @@ admin_header('Gift items', 'items.php');
             <td data-label="Price" class="nowrap"><?= $item['is_open_amount'] ? 'Cash gift' : ($item['price'] > 0 ? e(money($item['price'])) : '–') ?></td>
             <td data-label="Pledged">
                 <?= $item['is_open_amount']
-                    ? e($item['pledged_qty'] . ' gifts · ' . money((float) $item['pledged_amount']))
+                    ? e($item['pledged_qty'] . ' guest(s)')
                     : e($item['pledged_qty'] . ' / ' . $item['quantity_needed']) ?>
             </td>
             <td data-label="Shown"><?= $item['is_active'] ? 'Yes' : 'Hidden' ?></td>

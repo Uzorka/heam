@@ -68,13 +68,19 @@ switch ($action) {
 
     case 'cancel':
         $pdo->prepare("UPDATE pledges SET status = 'cancelled' WHERE id = ?")->execute([$id]);
-        flash('info', 'Pledge cancelled. The gift is available on the registry again.');
+        flash('info', 'Pledge cancelled. Its gifts are available on the registry again.');
         break;
 
     case 'restore':
-        $item = fetch_item((int) $pledge['item_id']);
-        if (!$item['is_open_amount'] && $item['remaining'] < (int) $pledge['quantity']) {
-            flash('error', 'Cannot restore: someone else has already pledged this gift.');
+        $taken = [];
+        foreach (pledge_item_ids($pledge) as $itemId) {
+            $item = fetch_item($itemId);
+            if ($item && !$item['is_open_amount'] && $item['remaining'] < 1) {
+                $taken[] = $item['name'];
+            }
+        }
+        if ($taken) {
+            flash('error', 'Cannot restore: someone else has since picked ' . implode(', ', $taken) . '.');
             break;
         }
         $pdo->prepare("UPDATE pledges SET status = 'pending' WHERE id = ?")->execute([$id]);
@@ -101,6 +107,7 @@ switch ($action) {
 
     case 'delete':
         $pdo->prepare('DELETE FROM notification_log WHERE pledge_id = ?')->execute([$id]);
+        $pdo->prepare('DELETE FROM pledge_items WHERE pledge_id = ?')->execute([$id]);
         $pdo->prepare('DELETE FROM pledges WHERE id = ?')->execute([$id]);
         flash('info', 'Pledge deleted.');
         redirect('index.php');

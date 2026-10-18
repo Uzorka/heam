@@ -191,10 +191,17 @@ function bank_details_inline(): string
     return implode(' | ', $parts);
 }
 
-/** What the guest pledged, e.g. "2 × Diapers (big pack)" with the total. */
+/** The pledge's item names as a list. */
+function pledge_items_list(array $pledge): array
+{
+    return array_values(array_filter(explode("\n", (string) ($pledge['item_names'] ?? ''))));
+}
+
+/** What the guest pledged, e.g. "Diapers, Baby wipes and Steriliser", plus the private value. */
 function pledge_summary(array $pledge): array
 {
-    $qty   = (int) $pledge['quantity'];
-    $label = ($qty > 1 ? $qty . ' × ' : '') . $pledge['item_name'];
+    $names = pledge_items_list($pledge);
+    $last  = array_pop($names);
+    $label = $names ? implode(', ', $names) . ' and ' . $last : (string) $last;
     return ['label' => $label, 'amount' => money((float) $pledge['amount'])];
 }

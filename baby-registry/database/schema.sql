@@ -34,18 +34,18 @@ CREATE TABLE IF NOT EXISTS `items` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
--- A pledge is one person promising one item (or an amount) on a chosen date.
+-- A pledge is one person promising one or more items, to be paid on a chosen
+-- date. The items are listed in pledge_items below.
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `pledges` (
   `id`                   INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `reference`            VARCHAR(12)  NOT NULL,
-  `item_id`              INT UNSIGNED NOT NULL,
   `full_name`            VARCHAR(120) NOT NULL,
   `phone`                VARCHAR(20)  NOT NULL,
   `email`                VARCHAR(190) NOT NULL DEFAULT '',
   -- 'email', 'whatsapp' or 'both'
   `notify_via`           VARCHAR(10)  NOT NULL DEFAULT 'both',
-  `quantity`             INT UNSIGNED NOT NULL DEFAULT 1,
+  -- Sum of the items' private estimated values (admin only; may be 0).
   `amount`               DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `payment_date`         DATE         NOT NULL,
   `message`              VARCHAR(1000) NOT NULL DEFAULT '',
@@ -63,9 +63,19 @@ CREATE TABLE IF NOT EXISTS `pledges` (
   `created_at`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_pledges_reference` (`reference`),
-  KEY `idx_pledges_item` (`item_id`, `status`),
-  KEY `idx_pledges_due` (`status`, `payment_date`),
-  CONSTRAINT `fk_pledges_item` FOREIGN KEY (`item_id`) REFERENCES `items` (`id`) ON DELETE RESTRICT
+  KEY `idx_pledges_due` (`status`, `payment_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- The items in each pledge.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `pledge_items` (
+  `pledge_id` INT UNSIGNED NOT NULL,
+  `item_id`   INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`pledge_id`, `item_id`),
+  KEY `idx_pledge_items_item` (`item_id`),
+  CONSTRAINT `fk_pi_pledge` FOREIGN KEY (`pledge_id`) REFERENCES `pledges` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_pi_item`   FOREIGN KEY (`item_id`)   REFERENCES `items` (`id`)   ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------

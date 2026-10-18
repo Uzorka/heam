@@ -42,8 +42,7 @@ function out(string $line): void
     echo '[' . date('Y-m-d H:i:s') . '] ' . $line . "\n";
 }
 
-$select = 'SELECT p.*, i.name AS item_name, i.emoji AS item_emoji, i.price AS item_price, i.is_open_amount
-           FROM pledges p JOIN items i ON i.id = p.item_id WHERE ';
+$select = PLEDGE_SELECT_SQL . ' WHERE ';
 
 $jobs = [
     'reminder' => db()->query($select . "p.status = 'pending' AND p.reminder_sent_at IS NULL AND p.payment_date <= CURDATE() ORDER BY p.id")->fetchAll(),

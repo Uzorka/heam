@@ -23,13 +23,17 @@ Guests move through the site one screen at a time:
      again for the real answer.
    - The gender is **never sent to the browser before you reveal it**, so nobody can peek.
 5. **Registry.** Only the **names** of the items: no prices and no quantities. Guests tap
-   **I'll get this** and give their **full name, phone, email and the day they will send it**.
-   Anything someone has already picked is **greyed out** ("Someone has picked this 💛").
+   **I'll get this** on as many items as they like (tap again to undo). A small bar at the bottom
+   shows "You're giving 3 gifts · Continue". Continue opens one short form listing their gifts
+   (they can remove any), where they give their **full name, phone, email and the day they will
+   send them**. Anything someone has already picked is **greyed out** ("Someone has picked this 💛").
+   If two guests choose the same item at once, the second is told and it is taken off their list.
 
 After that:
 
-- Guests get a **confirmation email** straight away, and **on the day they chose, a reminder**
-  by email (and WhatsApp if they ticked it) with the gift and your **bank account details**.
+- Guests get **one confirmation email** listing all their gifts straight away, and **on the day
+  they chose, one reminder** by email (and WhatsApp if they ticked it) with their gifts and your
+  **bank account details**. Marking the pledge as paid in the admin thanks them for all of them.
 - If a gift is still unpaid a few days later, one gentle follow-up goes out (optional).
 - The **wishes wall** shows the wishes and suggested names guests chose to share.
 - The **admin dashboard** lists every pledge. Click **Mark paid** and the guest automatically gets a

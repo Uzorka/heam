@@ -849,8 +849,7 @@
             dl.appendChild(dt); dl.appendChild(dd);
         });
         $('#done-email').textContent = s.email_sent ? 'A confirmation has been sent to ' + form.email.value.trim() + '.' : '';
-        var cal = $('#calendar-link');
-        if (cal) { cal.href = calendarFile(s, res.reference); }
+        setCalendar(res.calendar);
         showStep('done');
         paintBar(false);
 
@@ -859,24 +858,36 @@
         vibrate([30, 40, 30]);
     }
 
-    /* A small .ics calendar file so guests can add the payment day to their phone. */
-    function calendarFile(s, ref) {
-        var d = s.date_iso.replace(/-/g, '');
-        var next = new Date(s.date_iso + 'T00:00:00');
-        next.setDate(next.getDate() + 1);
-        var esc = function (t) { return String(t).replace(/([,;\\])/g, '\\$1'); };
-        var ics = [
-            'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Baby Registry//EN', 'BEGIN:VEVENT',
-            'UID:' + ref + '@baby-registry',
-            'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z',
-            'DTSTART;VALUE=DATE:' + d, 'DTEND;VALUE=DATE:' + isoDate(next).replace(/-/g, ''),
-            'SUMMARY:' + esc('Gifts for ' + cfg.babyName + ': ' + s.gift),
-            'DESCRIPTION:' + esc('Reference ' + ref + '. Account details are in your reminder email.'),
-            'BEGIN:VALARM', 'TRIGGER:PT9H', 'ACTION:DISPLAY', 'DESCRIPTION:Gift reminder', 'END:VALARM',
-            'END:VEVENT', 'END:VCALENDAR'
-        ].join('\r\n');
-        return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    /* "Add to my calendar": iPhones and Macs open the .ics from the server, which shows
+     * the native "Add to Calendar" prompt; Android opens Google Calendar with the event
+     * filled in; other devices get a small menu to choose their calendar. */
+    var calLinks = null;
+    var calBtn = $('#calendar-btn');
+    var calMenu = $('#calendar-menu');
+
+    function setCalendar(links) {
+        calLinks = links || null;
+        calBtn.hidden = !calLinks;
+        calMenu.hidden = true;
+        calBtn.setAttribute('aria-expanded', 'false');
+        if (!calLinks) { return; }
+        $('#cal-google').href = calLinks.google;
+        $('#cal-outlook').href = calLinks.outlook;
+        var apple = $('#cal-apple');
+        apple.hidden = !calLinks.ics;
+        if (calLinks.ics) { apple.href = calLinks.ics; }
     }
+
+    calBtn.addEventListener('click', function () {
+        if (!calLinks) { return; }
+        var ua = navigator.userAgent;
+        var apple = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+        if (apple && calLinks.ics) { location.href = calLinks.ics; return; }
+        if (/Android/.test(ua)) { window.open(calLinks.google, '_blank', 'noopener'); return; }
+        var open = calMenu.hidden;
+        calMenu.hidden = !open;
+        calBtn.setAttribute('aria-expanded', String(open));
+    });
 
     /* Start on whatever screen the address asks for. */
     route();

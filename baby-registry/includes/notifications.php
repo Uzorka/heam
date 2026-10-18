@@ -281,3 +281,80 @@ function send_guess_received(array $guess): array
     log_notification(null, 'email', 'guess', $guess['email'], ...$result);
     return $result;
 }
+
+/* ---- Calendar ---------------------------------------------------------------- */
+
+/** Title and description for the "send your gifts" calendar event. */
+function calendar_event(array $pledge): array
+{
+    $site  = registry_config()['site'];
+    $items = pledge_items_list($pledge);
+    $title = 'Send ' . (count($items) > 1 ? 'gifts' : 'gift') . ' for ' . $site['baby_name'] . ' 🎁';
+    $text  = (count($items) > 1 ? "Your gifts:\n• " . implode("\n• ", $items) : 'Your gift: ' . ($items[0] ?? ''))
+           . "\n\nPlease send to:\n" . bank_details_text()
+           . "\n\nUse reference {$pledge['reference']} as the transfer description."
+           . "\n\nThank you! " . $site['parents'] . "\n" . registry_url() . '/';
+    return ['title' => $title, 'text' => $text, 'date' => $pledge['payment_date']];
+}
+
+/** Links that open the event in Google Calendar, Outlook, and Apple Calendar (.ics). */
+function calendar_links(array $pledge): array
+{
+    $ev    = calendar_event($pledge);
+    $start = str_replace('-', '', $ev['date']);
+    $next  = date('Y-m-d', strtotime($ev['date'] . ' +1 day'));
+
+    return [
+        'google'  => 'https://calendar.google.com/calendar/render?' . http_build_query([
+            'action'  => 'TEMPLATE',
+            'text'    => $ev['title'],
+            'dates'   => $start . '/' . str_replace('-', '', $next),
+            'details' => $ev['text'],
+        ]),
+        'outlook' => 'https://outlook.live.com/calendar/0/deeplink/compose?' . http_build_query([
+            'path'     => '/calendar/action/compose',
+            'rru'      => 'addevent',
+            'subject'  => $ev['title'],
+            'startdt'  => $ev['date'],
+            'enddt'    => $next,
+            'allday'   => 'true',
+            'body'     => $ev['text'],
+        ]),
+        'ics'     => registry_url() . '/api/calendar.php?ref=' . rawurlencode($pledge['reference']),
+    ];
+}
+
+/** The event as an .ics file: an all-day event with a 9 am alert. */
+function calendar_ics(array $pledge): string
+{
+    $ev  = calendar_event($pledge);
+    $esc = static fn(string $t): string => str_replace(["\\", ';', ',', "\n"], ['\\\\', '\;', '\,', '\n'], $t);
+    $host = parse_url(registry_url(), PHP_URL_HOST) ?: 'baby-registry';
+    $lines = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Baby Registry//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        'UID:' . $pledge['reference'] . '@' . $host,
+        'DTSTAMP:' . gmdate('Ymd\THis\Z'),
+        'DTSTART;VALUE=DATE:' . str_replace('-', '', $ev['date']),
+        'DTEND;VALUE=DATE:' . date('Ymd', strtotime($ev['date'] . ' +1 day')),
+        'SUMMARY:' . $esc($ev['title']),
+        'DESCRIPTION:' . $esc($ev['text']),
+        'URL:' . registry_url() . '/',
+        'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' . $esc($ev['title']), 'TRIGGER:PT9H', 'END:VALARM',
+        'END:VEVENT', 'END:VCALENDAR',
+    ];
+    // Lines longer than 75 bytes must be folded (continued with a leading space).
+    $folded = array_map(static function (string $line): string {
+        $out = '';
+        while (strlen($line) > 74) {
+            $cut = 74;
+            while ($cut > 0 && (ord($line[$cut]) & 0xC0) === 0x80) {
+                $cut--; // never split a multi-byte character
+            }
+            $out .= substr($line, 0, $cut) . "\r\n ";
+            $line = substr($line, $cut);
+        }
+        return $out . $line;
+    }, $lines);
+    return implode("\r\n", $folded) . "\r\n";
+}

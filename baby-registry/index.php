@@ -403,8 +403,14 @@ header('Cache-Control: no-store');
                 <dl class="summary" id="done-summary"></dl>
                 <p class="hint" id="done-email"></p>
                 <div class="done-actions">
-                    <a class="btn btn-ghost" id="calendar-link" download="gift-reminder.ics">📅 Add to calendar</a>
+                    <button type="button" class="btn btn-ghost" id="calendar-btn" aria-expanded="false" aria-controls="calendar-menu">📅 Add to my calendar</button>
                     <button type="button" class="btn btn-accent" data-close>Done</button>
+                </div>
+                <div class="calendar-menu" id="calendar-menu" hidden>
+                    <p class="hint">Add the reminder to:</p>
+                    <a class="cal-option" id="cal-google" target="_blank" rel="noopener">Google Calendar</a>
+                    <a class="cal-option" id="cal-apple">Apple Calendar (iPhone, Mac)</a>
+                    <a class="cal-option" id="cal-outlook" target="_blank" rel="noopener">Outlook</a>
                 </div>
             </div>
         </div>

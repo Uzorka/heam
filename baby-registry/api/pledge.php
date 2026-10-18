@@ -168,4 +168,5 @@ json_response([
         'is_today'     => $pledge['payment_date'] <= date('Y-m-d'),
         'email_sent'   => (bool) ($sent['email'][0] ?? false),
     ],
+    'calendar'  => calendar_links($pledge),
 ]);

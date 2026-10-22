@@ -69,8 +69,7 @@ export default async function DashboardPage({
     pendingApprovals(ctx),
     showLab ? labSummary(ctx) : null,
   ]);
-  const hasApprovals =
-    (approvals.roleChanges ?? 0) + (approvals.breakGlass ?? 0) + (approvals.merges ?? 0) > 0;
+  const hasApprovals = Object.values(approvals).some((n) => (n ?? 0) > 0);
 
   return (
     <>
@@ -101,6 +100,27 @@ export default async function DashboardPage({
               <Button asChild variant="secondary" size="sm">
                 <Link prefetch={false} href="/admin/clinical-catalogue">
                   {approvals.clinicalRules} clinical rule(s) to approve
+                </Link>
+              </Button>
+            )}
+            {!!approvals.frequencies && (
+              <Button asChild variant="secondary" size="sm">
+                <Link prefetch={false} href="/admin/medications?tab=frequencies">
+                  {approvals.frequencies} dose frequenc{approvals.frequencies === 1 ? "y" : "ies"} to approve
+                </Link>
+              </Button>
+            )}
+            {!!approvals.requisitions && (
+              <Button asChild variant="secondary" size="sm">
+                <Link prefetch={false} href="/inventory/procurement">
+                  {approvals.requisitions} requisition(s) to approve
+                </Link>
+              </Button>
+            )}
+            {!!approvals.stockChanges && (
+              <Button asChild variant="secondary" size="sm">
+                <Link prefetch={false} href="/inventory/approvals">
+                  {approvals.stockChanges} stock adjustment(s) or count(s) to approve
                 </Link>
               </Button>
             )}

@@ -26,6 +26,8 @@ import {
   vitalsSchema,
 } from "@/lib/schemas/clinical";
 import { acknowledgeCriticalSchema } from "@/lib/schemas/lab";
+import { cancelPrescriptionItemSchema, createPrescriptionSchema } from "@/lib/schemas/pharmacy";
+import { cancelPrescriptionItem, createPrescription } from "@/server/domains/pharmacy/prescribing";
 import { breakGlassSchema } from "@/lib/schemas/staff";
 import { uuid } from "@/lib/schemas/common";
 
@@ -94,4 +96,15 @@ export const breakGlassAction = defineAction(
   "clinical.breakglass",
   breakGlassSchema,
   async (ctx, i) => (await invokeBreakGlass(ctx, i)).id,
+);
+
+export const createPrescriptionAction = defineAction(
+  "clinical.prescription.sign",
+  createPrescriptionSchema,
+  async (ctx, i) => (await createPrescription(ctx, i)).ref,
+);
+export const cancelPrescriptionItemAction = defineAction(
+  "clinical.prescription.item.cancel",
+  cancelPrescriptionItemSchema,
+  cancelPrescriptionItem,
 );

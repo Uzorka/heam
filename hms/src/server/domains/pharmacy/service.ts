@@ -6,7 +6,7 @@ import { can, requireActingBranch, requirePermission, type AuthContext } from ".
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../../errors";
 import { isUniqueViolation } from "../../db-errors";
 import { notifyUsers } from "../../notify";
-import { toLocalDateString } from "@/lib/time";
+import { toLocalDateString, todayLocal } from "@/lib/time";
 import type { dispenseSchema, reverseDispenseSchema, verifyItemSchema } from "@/lib/schemas/pharmacy";
 import { getSetting } from "../settings/system-settings";
 import { allocateFefo, lotProblem, postMovement, todayDate } from "../inventory/ledger";
@@ -421,4 +421,17 @@ export async function closeItem(
       meta: ctx.meta,
     });
   });
+}
+
+/** Usable units per inventory product across a branch's pharmacy locations (for prescribers). */
+export async function pharmacyAvailability(branchId: string, db: DbClient = prisma) {
+  const rows = await db.$queryRaw<{ productId: string; qty: bigint }[]>`
+    SELECT l."productId", SUM(b."quantity")::bigint AS qty
+    FROM "StockBalance" b
+    JOIN "InventoryLot" l ON l."id" = b."lotId"
+    JOIN "StockLocation" s ON s."id" = b."locationId"
+    WHERE s."branchId" = ${branchId}::uuid AND s."kind" = 'PHARMACY' AND s."active"
+      AND l."status" = 'AVAILABLE' AND (l."expiryDate" IS NULL OR l."expiryDate" > ${todayLocal()}::date)
+    GROUP BY l."productId"`;
+  return new Map(rows.map((r) => [r.productId, Number(r.qty)]));
 }

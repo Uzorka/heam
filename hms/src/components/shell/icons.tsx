@@ -1,6 +1,9 @@
 import {
   BookOpenCheck,
   CalendarCog,
+  Package,
+  Pill,
+  Truck,
   FileCheck2,
   FlaskConical,
   ScanLine,
@@ -25,6 +28,9 @@ import {
 export const NAV_ICONS: Record<string, LucideIcon> = {
   BookOpenCheck,
   CalendarCog,
+  Package,
+  Pill,
+  Truck,
   FileCheck2,
   FlaskConical,
   ScanLine,

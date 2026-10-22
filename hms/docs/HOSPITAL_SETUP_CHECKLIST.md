@@ -28,5 +28,9 @@ audited).
 - SOAP note headings need medical director sign-off before customisation.
 - Decide whether nurses may collect specimens (currently a laboratory permission) and whether lab results always need a second verifier (setting, default on).
 - Imaging: confirm modalities actually offered on site; PACS/DICOM integration needs vendor details.
+- Formulary: replace the DEMO medicines with the hospital's list; record NAFDAC numbers and mark them verified only after checking the NAFDAC register; decide which items are controlled and who holds controlled-drug dispensing rights.
+- Dose frequencies: the seeded list carries a DEMO approval for local testing only. Pharmacy and the medical director must review the list and approve it under their own names before go-live.
+- Stock: real stores, pharmacies and quarantine locations per branch; reorder levels; near-expiry window (setting, default 90 days); whether pharmacists may verify their own prescriptions (setting, default no); opening stock entered via goods receipts or approved adjustments, not edited directly.
+- Suppliers and approval chain for requisitions, stock adjustments and counts.
 - Prices, tariffs, HMO contracts and rules (Phase 4) - entered and approved by finance/HMO officers.
 - Payroll policies (Phase 6) - reviewed by a payroll specialist against current Nigerian law.

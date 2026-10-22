@@ -48,6 +48,30 @@ const NAV: NavGroup[] = [
       { href: "/results", label: "Results to review", icon: "FileCheck2", any: ["clinical.results.review"] },
       { href: "/lab", label: "Laboratory", icon: "FlaskConical", any: ["lab.worklist"] },
       { href: "/imaging", label: "Imaging", icon: "ScanLine", any: ["imaging.worklist"] },
+      { href: "/pharmacy", label: "Pharmacy", icon: "Pill", any: ["pharmacy.queue"] },
+    ],
+  },
+  {
+    label: "Stores",
+    items: [
+      { href: "/inventory", label: "Stock", icon: "Package", any: ["inventory.read"] },
+      {
+        href: "/inventory/procurement",
+        label: "Procurement",
+        icon: "Truck",
+        any: [
+          "inventory.requisition.create",
+          "inventory.requisition.approve",
+          "inventory.po.manage",
+          "inventory.receive",
+        ],
+      },
+      {
+        href: "/inventory/approvals",
+        label: "Stock approvals",
+        icon: "ClipboardCheck",
+        any: ["inventory.adjust", "inventory.adjust.approve", "inventory.count"],
+      },
     ],
   },
   {
@@ -72,6 +96,12 @@ const NAV: NavGroup[] = [
         label: "Clinical catalogue",
         icon: "BookOpenCheck",
         any: ["lab.catalogue.manage", "clinical.rules.approve"],
+      },
+      {
+        href: "/admin/medications",
+        label: "Medication catalogue",
+        icon: "Pill",
+        any: ["pharmacy.catalogue.manage", "clinical.rules.approve"],
       },
       {
         href: "/admin/settings",

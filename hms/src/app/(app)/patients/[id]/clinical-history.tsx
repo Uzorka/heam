@@ -8,6 +8,7 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/misc";
 import { OrderResults } from "@/components/clinical/order-results";
 import { FlagBadge } from "@/components/clinical/flag-badge";
+import { PrescriptionList } from "@/components/clinical/prescription-list";
 
 type Data = Awaited<ReturnType<typeof getClinicalHistory>>;
 
@@ -105,6 +106,16 @@ export function ClinicalHistory({ data }: { data: Data }) {
             {data.results.map((o) => (
               <OrderResults key={o.id} o={o} />
             ))}
+          </CardBody>
+        )}
+      </Card>
+      <Card>
+        <CardHeader title="Medications" description="Signed prescriptions with what the pharmacy dispensed" />
+        {data.prescriptions.length === 0 ? (
+          <EmptyState title="No prescriptions" />
+        ) : (
+          <CardBody>
+            <PrescriptionList prescriptions={data.prescriptions} showLots />
           </CardBody>
         )}
       </Card>

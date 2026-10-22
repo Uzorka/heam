@@ -42,7 +42,21 @@ _Imaging_ worklist → **Schedule** / **Start examination** → findings and imp
 
 ## Clinical content approval
 
-_Clinical catalogue_: propose reference ranges and vital-sign thresholds with their source; a **different** clinician with approval rights approves them. Only approved rules produce flags. Seeded values are placeholders and say so.
+_Clinical catalogue_: propose reference ranges and vital-sign thresholds with their source; a **different** clinician with approval rights approves them. Only approved rules produce flags. Seeded values are placeholders and say so. Dose frequencies in _Medication catalogue_ follow the same rule.
+
+## Prescribing (doctors)
+
+Visit workspace → _Medications_: choose each medicine, dose, route, an **approved** frequency, days and the quantity to supply (a calculated figure is offered when the dose is a plain number - confirm or change it). If allergies are recorded, tick that you reviewed them. Enter your password to **Sign prescription**. Signed prescriptions cannot be edited: cancel an item (before dispensing) and prescribe again. Pharmacy queries arrive as notifications.
+
+## Pharmacy
+
+_Pharmacy_ worklist → open a prescription. Check the allergy banner, then **Verify** each item (or **Query prescriber** with the question). Dispense: pick the pharmacy location, leave the lot on _Earliest expiry first_ (or choose a lot), confirm the quantity (partial supply is allowed), tick counselling, **Dispense**. Expired, quarantined and recalled lots cannot be chosen. A double click or retry never issues stock twice. Returns on the same day: **Reverse**. If the rest will not be supplied, **Stop supplying** (the prescriber is told). Controlled drugs need the controlled-drug permission.
+
+## Stores and procurement
+
+- _Stock_: usable quantities, **Reorder** and **near expiry** badges, unusable stock. Open an item for lots, the ledger, **Transfer**, **Adjust** (goes for approval) and lot status (quarantine/recall; release needs an approver).
+- _Procurement_: raise a **requisition** → someone else **approves** → **Create order** (supplier and unit costs from the quotation) → **Issue** → when goods arrive, open the order and **Record goods received** with lot numbers and expiry dates (quarantine anything doubtful).
+- _Stock approvals_: approve or reject adjustments; **Start a count** for a location, enter counted quantities, **Submit**; a different person **Approves** and the variances post to the ledger.
 
 ## Medical records
 

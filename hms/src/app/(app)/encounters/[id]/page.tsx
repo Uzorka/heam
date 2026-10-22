@@ -24,6 +24,14 @@ import { OrderForm } from "@/components/clinical/order-form";
 import { OrderResults } from "@/components/clinical/order-results";
 import { FlagBadge } from "@/components/clinical/flag-badge";
 import { UploadForm } from "@/components/clinical/upload-form";
+import { PrescriptionForm } from "@/components/clinical/prescription-form";
+import { PrescriptionList } from "@/components/clinical/prescription-list";
+import {
+  encounterPrescriptions,
+  listFrequencies,
+  listMedications,
+} from "@/server/domains/pharmacy/prescribing";
+import { pharmacyAvailability } from "@/server/domains/pharmacy/service";
 import { load } from "../../_lib/guard";
 import { StageButtons } from "../../queue/stage-buttons";
 import { QUEUE_TRANSITIONS, transitionPermission } from "@/server/domains/queue/state-machine";
@@ -32,6 +40,7 @@ import {
   addDiagnosisAction,
   addendumAction,
   cancelOrderAction,
+  cancelPrescriptionItemAction,
   completeOrderAction,
   createNoteAction,
   recordTriageAction,
@@ -43,7 +52,7 @@ import {
 
 export const metadata: Metadata = { title: "Visit workspace" };
 
-const TABS = ["summary", "vitals", "notes", "diagnoses", "orders"] as const;
+const TABS = ["summary", "vitals", "notes", "diagnoses", "orders", "medications"] as const;
 type Tab = (typeof TABS)[number];
 const ACUITY = [
   { value: "IMMEDIATE", label: "Immediate" },
@@ -90,6 +99,16 @@ export default async function EncounterPage({
           }),
         ])
       : [[], []];
+  const prescriptions = await encounterPrescriptions(enc.id);
+  const canPrescribe = open && can(ctx, "clinical.prescribe", { branchId: b });
+  const [medications, frequencies, availability] =
+    tab === "medications" && canPrescribe
+      ? await Promise.all([
+          listMedications(),
+          listFrequencies({ approvedOnly: true }),
+          pharmacyAvailability(b),
+        ])
+      : [[], [], new Map<string, number>()];
   const stageOptions = open
     ? QUEUE_TRANSITIONS[enc.queueStage]
         .filter(
@@ -196,6 +215,12 @@ export default async function EncounterPage({
             count: w.diagnoses.filter((d) => d.status !== "ENTERED_IN_ERROR").length,
           },
           { key: "orders", label: "Orders & results", href: href("orders"), count: w.orders.length },
+          {
+            key: "medications",
+            label: "Medications",
+            href: href("medications"),
+            count: prescriptions.filter((p) => p.status !== "CANCELLED").length,
+          },
         ]}
       />
 
@@ -788,6 +813,73 @@ export default async function EncounterPage({
               </CardBody>
             </Card>
           )}
+        </div>
+      )}
+
+      {tab === "medications" && (
+        <div className="space-y-5">
+          {canPrescribe && (
+            <Card>
+              <CardHeader
+                title="New prescription"
+                description="Signing sends the prescription to the pharmacy for verification. Signed prescriptions cannot be edited - cancel and re-prescribe instead."
+              />
+              <CardBody>
+                <PrescriptionForm
+                  encounterId={enc.id}
+                  allergies={w.allergies.map(
+                    (a) => `${a.substance}${a.severity === "SEVERE" ? " (severe)" : ""}`,
+                  )}
+                  frequencies={frequencies.map((f) => ({
+                    id: f.id,
+                    code: f.code,
+                    label: f.label,
+                    timesPerDay: f.timesPerDay === null ? null : Number(f.timesPerDay),
+                  }))}
+                  medications={medications.map((m) => ({
+                    id: m.id,
+                    label: `${m.genericName} ${m.strength} ${m.form.toLowerCase()}${m.brandName ? ` (${m.brandName})` : ""}`,
+                    defaultRoute: m.defaultRoute,
+                    dispensingUnit: m.dispensingUnit,
+                    controlled: m.controlled,
+                    formularyStatus: m.formularyStatus,
+                    inStock: availability.get(m.inventoryProductId) ?? 0,
+                  }))}
+                />
+              </CardBody>
+            </Card>
+          )}
+          <Card>
+            <CardHeader title="Prescriptions on this visit" />
+            {prescriptions.length === 0 ? (
+              <EmptyState title="No prescriptions" />
+            ) : (
+              <CardBody>
+                <PrescriptionList
+                  prescriptions={prescriptions}
+                  cancelItem={(item, rx) =>
+                    ["PENDING", "QUERIED", "VERIFIED"].includes(item.status) &&
+                    item.quantityDispensed === 0 &&
+                    ((rx.prescriberId === ctx.userId && can(ctx, "clinical.prescribe", { branchId: b })) ||
+                      can(ctx, "clinical.order.cancel", { branchId: b })) ? (
+                      <ActionDialog
+                        action={cancelPrescriptionItemAction}
+                        fixed={{ itemId: item.id }}
+                        trigger="Cancel"
+                        triggerVariant="ghost"
+                        title={`Cancel ${item.medication.genericName}?`}
+                        description="The pharmacy will no longer supply this item."
+                        submitLabel="Cancel item"
+                        tone="danger"
+                        successMessage="Prescription item cancelled."
+                        fields={[{ name: "reason", label: "Reason", type: "textarea", required: true }]}
+                      />
+                    ) : null
+                  }
+                />
+              </CardBody>
+            )}
+          </Card>
         </div>
       )}
 

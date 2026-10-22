@@ -45,7 +45,7 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 | 5     | Duplicates never silently merged                                | ✅                                                                            |
 | 6     | Idempotent payment callback                                     | Phase 4                                                                       |
 | 7     | Concurrent bed assignment                                       | Phase 5 (same DB technique proven for appointments)                           |
-| 8–9   | Dispensing lot accuracy; expired lots blocked                   | Phase 3                                                                       |
+| 8–9   | Dispensing lot accuracy; expired lots blocked                   | ✅ integration (idempotent + concurrent) + E2E                                |
 | 10–11 | Verified results / signed notes immutable with amendments       | Phase 2                                                                       |
 | 12–15 | HMO patient-pay, claim vs preauth, remittance, effective tariff | Phase 4                                                                       |
 | 16    | Pregnancy & newborn (twins) linked records                      | Phase 5                                                                       |
@@ -93,20 +93,48 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 - Results are not yet released to the patient portal (Phase 6).
 - Specimen collection is a lab permission; nurse collection requires a role change if the hospital wants it.
 
-## Phase 3 - next (pharmacy, inventory, procurement)
+## Phase 3 - Pharmacy, inventory, procurement ✅
 
-- [ ] Medication catalogue (generic/brand, strength, form, route, NAFDAC number when verified, pack conversions, controlled flag)
-- [ ] Prescribing from the encounter workspace with password signature; allergy display; no fabricated interaction checks
-- [ ] Pharmacist verification queue; dispensing with FEFO lot selection, partial fills, authorised substitutions, returns
-- [ ] Lot-level stock ledger (append-only), expiry/quarantine blocking, low-stock and near-expiry alerts
-- [ ] Suppliers, requisitions → approval → PO → goods received (quarantine) → stock; transfers; cycle counts; adjustments with approval
-- [ ] MAR foundations (administration records) for inpatient use in Phase 5
-- [ ] Tests: acceptance criteria 8 and 9 (dispense once updates the correct lot; expired lots blocked), concurrency on stock
+- [x] Migration `phase3_pharmacy_inventory`: stock balances with a non-negative CHECK, append-only stock ledger and goods receipts, lots never deleted, dispense events immutable except a one-time reversal marker, signed prescriptions immutable (trigger), quantity CHECKs
+- [x] Stock ledger service: every change goes through `postMovement` (row lock, no negative stock, balance-after recorded); FEFO allocation over usable lots only
+- [x] Medication catalogue linked 1:1 to stock items (generic/brand, strength, form, route, dispensing unit, NAFDAC number recorded as unverified, controlled flag, formulary status)
+- [x] Dose frequencies as clinical content: DRAFT → APPROVED by a different clinician; only approved frequencies can be prescribed
+- [x] Prescribing from the visit workspace (_Medications_ tab): multiple medicines, suggested quantity the prescriber must confirm, allergy acknowledgement when allergies are recorded, password signature with content hash; cancel undispensed items; no fabricated interaction checks
+- [x] Pharmacy worklist and prescription page: verify or query (prescriber notified), independent verification setting, dispensing with FEFO or a chosen lot, partial fills, controlled-drug grant, counselling flag, idempotency key per dispense, same-day reversal, stop supplying the balance
+- [x] Stock pages: usable stock, reorder alerts, near-expiry (setting) and unusable stock, product lots and ledger, quarantine/recall/release, transfers (unusable lots only into quarantine)
+- [x] Procurement: suppliers, requisitions approved by someone else, purchase orders (draft → issued → received), goods receipts creating lots (expiry required when tracked; expired goods refused; quarantine on receipt), idempotent receipts
+- [x] Two-person stock adjustments and cycle counts (snapshot, count entry, approval posts variances)
+- [x] Dashboard approvals for frequencies, requisitions, adjustments and counts (and fixed: the card no longer hides when only clinical rules are pending); notification texts for lab, imaging and pharmacy events
+- [x] Patient chart shows medication history with dispensed lots
+- [x] New permission `inventory.transfer` (synced to template roles at release); settings `pharmacy.requireIndependentVerification`, `inventory.nearExpiryDays`
+- [x] Seed: 10 generic medicines, 4 supplies, demo store/pharmacy/quarantine locations, fictional supplier, lots including near-expiry, expired and quarantined, a pending prescription and requisition; frequencies carry a clearly labelled DEMO approval
+
+### Phase 3 test status
+
+- Unit: +2 (quantity suggestion)
+- Integration: +19 (signed-prescription immutability, draft frequencies refused, allergy acknowledgement and password, non-prescribers refused, approval separation, verification rules and queries, AC8 single update of the FEFO lot under retries and concurrent retries, AC9 expired / expiring-today / quarantined / recalled lots refused, partial fills and multi-lot FEFO, concurrent last-stock dispenses, controlled drugs, reversal, cancellation/closing, requisition → PO → receipt idempotency and over-receipt, quarantine release, transfers, adjustments and counts)
+- E2E: +2 (prescribe → verify → dispense skipping the expired lot; stock alerts and pharmacy access denied to a prescriber)
+- Totals at end of Phase 3: 55 unit + 71 integration, 12 E2E - all passing (E2E suite run twice back to back)
+
+### Known limitations after Phase 3
+
+- Substitution is not a pharmacy action: a different product needs the prescriber to cancel and re-prescribe (keeps the signed record truthful). Pack-size conversions are not modelled; each medicine has one dispensing unit.
+- No drug-interaction or dose-range checking (no validated knowledge base configured).
+- Medication administration records (MAR) are deferred to Phase 5 with admissions.
+- Dispensing is not yet charged; billing arrives in Phase 4.
+- Count approval posts the variance against the snapshot quantity; counts should be done when the location is quiet.
+
+## Phase 4 - next (billing, HMO, claims)
+
+- [ ] Service catalogue with effective-dated prices entered and approved by finance (no fabricated prices)
+- [ ] Patient accounts, invoices from orders/dispenses (cancelled orders never charged), payments with idempotent provider callbacks, receipts, refunds/voids with approval, cashier shifts and daily close
+- [ ] HMO partners/plans/tariffs (contracts activated only when verified), patient coverage, eligibility checks that never show verified when a connector fails, pre-authorisation, claims from encounters, submission tracking, remittance import and reconciliation
+- [ ] Tests: acceptance criteria 6, 12–15, 17, 23
 
 ## Continuation prompt for the next session
 
 > Continue the Aduraking HMS in `hms/` on branch `claude/aduraking-hms`. Read `TASKS.md`, `docs/ARCHITECTURE.md`
-> and `docs/DOMAIN_MODEL.md` first. Phases 1-2 are complete and green (unit, integration, E2E). Start Phase 3 exactly as
+> and `docs/DOMAIN_MODEL.md` first. Phases 1-3 are complete and green (unit, integration, E2E). Start Phase 4 exactly as
 > listed in TASKS.md: add a new Prisma migration (never edit applied ones), put all rules in `src/server/domains/*`
 > services with `requirePermission`/`getClinicalAccess` checks and same-transaction `recordAudit`, expose them via
 > `defineAction`, and build pages using the existing UI kit (`components/ui`, `components/forms/action-form`).

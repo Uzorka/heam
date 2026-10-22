@@ -283,24 +283,44 @@ export async function visitsByDay(ctx: AuthContext, from: string, to: string, db
 }
 
 export async function pendingApprovals(ctx: AuthContext, db: DbClient = prisma) {
-  const [roleChanges, breakGlass, merges, clinicalRules] = await Promise.all([
-    can(ctx, "roles.approve_change")
-      ? db.roleChangeRequest.count({ where: { status: "PENDING", NOT: { requestedById: ctx.userId } } })
-      : null,
-    can(ctx, "audit.breakglass.review")
-      ? db.breakGlassGrant.count({ where: { reviewStatus: "PENDING" } })
-      : null,
-    can(ctx, "patient.merge.approve")
-      ? db.duplicatePatientReview.count({
-          where: { status: "MERGE_REQUESTED", NOT: { mergeRequestedById: ctx.userId } },
-        })
-      : null,
-    can(ctx, "clinical.rules.approve")
-      ? Promise.all([
-          db.labReferenceRange.count({ where: { status: "DRAFT", NOT: { createdById: ctx.userId } } }),
-          db.vitalThreshold.count({ where: { status: "DRAFT", NOT: { createdById: ctx.userId } } }),
-        ]).then(([a, b]) => a + b)
-      : null,
-  ]);
-  return { roleChanges, breakGlass, merges, clinicalRules };
+  const [roleChanges, breakGlass, merges, clinicalRules, frequencies, requisitions, stockChanges] =
+    await Promise.all([
+      can(ctx, "roles.approve_change")
+        ? db.roleChangeRequest.count({ where: { status: "PENDING", NOT: { requestedById: ctx.userId } } })
+        : null,
+      can(ctx, "audit.breakglass.review")
+        ? db.breakGlassGrant.count({ where: { reviewStatus: "PENDING" } })
+        : null,
+      can(ctx, "patient.merge.approve")
+        ? db.duplicatePatientReview.count({
+            where: { status: "MERGE_REQUESTED", NOT: { mergeRequestedById: ctx.userId } },
+          })
+        : null,
+      can(ctx, "clinical.rules.approve")
+        ? Promise.all([
+            db.labReferenceRange.count({ where: { status: "DRAFT", NOT: { createdById: ctx.userId } } }),
+            db.vitalThreshold.count({ where: { status: "DRAFT", NOT: { createdById: ctx.userId } } }),
+          ]).then(([a, b]) => a + b)
+        : null,
+      can(ctx, "clinical.rules.approve")
+        ? db.medicationFrequency.count({ where: { status: "DRAFT", NOT: { createdById: ctx.userId } } })
+        : null,
+      can(ctx, "inventory.requisition.approve")
+        ? db.purchaseRequisition.count({ where: { status: "SUBMITTED", NOT: { requestedById: ctx.userId } } })
+        : null,
+      can(ctx, "inventory.adjust.approve")
+        ? Promise.all([
+            db.stockAdjustmentRequest.count({
+              where: { status: "PENDING", NOT: { requestedById: ctx.userId } },
+            }),
+            db.stockCount.count({
+              where: {
+                status: "SUBMITTED",
+                NOT: [{ startedById: ctx.userId }, { submittedById: ctx.userId }],
+              },
+            }),
+          ]).then(([a, b]) => a + b)
+        : null,
+    ]);
+  return { roleChanges, breakGlass, merges, clinicalRules, frequencies, requisitions, stockChanges };
 }

@@ -11,6 +11,7 @@ import "dotenv/config";
 import { PrismaClient, type QueueStage, type SexAtBirth } from "@prisma/client";
 import { syncPermissionCatalog } from "../src/server/authz/catalog-sync";
 import { seedClinicalActivity, seedClinicalCatalogue } from "./seed-clinical";
+import { seedPharmacy } from "./seed-pharmacy";
 import { ROLE_TEMPLATES } from "../src/server/authz/role-templates";
 import { hashPassword } from "../src/server/auth/password";
 import { encryptField } from "../src/server/crypto";
@@ -1037,6 +1038,10 @@ async function main() {
   await seedClinicalCatalogue(prisma, users.lab!);
   const clinical = await seedClinicalActivity(prisma, users);
   if (clinical) console.warn("Seeded demo clinical activity (orders, notes, results).");
+  if (await seedPharmacy(prisma, users, main.id))
+    console.warn(
+      "Seeded demo pharmacy and stores (medicines, lots, a pending prescription and requisition).",
+    );
   await recordAudit(prisma, {
     actorType: "SYSTEM",
     action: "seed.loaded",

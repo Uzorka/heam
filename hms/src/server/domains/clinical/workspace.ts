@@ -1,4 +1,5 @@
 import { prisma, type DbClient } from "../../db";
+import { patientPrescriptions } from "../pharmacy/prescribing";
 import { recordAudit } from "../../audit";
 import { can, requireActingBranch, type AuthContext } from "../../authz/context";
 import { ForbiddenError, NotFoundError } from "../../errors";
@@ -141,7 +142,7 @@ export async function getEncounterWorkspace(ctx: AuthContext, encounterId: strin
 /** Longitudinal clinical history - requires record-level access (not just an open visit). */
 export async function getClinicalHistory(ctx: AuthContext, patientId: string, db: DbClient = prisma) {
   const access = await requireChartAccess(ctx, patientId, "chart", db);
-  const [encounters, problemList, vitals, results, thresholds] = await Promise.all([
+  const [encounters, problemList, vitals, results, thresholds, prescriptions] = await Promise.all([
     db.encounter.findMany({
       where: { patientId },
       orderBy: { arrivedAt: "desc" },
@@ -173,6 +174,7 @@ export async function getClinicalHistory(ctx: AuthContext, patientId: string, db
       include: orderInclude,
     }),
     approvedThresholds(db),
+    patientPrescriptions(patientId, db),
   ]);
   return {
     access,
@@ -180,6 +182,7 @@ export async function getClinicalHistory(ctx: AuthContext, patientId: string, db
     problemList,
     vitals: vitals.map((v) => ({ ...v, ...vitalsView(v, thresholds) })),
     results,
+    prescriptions,
   };
 }
 

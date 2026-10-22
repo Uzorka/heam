@@ -23,6 +23,7 @@
     "test:integration": "vitest run --project integration",
     "test:all": "vitest run",
     "test:e2e": "playwright test",
+    "docs:permissions": "tsx scripts/generate-permissions-matrix.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run db:validate && npm run test:all"
   },
   "prisma": {

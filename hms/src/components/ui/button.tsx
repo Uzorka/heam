@@ -24,7 +24,9 @@ export const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   loading?: boolean;
 }
@@ -45,7 +47,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ) : (
           <>
             {loading && (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden />
+              <span
+                className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent"
+                aria-hidden
+              />
             )}
             {children}
           </>

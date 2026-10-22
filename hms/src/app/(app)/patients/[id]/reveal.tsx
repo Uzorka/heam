@@ -17,7 +17,13 @@ export function RevealIdentifier({ identifierId, masked }: { identifierId: strin
     <span className="inline-flex flex-wrap items-center gap-2">
       <span className="font-mono">{result ? result.value : masked}</span>
       {!result && (
-        <Button type="button" variant="link" size="sm" loading={pending} onClick={() => run({ identifierId })}>
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          loading={pending}
+          onClick={() => run({ identifierId })}
+        >
           <Eye className="h-3.5 w-3.5" aria-hidden /> Reveal
         </Button>
       )}

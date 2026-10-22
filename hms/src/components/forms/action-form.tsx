@@ -11,11 +11,49 @@ import { useToast } from "./toaster";
 import { cn } from "@/lib/utils";
 
 export type FieldSpec =
-  | { name: string; label: string; type: "text" | "password" | "tel" | "email" | "date" | "time" | "number"; required?: boolean; hint?: string; placeholder?: string; defaultValue?: string; span?: 2; max?: string; min?: string }
-  | { name: string; label: string; type: "textarea"; required?: boolean; hint?: string; placeholder?: string; defaultValue?: string; span?: 2 }
-  | { name: string; label: string; type: "select"; options: { value: string; label: string }[]; required?: boolean; hint?: string; defaultValue?: string; span?: 2; placeholder?: string }
+  | {
+      name: string;
+      label: string;
+      type: "text" | "password" | "tel" | "email" | "date" | "time" | "number";
+      required?: boolean;
+      hint?: string;
+      placeholder?: string;
+      defaultValue?: string;
+      span?: 2;
+      max?: string;
+      min?: string;
+    }
+  | {
+      name: string;
+      label: string;
+      type: "textarea";
+      required?: boolean;
+      hint?: string;
+      placeholder?: string;
+      defaultValue?: string;
+      span?: 2;
+    }
+  | {
+      name: string;
+      label: string;
+      type: "select";
+      options: { value: string; label: string }[];
+      required?: boolean;
+      hint?: string;
+      defaultValue?: string;
+      span?: 2;
+      placeholder?: string;
+    }
   | { name: string; label: string; type: "checkbox"; hint?: string; defaultChecked?: boolean; span?: 2 }
-  | { name: string; label: string; type: "multicheck"; options: { value: string; label: string; hint?: string }[]; hint?: string; defaultValues?: string[]; span?: 2 };
+  | {
+      name: string;
+      label: string;
+      type: "multicheck";
+      options: { value: string; label: string; hint?: string }[];
+      hint?: string;
+      defaultValues?: string[];
+      span?: 2;
+    };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server actions have heterogeneous input types
 type AnyAction = (input: any) => Promise<ActionResult<unknown>>;
@@ -49,12 +87,24 @@ function collect(form: HTMLFormElement, fields: FieldSpec[]): Record<string, unk
   return out;
 }
 
-export function FormFields({ fields, prefix, errors }: { fields: FieldSpec[]; prefix: string; errors: Record<string, string> }) {
+export function FormFields({
+  fields,
+  prefix,
+  errors,
+}: {
+  fields: FieldSpec[];
+  prefix: string;
+  errors: Record<string, string>;
+}) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {fields.map((f) => {
         const id = fieldId(prefix, f.name);
-        const cls = cn(f.span === 2 || f.type === "textarea" || f.type === "multicheck" || f.type === "checkbox" ? "sm:col-span-2" : "");
+        const cls = cn(
+          f.span === 2 || f.type === "textarea" || f.type === "multicheck" || f.type === "checkbox"
+            ? "sm:col-span-2"
+            : "",
+        );
         if (f.type === "checkbox") {
           return (
             <label key={f.name} htmlFor={id} className={cn("flex items-start gap-2 text-[14px]", cls)}>
@@ -62,7 +112,9 @@ export function FormFields({ fields, prefix, errors }: { fields: FieldSpec[]; pr
               <span>
                 {f.label}
                 {f.hint && <span className="block text-xs text-muted">{f.hint}</span>}
-                {errors[f.name] && <span className="block text-xs font-medium text-danger">{errors[f.name]}</span>}
+                {errors[f.name] && (
+                  <span className="block text-xs font-medium text-danger">{errors[f.name]}</span>
+                )}
               </span>
             </label>
           );
@@ -75,7 +127,12 @@ export function FormFields({ fields, prefix, errors }: { fields: FieldSpec[]; pr
               <div className="max-h-72 space-y-1.5 overflow-y-auto rounded-md border border-border p-3">
                 {f.options.map((o) => (
                   <label key={o.value} className="flex items-start gap-2 text-[13px]">
-                    <Checkbox name={f.name} value={o.value} defaultChecked={f.defaultValues?.includes(o.value)} className="mt-0.5" />
+                    <Checkbox
+                      name={f.name}
+                      value={o.value}
+                      defaultChecked={f.defaultValues?.includes(o.value)}
+                      className="mt-0.5"
+                    />
                     <span>
                       <span className="font-mono">{o.label}</span>
                       {o.hint && <span className="block text-xs text-muted">{o.hint}</span>}
@@ -88,10 +145,20 @@ export function FormFields({ fields, prefix, errors }: { fields: FieldSpec[]; pr
           );
         }
         return (
-          <Field key={f.name} label={f.label} htmlFor={id} required={f.required} hint={f.hint} error={errors[f.name]} className={cls}>
+          <Field
+            key={f.name}
+            label={f.label}
+            htmlFor={id}
+            required={f.required}
+            hint={f.hint}
+            error={errors[f.name]}
+            className={cls}
+          >
             {f.type === "select" ? (
               <Select name={f.name} defaultValue={f.defaultValue ?? ""}>
-                {!f.required || !f.defaultValue ? <option value="">{f.placeholder ?? "Select"}</option> : null}
+                {!f.required || !f.defaultValue ? (
+                  <option value="">{f.placeholder ?? "Select"}</option>
+                ) : null}
                 {f.options.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -214,7 +281,12 @@ export function ActionDialog(
 
 /** A single-click action with a confirmation dialog (no fields). */
 export function ConfirmAction(
-  p: Omit<CommonProps, "fields"> & { trigger: React.ReactNode; title: string; description: string; triggerVariant?: "primary" | "secondary" | "ghost" | "danger" },
+  p: Omit<CommonProps, "fields"> & {
+    trigger: React.ReactNode;
+    title: string;
+    description: string;
+    triggerVariant?: "primary" | "secondary" | "ghost" | "danger";
+  },
 ) {
   return <ActionDialog {...p} fields={[]} />;
 }

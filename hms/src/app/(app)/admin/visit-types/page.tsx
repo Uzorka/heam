@@ -20,8 +20,20 @@ export default async function VisitTypesPage() {
   const fields = (v?: (typeof types)[number]): FieldSpec[] => [
     { name: "code", label: "Code", type: "text", required: true, defaultValue: v?.code },
     { name: "name", label: "Name", type: "text", required: true, defaultValue: v?.name },
-    { name: "departmentId", label: "Department", type: "select", defaultValue: v?.departmentId ?? "", options: departments.map((d) => ({ value: d.id, label: d.name })) },
-    { name: "defaultDurationMin", label: "Default duration (minutes)", type: "number", required: true, defaultValue: String(v?.defaultDurationMin ?? 15) },
+    {
+      name: "departmentId",
+      label: "Department",
+      type: "select",
+      defaultValue: v?.departmentId ?? "",
+      options: departments.map((d) => ({ value: d.id, label: d.name })),
+    },
+    {
+      name: "defaultDurationMin",
+      label: "Default duration (minutes)",
+      type: "number",
+      required: true,
+      defaultValue: String(v?.defaultDurationMin ?? 15),
+    },
     { name: "active", label: "Active", type: "checkbox", defaultChecked: v?.active ?? true },
   ];
   return (
@@ -29,7 +41,20 @@ export default async function VisitTypesPage() {
       <PageHeader
         title="Visit types"
         description="Used for booking, check-in and (from Phase 4) default consultation charges."
-        actions={manage && <ActionDialog action={saveVisitTypeAction} trigger="Add visit type" triggerVariant="primary" triggerSize="md" title="Add visit type" submitLabel="Save" successMessage="Visit type saved." fields={fields()} />}
+        actions={
+          manage && (
+            <ActionDialog
+              action={saveVisitTypeAction}
+              trigger="Add visit type"
+              triggerVariant="primary"
+              triggerSize="md"
+              title="Add visit type"
+              submitLabel="Save"
+              successMessage="Visit type saved."
+              fields={fields()}
+            />
+          )
+        }
       />
       <Card>
         <CardHeader title={`${types.length} visit types`} />
@@ -42,7 +67,11 @@ export default async function VisitTypesPage() {
                 <TH>Department</TH>
                 <TH className="text-right">Duration</TH>
                 <TH>Status</TH>
-                {manage && <TH><span className="sr-only">Actions</span></TH>}
+                {manage && (
+                  <TH>
+                    <span className="sr-only">Actions</span>
+                  </TH>
+                )}
               </tr>
             </THead>
             <tbody>
@@ -51,11 +80,22 @@ export default async function VisitTypesPage() {
                   <TD className="font-mono text-[13px]">{v.code}</TD>
                   <TD>{v.name}</TD>
                   <TD className="text-[13px]">{v.department?.name ?? "-"}</TD>
-                  <TD className="text-right tabular">{v.defaultDurationMin} min</TD>
-                  <TD>{v.active ? <Badge tone="success">Active</Badge> : <Badge tone="outline">Inactive</Badge>}</TD>
+                  <TD className="tabular text-right">{v.defaultDurationMin} min</TD>
+                  <TD>
+                    {v.active ? <Badge tone="success">Active</Badge> : <Badge tone="outline">Inactive</Badge>}
+                  </TD>
                   {manage && (
                     <TD className="text-right">
-                      <ActionDialog action={saveVisitTypeAction} fixed={{ id: v.id }} trigger="Edit" triggerVariant="ghost" title={`Edit ${v.name}`} submitLabel="Save" successMessage="Visit type saved." fields={fields(v)} />
+                      <ActionDialog
+                        action={saveVisitTypeAction}
+                        fixed={{ id: v.id }}
+                        trigger="Edit"
+                        triggerVariant="ghost"
+                        title={`Edit ${v.name}`}
+                        submitLabel="Save"
+                        successMessage="Visit type saved."
+                        fields={fields(v)}
+                      />
                     </TD>
                   )}
                 </TR>

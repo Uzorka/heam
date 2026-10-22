@@ -17,12 +17,23 @@ export function ResetLinkButton({ userId }: { userId: string }) {
           Issue password reset link
         </Button>
       </DialogTrigger>
-      <DialogContent title="Password reset link" description="Also unlocks the account. Any earlier unused link stops working.">
+      <DialogContent
+        title="Password reset link"
+        description="Also unlocks the account. Any earlier unused link stops working."
+      >
         {error && <Alert tone="danger">{error}</Alert>}
         {result ? (
           <div className="space-y-3">
-            <Alert tone="warning">Give this link only to the account holder, in person or through a secure channel. It is shown once.</Alert>
-            <Input readOnly value={result.setupLink} aria-label="Reset link" onFocus={(e) => e.currentTarget.select()} />
+            <Alert tone="warning">
+              Give this link only to the account holder, in person or through a secure channel. It is shown
+              once.
+            </Alert>
+            <Input
+              readOnly
+              value={result.setupLink}
+              aria-label="Reset link"
+              onFocus={(e) => e.currentTarget.select()}
+            />
           </div>
         ) : (
           <Button loading={pending} onClick={() => run({ userId })}>

@@ -126,7 +126,12 @@ export default async function PatientPage({
         </div>
       </div>
 
-      <PatientBanner p={p} age={d.age} activeAllergies={active.length} allergyNames={active.map((a) => a.substance)} />
+      <PatientBanner
+        p={p}
+        age={d.age}
+        activeAllergies={active.length}
+        allergyNames={active.map((a) => a.substance)}
+      />
 
       <div className="mb-4 space-y-2">
         {sp.registered && <Alert tone="success">Patient registered with MRN {p.mrn}.</Alert>}
@@ -141,7 +146,8 @@ export default async function PatientPage({
         )}
         {p.registrationStatus === "PROVISIONAL" && p.status === "ACTIVE" && (
           <Alert tone="warning" title="Registration incomplete">
-            Record the date of birth (or estimated age), a contact phone, and confirm the privacy notice, then complete the registration.
+            Record the date of birth (or estimated age), a contact phone, and confirm the privacy notice, then
+            complete the registration.
             {editable && (
               <span className="mt-2 block">
                 <ConfirmAction
@@ -165,7 +171,9 @@ export default async function PatientPage({
         tabs={[
           { key: "overview", label: "Overview", href: href("overview") },
           { key: "allergies", label: "Allergies", href: href("allergies"), count: active.length },
-          ...(can(ctx, "appointment.read") ? [{ key: "appointments", label: "Appointments", href: href("appointments") }] : []),
+          ...(can(ctx, "appointment.read")
+            ? [{ key: "appointments", label: "Appointments", href: href("appointments") }]
+            : []),
           ...(can(ctx, "queue.read") ? [{ key: "visits", label: "Visits", href: href("visits") }] : []),
           { key: "consents", label: "Consents", href: href("consents") },
           { key: "timeline", label: "Timeline", href: href("timeline") },
@@ -179,7 +187,12 @@ export default async function PatientPage({
             <CardBody>
               <DescriptionList
                 items={[
-                  ["Date of birth", p.dateOfBirth ? `${formatCalendarDate(p.dateOfBirth)}${p.dobProvenance === "ESTIMATED" ? " (estimated)" : ""}` : null],
+                  [
+                    "Date of birth",
+                    p.dateOfBirth
+                      ? `${formatCalendarDate(p.dateOfBirth)}${p.dobProvenance === "ESTIMATED" ? " (estimated)" : ""}`
+                      : null,
+                  ],
                   ["Preferred name", p.preferredName],
                   ["Phone", p.phoneE164 ? formatPhone(p.phoneE164) : null],
                   ["Alternative phone", p.altPhoneE164 ? formatPhone(p.altPhoneE164) : null],
@@ -278,7 +291,14 @@ export default async function PatientPage({
                       submitLabel="Save"
                       successMessage="Identity document added."
                       fields={[
-                        { name: "type", label: "Type", type: "select", required: true, defaultValue: "NIN", options: Object.entries(ID_LABEL).map(([value, label]) => ({ value, label })) },
+                        {
+                          name: "type",
+                          label: "Type",
+                          type: "select",
+                          required: true,
+                          defaultValue: "NIN",
+                          options: Object.entries(ID_LABEL).map(([value, label]) => ({ value, label })),
+                        },
                         { name: "value", label: "Number", type: "text", required: true },
                         { name: "issuer", label: "Issuer (optional)", type: "text" },
                       ]}
@@ -294,7 +314,11 @@ export default async function PatientPage({
                     {d.identifiers.map((i) => (
                       <li key={i.id} className="flex flex-wrap justify-between gap-2">
                         <span className="text-muted">{ID_LABEL[i.type]}</span>
-                        {d.canRevealIdentifiers ? <RevealIdentifier identifierId={i.id} masked={i.masked} /> : <span className="font-mono">{i.masked}</span>}
+                        {d.canRevealIdentifiers ? (
+                          <RevealIdentifier identifierId={i.id} masked={i.masked} />
+                        ) : (
+                          <span className="font-mono">{i.masked}</span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -316,7 +340,13 @@ export default async function PatientPage({
                       successMessage="Guardian link recorded (unverified)."
                       fields={[
                         { name: "guardianName", label: "Guardian name", type: "text", required: true },
-                        { name: "relationship", label: "Relationship", type: "text", required: true, placeholder: "e.g. Mother" },
+                        {
+                          name: "relationship",
+                          label: "Relationship",
+                          type: "text",
+                          required: true,
+                          placeholder: "e.g. Mother",
+                        },
                         { name: "guardianPhone", label: "Phone", type: "tel" },
                       ]}
                     />
@@ -324,13 +354,20 @@ export default async function PatientPage({
                 }
               />
               <CardBody className="space-y-3 text-[14px]">
-                {d.guardians.length === 0 && d.dependents.length === 0 && <p className="text-[13px] text-muted">None recorded.</p>}
+                {d.guardians.length === 0 && d.dependents.length === 0 && (
+                  <p className="text-[13px] text-muted">None recorded.</p>
+                )}
                 {d.guardians.map((g) => (
                   <div key={g.id} className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-medium">{g.guardianName}</p>
                       <p className="text-[13px] text-muted">
-                        {g.relationship} · {g.verified ? <Badge tone="success">Verified</Badge> : <Badge tone="warning">Unverified</Badge>}
+                        {g.relationship} ·{" "}
+                        {g.verified ? (
+                          <Badge tone="success">Verified</Badge>
+                        ) : (
+                          <Badge tone="warning">Unverified</Badge>
+                        )}
                       </p>
                     </div>
                     <div className="flex gap-1">
@@ -344,7 +381,15 @@ export default async function PatientPage({
                           description="Must be a different person from whoever recorded the link."
                           submitLabel="Verify"
                           successMessage="Guardian verified."
-                          fields={[{ name: "evidence", label: "Evidence checked", type: "textarea", required: true, placeholder: "e.g. Birth certificate sighted" }]}
+                          fields={[
+                            {
+                              name: "evidence",
+                              label: "Evidence checked",
+                              type: "textarea",
+                              required: true,
+                              placeholder: "e.g. Birth certificate sighted",
+                            },
+                          ]}
                         />
                       )}
                       {can(ctx, "patient.guardian.manage") && (
@@ -366,7 +411,11 @@ export default async function PatientPage({
                 {d.dependents.map((g) => (
                   <p key={g.id}>
                     Guardian of{" "}
-                    <Link prefetch={false} className="text-accent hover:underline" href={`/patients/${g.dependent.id}`}>
+                    <Link
+                      prefetch={false}
+                      className="text-accent hover:underline"
+                      href={`/patients/${g.dependent.id}`}
+                    >
                       {g.dependent.givenName} {g.dependent.familyName}
                     </Link>{" "}
                     ({g.relationship})
@@ -439,7 +488,13 @@ export default async function PatientPage({
                     submitLabel="Save allergy"
                     successMessage="Allergy recorded."
                     fields={[
-                      { name: "substance", label: "Substance", type: "text", required: true, placeholder: "e.g. Penicillin" },
+                      {
+                        name: "substance",
+                        label: "Substance",
+                        type: "text",
+                        required: true,
+                        placeholder: "e.g. Penicillin",
+                      },
                       {
                         name: "category",
                         label: "Category",
@@ -453,7 +508,12 @@ export default async function PatientPage({
                           { value: "OTHER", label: "Other" },
                         ],
                       },
-                      { name: "reaction", label: "Reaction", type: "text", placeholder: "e.g. rash, swelling" },
+                      {
+                        name: "reaction",
+                        label: "Reaction",
+                        type: "text",
+                        placeholder: "e.g. rash, swelling",
+                      },
                       {
                         name: "severity",
                         label: "Severity",
@@ -476,7 +536,9 @@ export default async function PatientPage({
                         options: [
                           { value: "PATIENT_REPORTED", label: "Reported by patient / relative" },
                           { value: "PRIOR_RECORDS", label: "From previous records" },
-                          ...(can(ctx, "patient.allergy.verify") ? [{ value: "CLINICIAN_VERIFIED", label: "Clinician verified" }] : []),
+                          ...(can(ctx, "patient.allergy.verify")
+                            ? [{ value: "CLINICIAN_VERIFIED", label: "Clinician verified" }]
+                            : []),
                         ],
                       },
                     ]}
@@ -486,8 +548,16 @@ export default async function PatientPage({
             }
           />
           {d.allergies.length === 0 ? (
-            <EmptyState title={p.allergyReviewStatus === "NO_KNOWN_ALLERGIES" ? "No known allergies recorded" : "No allergies recorded"}>
-              {p.allergyReviewStatus === "NOT_ASKED" ? "The patient has not yet been asked about allergies." : undefined}
+            <EmptyState
+              title={
+                p.allergyReviewStatus === "NO_KNOWN_ALLERGIES"
+                  ? "No known allergies recorded"
+                  : "No allergies recorded"
+              }
+            >
+              {p.allergyReviewStatus === "NOT_ASKED"
+                ? "The patient has not yet been asked about allergies."
+                : undefined}
             </EmptyState>
           ) : (
             <TableWrap>
@@ -500,7 +570,11 @@ export default async function PatientPage({
                     <TH>Source</TH>
                     <TH>Status</TH>
                     <TH>Recorded</TH>
-                    {can(ctx, "patient.allergy.verify") && <TH><span className="sr-only">Actions</span></TH>}
+                    {can(ctx, "patient.allergy.verify") && (
+                      <TH>
+                        <span className="sr-only">Actions</span>
+                      </TH>
+                    )}
                   </tr>
                 </THead>
                 <tbody>
@@ -509,10 +583,32 @@ export default async function PatientPage({
                       <TD className="font-medium">{a.substance}</TD>
                       <TD>{a.reaction ?? "-"}</TD>
                       <TD>
-                        <Badge tone={a.severity === "SEVERE" ? "danger" : a.severity === "MODERATE" ? "warning" : "neutral"}>{a.severity.toLowerCase()}</Badge>
+                        <Badge
+                          tone={
+                            a.severity === "SEVERE"
+                              ? "danger"
+                              : a.severity === "MODERATE"
+                                ? "warning"
+                                : "neutral"
+                          }
+                        >
+                          {a.severity.toLowerCase()}
+                        </Badge>
                       </TD>
-                      <TD className="text-[13px]">{a.source === "CLINICIAN_VERIFIED" ? "Clinician verified" : a.source === "PRIOR_RECORDS" ? "Previous records" : "Patient reported"}</TD>
-                      <TD className="text-[13px]">{a.status === "ACTIVE" ? "Active" : a.status === "INACTIVE" ? "Inactive" : "Entered in error"}</TD>
+                      <TD className="text-[13px]">
+                        {a.source === "CLINICIAN_VERIFIED"
+                          ? "Clinician verified"
+                          : a.source === "PRIOR_RECORDS"
+                            ? "Previous records"
+                            : "Patient reported"}
+                      </TD>
+                      <TD className="text-[13px]">
+                        {a.status === "ACTIVE"
+                          ? "Active"
+                          : a.status === "INACTIVE"
+                            ? "Inactive"
+                            : "Entered in error"}
+                      </TD>
                       <TD className="text-[13px]">{formatDate(a.recordedAt)}</TD>
                       {can(ctx, "patient.allergy.verify") && (
                         <TD className="whitespace-nowrap text-right">
@@ -606,7 +702,10 @@ export default async function PatientPage({
 
       {tab === "visits" && encounters && (
         <Card>
-          <CardHeader title="Visits" description="Clinical notes and results appear here once the consultation module is enabled (Phase 2)." />
+          <CardHeader
+            title="Visits"
+            description="Clinical notes and results appear here once the consultation module is enabled (Phase 2)."
+          />
           {encounters.length === 0 ? (
             <EmptyState title="No visits yet" />
           ) : (
@@ -656,7 +755,13 @@ export default async function PatientPage({
                   submitLabel="Save"
                   successMessage="Consent recorded."
                   fields={[
-                    { name: "type", label: "Consent", type: "select", required: true, options: Object.entries(CONSENT_LABEL).map(([value, label]) => ({ value, label })) },
+                    {
+                      name: "type",
+                      label: "Consent",
+                      type: "select",
+                      required: true,
+                      options: Object.entries(CONSENT_LABEL).map(([value, label]) => ({ value, label })),
+                    },
                     {
                       name: "status",
                       label: "Decision",
@@ -694,9 +799,13 @@ export default async function PatientPage({
                     <TR key={c.id}>
                       <TD>{CONSENT_LABEL[c.type]}</TD>
                       <TD>
-                        <Badge tone={c.status === "GRANTED" ? "success" : "outline"}>{c.status.toLowerCase()}</Badge>
+                        <Badge tone={c.status === "GRANTED" ? "success" : "outline"}>
+                          {c.status.toLowerCase()}
+                        </Badge>
                       </TD>
-                      <TD className="text-[13px] text-muted">{c.legalBasis.toLowerCase().replace(/_/g, " ")}</TD>
+                      <TD className="text-[13px] text-muted">
+                        {c.legalBasis.toLowerCase().replace(/_/g, " ")}
+                      </TD>
                       <TD className="text-[13px]">{formatDateTime(c.capturedAt)}</TD>
                     </TR>
                   ))}
@@ -705,19 +814,26 @@ export default async function PatientPage({
             </TableWrap>
           )}
           <p className="border-t border-border px-5 py-3 text-xs text-muted">
-            Legal bases shown are draft defaults pending review by the hospital&apos;s data protection adviser (NDPA 2023).
+            Legal bases shown are draft defaults pending review by the hospital&apos;s data protection adviser
+            (NDPA 2023).
           </p>
         </Card>
       )}
 
       {tab === "timeline" && timeline && (
         <Card>
-          <CardHeader title="Timeline" description="Administrative events. Clinical events appear once those modules are enabled and only for authorised clinicians." />
+          <CardHeader
+            title="Timeline"
+            description="Administrative events. Clinical events appear once those modules are enabled and only for authorised clinicians."
+          />
           <CardBody>
             <ol className="relative space-y-4 border-l border-border pl-5">
               {timeline.map((e, i) => (
                 <li key={i} className="relative">
-                  <span className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-accent" aria-hidden />
+                  <span
+                    className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-accent"
+                    aria-hidden
+                  />
                   <p className="text-[14px] font-medium">{e.title}</p>
                   <p className="text-[13px] text-muted">
                     {formatDateTime(e.at)}

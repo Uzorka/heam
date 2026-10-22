@@ -32,7 +32,8 @@ function flatten(errors: Record<string, unknown>, prefix = ""): Record<string, s
   for (const [k, v] of Object.entries(errors)) {
     if (!v || typeof v !== "object") continue;
     const key = prefix ? `${prefix}.${k}` : k;
-    if ("message" in v && typeof (v as { message?: unknown }).message === "string") out[key] = (v as { message: string }).message;
+    if ("message" in v && typeof (v as { message?: unknown }).message === "string")
+      out[key] = (v as { message: string }).message;
     else Object.assign(out, flatten(v as Record<string, unknown>, key));
   }
   return out;
@@ -70,7 +71,8 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
 
   React.useEffect(() => setValue("registrationStatus", mode), [mode, setValue]);
   React.useEffect(() => {
-    if (Object.keys(errors).length || serverError) summaryRef.current?.querySelector<HTMLElement>("[role=alert]")?.focus();
+    if (Object.keys(errors).length || serverError)
+      summaryRef.current?.querySelector<HTMLElement>("[role=alert]")?.focus();
   }, [formState.submitCount, serverError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = (values: Out, ackIds: string[] = []) => {
@@ -105,7 +107,9 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
       </p>
       <div ref={summaryRef} className="space-y-3">
         {serverError && <Alert tone="danger">{serverError}</Alert>}
-        {formState.submitCount > 0 && <ErrorSummary errors={flatten(formState.errors as Record<string, unknown>)} />}
+        {formState.submitCount > 0 && (
+          <ErrorSummary errors={flatten(formState.errors as Record<string, unknown>)} />
+        )}
       </div>
 
       {duplicates && (
@@ -127,7 +131,8 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
                       {d.name} <span className="font-mono text-[13px] text-muted">{d.mrn}</span>
                     </p>
                     <p className="text-[13px] text-muted">
-                      Born {d.birthYear ?? "unknown"} · {d.maskedPhone || "no phone"} · Match: {d.reasons.join(", ")}
+                      Born {d.birthYear ?? "unknown"} · {d.maskedPhone || "no phone"} · Match:{" "}
+                      {d.reasons.join(", ")}
                     </p>
                   </div>
                   <Button asChild variant="secondary" size="sm">
@@ -139,15 +144,27 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
               ))}
             </ul>
             <label className="flex items-start gap-2 text-[14px]">
-              <Checkbox checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-0.5" />
-              <span>I have checked these records and this is a different person. Create a new record (the match will be queued for medical records review).</span>
+              <Checkbox
+                checked={acknowledged}
+                onChange={(e) => setAcknowledged(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                I have checked these records and this is a different person. Create a new record (the match
+                will be queued for medical records review).
+              </span>
             </label>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 disabled={!acknowledged}
                 loading={pending}
-                onClick={handleSubmit((v) => submit(v, duplicates.map((d) => d.id)))}
+                onClick={handleSubmit((v) =>
+                  submit(
+                    v,
+                    duplicates.map((d) => d.id),
+                  ),
+                )}
               >
                 Register as new patient
               </Button>
@@ -167,11 +184,25 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
             {(
               [
                 ["COMPLETE", "Full registration", "Identity, contact and privacy notice captured now."],
-                ["PROVISIONAL", "Emergency / minimum details", "Treat first; complete identity later. Flagged until completed."],
+                [
+                  "PROVISIONAL",
+                  "Emergency / minimum details",
+                  "Treat first; complete identity later. Flagged until completed.",
+                ],
               ] as const
             ).map(([v, label, hint]) => (
-              <label key={v} className={`flex min-w-[240px] flex-1 cursor-pointer gap-3 rounded-md border p-3 ${mode === v ? "border-accent bg-accent-soft" : "border-border"}`}>
-                <input type="radio" name="mode" value={v} checked={mode === v} onChange={() => setMode(v)} className="mt-1" />
+              <label
+                key={v}
+                className={`flex min-w-[240px] flex-1 cursor-pointer gap-3 rounded-md border p-3 ${mode === v ? "border-accent bg-accent-soft" : "border-border"}`}
+              >
+                <input
+                  type="radio"
+                  name="mode"
+                  value={v}
+                  checked={mode === v}
+                  onChange={() => setMode(v)}
+                  className="mt-1"
+                />
                 <span>
                   <span className="block font-medium">{label}</span>
                   <span className="block text-[13px] text-muted">{hint}</span>
@@ -191,7 +222,13 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
           <Field label="Middle name" htmlFor="middleName" error={errors.middleName}>
             <Input autoComplete="off" {...register("middleName")} />
           </Field>
-          <Field label="Surname" htmlFor="familyName" required error={errors.familyName} hint={mode === "PROVISIONAL" ? 'e.g. "Unidentified male ~40"' : undefined}>
+          <Field
+            label="Surname"
+            htmlFor="familyName"
+            required
+            error={errors.familyName}
+            hint={mode === "PROVISIONAL" ? 'e.g. "Unidentified male ~40"' : undefined}
+          >
             <Input autoComplete="off" {...register("familyName")} />
           </Field>
           <Field label="Preferred name" htmlFor="preferredName" error={errors.preferredName}>
@@ -215,11 +252,26 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
             </Select>
           </Field>
           {useAge ? (
-            <Field label="Estimated age (years)" htmlFor="estimatedAgeYears" required={mode === "COMPLETE"} error={errors.estimatedAgeYears}>
-              <Input inputMode="numeric" {...register("estimatedAgeYears", { setValueAs: (v) => (v === "" || v === undefined ? undefined : Number(v)) })} />
+            <Field
+              label="Estimated age (years)"
+              htmlFor="estimatedAgeYears"
+              required={mode === "COMPLETE"}
+              error={errors.estimatedAgeYears}
+            >
+              <Input
+                inputMode="numeric"
+                {...register("estimatedAgeYears", {
+                  setValueAs: (v) => (v === "" || v === undefined ? undefined : Number(v)),
+                })}
+              />
             </Field>
           ) : (
-            <Field label="Date of birth" htmlFor="dateOfBirth" required={mode === "COMPLETE"} error={errors.dateOfBirth}>
+            <Field
+              label="Date of birth"
+              htmlFor="dateOfBirth"
+              required={mode === "COMPLETE"}
+              error={errors.dateOfBirth}
+            >
               <Input type="date" max={new Date().toISOString().slice(0, 10)} {...register("dateOfBirth")} />
             </Field>
           )}
@@ -242,7 +294,12 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
       <Card>
         <CardHeader title="Contact" />
         <CardBody className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Mobile phone" htmlFor="phone" error={errors.phone} hint="Nigerian numbers can start with 0">
+          <Field
+            label="Mobile phone"
+            htmlFor="phone"
+            error={errors.phone}
+            hint="Nigerian numbers can start with 0"
+          >
             <Input type="tel" inputMode="tel" autoComplete="off" {...register("phone")} />
           </Field>
           <Field label="Alternative phone" htmlFor="altPhone" error={errors.altPhone}>
@@ -280,7 +337,11 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
           <Field label="Name" htmlFor="nextOfKin-name" error={errors["nextOfKin.name"]}>
             <Input {...register("nextOfKin.name")} />
           </Field>
-          <Field label="Relationship" htmlFor="nextOfKin-relationship" error={errors["nextOfKin.relationship"]}>
+          <Field
+            label="Relationship"
+            htmlFor="nextOfKin-relationship"
+            error={errors["nextOfKin.relationship"]}
+          >
             <Input placeholder="e.g. Spouse, Mother" {...register("nextOfKin.relationship")} />
           </Field>
           <Field label="Phone" htmlFor="nextOfKin-phone" error={errors["nextOfKin.phone"]}>
@@ -290,7 +351,10 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
       </Card>
 
       <Card>
-        <CardHeader title="Identity document (optional)" description="Only record if needed. Stored encrypted and masked on screen." />
+        <CardHeader
+          title="Identity document (optional)"
+          description="Only record if needed. Stored encrypted and masked on screen."
+        />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <Field label="Document type" htmlFor="identifier-type">
             <Select {...register("identifier.type")}>
@@ -310,7 +374,11 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
       <Card>
         <CardHeader title="Allergies & consent" />
         <CardBody className="space-y-4">
-          <Field label="Allergies (as reported at the desk)" htmlFor="allergyReviewStatus" hint="Detailed allergies can be added on the patient record. Clinicians verify them.">
+          <Field
+            label="Allergies (as reported at the desk)"
+            htmlFor="allergyReviewStatus"
+            hint="Detailed allergies can be added on the patient record. Clinicians verify them."
+          >
             <Select {...register("allergyReviewStatus")}>
               <option value="NOT_ASKED">Not asked yet</option>
               <option value="NO_KNOWN_ALLERGIES">Patient reports no known allergies</option>
@@ -318,16 +386,26 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
             </Select>
           </Field>
           <label className="flex items-start gap-2 text-[14px]" htmlFor="privacyNoticeGiven">
-            <Checkbox id="privacyNoticeGiven" {...register("privacyNoticeGiven")} className="mt-0.5" aria-invalid={errors.privacyNoticeGiven ? true : undefined} />
+            <Checkbox
+              id="privacyNoticeGiven"
+              {...register("privacyNoticeGiven")}
+              className="mt-0.5"
+              aria-invalid={errors.privacyNoticeGiven ? true : undefined}
+            />
             <span>
-              The patient (or their representative) was given the hospital&apos;s privacy notice explaining how their information is used.
+              The patient (or their representative) was given the hospital&apos;s privacy notice explaining
+              how their information is used.
               {mode === "COMPLETE" && <span className="text-danger"> *</span>}
-              {errors.privacyNoticeGiven && <span className="block text-xs font-medium text-danger">{errors.privacyNoticeGiven}</span>}
+              {errors.privacyNoticeGiven && (
+                <span className="block text-xs font-medium text-danger">{errors.privacyNoticeGiven}</span>
+              )}
             </span>
           </label>
           <label className="flex items-start gap-2 text-[14px]" htmlFor="smsReminderConsent">
             <Checkbox id="smsReminderConsent" {...register("smsReminderConsent")} className="mt-0.5" />
-            <span>Patient agrees to receive appointment reminders by SMS (no clinical details are ever sent).</span>
+            <span>
+              Patient agrees to receive appointment reminders by SMS (no clinical details are ever sent).
+            </span>
           </label>
         </CardBody>
       </Card>
@@ -337,7 +415,9 @@ export function RegisterForm({ emergency }: { emergency: boolean }) {
           {mode === "PROVISIONAL" ? "Register (provisional)" : "Register patient"}
         </Button>
         <Button asChild variant="ghost">
-          <Link prefetch={false} href="/patients">Cancel</Link>
+          <Link prefetch={false} href="/patients">
+            Cancel
+          </Link>
         </Button>
       </div>
     </form>

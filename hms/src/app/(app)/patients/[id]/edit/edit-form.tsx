@@ -3,7 +3,15 @@ import { useRouter } from "next/navigation";
 import { ActionForm, type FieldSpec } from "@/components/forms/action-form";
 import { updatePatientAction } from "../../actions";
 
-export function EditPatientForm({ id, version, fields }: { id: string; version: number; fields: FieldSpec[] }) {
+export function EditPatientForm({
+  id,
+  version,
+  fields,
+}: {
+  id: string;
+  version: number;
+  fields: FieldSpec[];
+}) {
   const router = useRouter();
   return (
     <ActionForm

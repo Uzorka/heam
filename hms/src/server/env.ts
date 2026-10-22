@@ -42,18 +42,25 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
   if (env.NODE_ENV === "production" && env.HMS_LOCAL_PRODUCTION_TEST === "true") {
     const host = new URL(env.APP_URL).hostname;
     if (host !== "localhost" && host !== "127.0.0.1") {
-      throw new Error("HMS_LOCAL_PRODUCTION_TEST is only allowed when APP_URL points to localhost - refusing to start.");
+      throw new Error(
+        "HMS_LOCAL_PRODUCTION_TEST is only allowed when APP_URL points to localhost - refusing to start.",
+      );
     }
-    console.warn("WARNING: HMS_LOCAL_PRODUCTION_TEST=true - production hardening checks relaxed for localhost testing only.");
+    console.warn(
+      "WARNING: HMS_LOCAL_PRODUCTION_TEST=true - production hardening checks relaxed for localhost testing only.",
+    );
     return env;
   }
   if (env.NODE_ENV === "production") {
     const problems: string[] = [];
     if (!env.APP_URL.startsWith("https://")) problems.push("APP_URL must use https in production");
     if (env.STORAGE_DRIVER === "local") problems.push("STORAGE_DRIVER=local is not permitted in production");
-    if (env.DATA_ENCRYPTION_KEY === env.BLIND_INDEX_KEY) problems.push("encryption and blind-index keys must differ");
-    if (/hms_dev_password/.test(env.DATABASE_URL)) problems.push("DATABASE_URL uses the development password");
-    if (problems.length) throw new Error(`Unsafe production configuration - refusing to start. ${problems.join("; ")}`);
+    if (env.DATA_ENCRYPTION_KEY === env.BLIND_INDEX_KEY)
+      problems.push("encryption and blind-index keys must differ");
+    if (/hms_dev_password/.test(env.DATABASE_URL))
+      problems.push("DATABASE_URL uses the development password");
+    if (problems.length)
+      throw new Error(`Unsafe production configuration - refusing to start. ${problems.join("; ")}`);
     env.MFA_ENFORCE = "true";
   }
   return env;

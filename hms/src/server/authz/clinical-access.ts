@@ -20,7 +20,11 @@ export interface ClinicalAccess {
  *  - an active, logged break-glass grant.
  * Holding a role in the hospital is never enough on its own.
  */
-export async function getClinicalAccess(ctx: AuthContext, patientId: string, db: DbClient = prisma): Promise<ClinicalAccess> {
+export async function getClinicalAccess(
+  ctx: AuthContext,
+  patientId: string,
+  db: DbClient = prisma,
+): Promise<ClinicalAccess> {
   if (!can(ctx, "clinical.read")) return { allowed: false, basis: null };
   const encounterBranches = await db.encounter.findMany({
     where: { patientId },
@@ -29,7 +33,10 @@ export async function getClinicalAccess(ctx: AuthContext, patientId: string, db:
   });
   const inScope = encounterBranches.some((e) => can(ctx, "clinical.read", { branchId: e.branchId }));
 
-  if (inScope && encounterBranches.some((e) => can(ctx, "clinical.read.branch_wide", { branchId: e.branchId }))) {
+  if (
+    inScope &&
+    encounterBranches.some((e) => can(ctx, "clinical.read.branch_wide", { branchId: e.branchId }))
+  ) {
     return { allowed: true, basis: "BRANCH_WIDE" };
   }
   if (inScope) {
@@ -53,6 +60,7 @@ export async function getClinicalAccess(ctx: AuthContext, patientId: string, db:
     if (rel) return { allowed: true, basis: "CARE_TEAM" };
   }
   const bg = await activeBreakGlass(db, ctx.userId, patientId);
-  if (bg && can(ctx, "clinical.breakglass")) return { allowed: true, basis: "BREAK_GLASS", breakGlassExpiresAt: bg.expiresAt };
+  if (bg && can(ctx, "clinical.breakglass"))
+    return { allowed: true, basis: "BREAK_GLASS", breakGlassExpiresAt: bg.expiresAt };
   return { allowed: false, basis: null };
 }

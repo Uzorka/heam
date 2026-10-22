@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatNaira, koboToNairaString, multiplyKobo, parseNairaToKobo, percentOfKobo, sumKobo } from "@/lib/money";
+import {
+  formatNaira,
+  koboToNairaString,
+  multiplyKobo,
+  parseNairaToKobo,
+  percentOfKobo,
+  sumKobo,
+} from "@/lib/money";
 
 describe("money (integer kobo)", () => {
   it("parses naira strings exactly", () => {

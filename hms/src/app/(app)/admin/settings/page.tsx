@@ -18,9 +18,23 @@ function fieldFor(key: string, value: unknown): FieldSpec {
   const def = SETTING_DEFS[key as keyof typeof SETTING_DEFS];
   const schema = def.schema as unknown as { options?: string[] };
   if (Array.isArray(schema.options)) {
-    return { name: "value", label: def.label, type: "select", required: true, defaultValue: String(value), options: schema.options.map((o) => ({ value: o, label: o.replace(/_/g, " ").toLowerCase() })) };
+    return {
+      name: "value",
+      label: def.label,
+      type: "select",
+      required: true,
+      defaultValue: String(value),
+      options: schema.options.map((o) => ({ value: o, label: o.replace(/_/g, " ").toLowerCase() })),
+    };
   }
-  return { name: "value", label: def.label, type: typeof def.default === "number" ? "number" : "text", required: true, defaultValue: String(value), hint: def.description };
+  return {
+    name: "value",
+    label: def.label,
+    type: typeof def.default === "number" ? "number" : "text",
+    required: true,
+    defaultValue: String(value),
+    hint: def.description,
+  };
 }
 
 export default async function SettingsPage() {
@@ -31,7 +45,10 @@ export default async function SettingsPage() {
   const e = env();
   return (
     <>
-      <PageHeader title="System settings" description="Runtime configuration. Every change is recorded with before/after values in the audit trail." />
+      <PageHeader
+        title="System settings"
+        description="Runtime configuration. Every change is recorded with before/after values in the audit trail."
+      />
       <div className="space-y-5">
         <Card>
           <CardHeader title="Workflow settings" />
@@ -42,26 +59,58 @@ export default async function SettingsPage() {
                   <p className="font-medium">{s.label}</p>
                   <p className="text-[13px] text-muted">{s.description}</p>
                   <p className="mt-1 text-[14px]">
-                    <span className="font-mono">{String(s.value)}</span> {s.isDefault ? <Badge tone="outline">default</Badge> : s.updatedAt && <span className="text-xs text-muted">changed {formatDateTime(s.updatedAt)}</span>}
+                    <span className="font-mono">{String(s.value)}</span>{" "}
+                    {s.isDefault ? (
+                      <Badge tone="outline">default</Badge>
+                    ) : (
+                      s.updatedAt && (
+                        <span className="text-xs text-muted">changed {formatDateTime(s.updatedAt)}</span>
+                      )
+                    )}
                   </p>
                 </div>
                 {manage && (
-                  <ActionDialog action={updateSettingAction} fixed={{ key: s.key }} trigger="Change" triggerVariant="ghost" title={s.label} description={s.description} submitLabel="Save" successMessage="Setting updated." fields={[fieldFor(s.key, s.value)]} />
+                  <ActionDialog
+                    action={updateSettingAction}
+                    fixed={{ key: s.key }}
+                    trigger="Change"
+                    triggerVariant="ghost"
+                    title={s.label}
+                    description={s.description}
+                    submitLabel="Save"
+                    successMessage="Setting updated."
+                    fields={[fieldFor(s.key, s.value)]}
+                  />
                 )}
               </li>
             ))}
           </ul>
         </Card>
         <Card>
-          <CardHeader title="Deployment configuration" description="Set through environment variables by the system administrator; shown read-only." />
+          <CardHeader
+            title="Deployment configuration"
+            description="Set through environment variables by the system administrator; shown read-only."
+          />
           <ul className="divide-y divide-border text-[14px]">
             {[
               ["Session idle timeout", `${e.SESSION_IDLE_MINUTES} minutes`],
               ["Session maximum length", `${e.SESSION_ABSOLUTE_HOURS} hours`],
-              ["Two-step verification for privileged roles", e.MFA_ENFORCE === "true" ? "Enforced" : "Not enforced (development)"],
-              ["Document storage", e.STORAGE_DRIVER === "s3" ? "S3-compatible object storage" : "Local disk (development only)"],
-              ["Email delivery", e.EMAIL_PROVIDER === "disabled" ? "Disabled - no provider configured" : e.EMAIL_PROVIDER],
-              ["SMS delivery", e.SMS_PROVIDER === "disabled" ? "Disabled - no provider configured" : e.SMS_PROVIDER],
+              [
+                "Two-step verification for privileged roles",
+                e.MFA_ENFORCE === "true" ? "Enforced" : "Not enforced (development)",
+              ],
+              [
+                "Document storage",
+                e.STORAGE_DRIVER === "s3" ? "S3-compatible object storage" : "Local disk (development only)",
+              ],
+              [
+                "Email delivery",
+                e.EMAIL_PROVIDER === "disabled" ? "Disabled - no provider configured" : e.EMAIL_PROVIDER,
+              ],
+              [
+                "SMS delivery",
+                e.SMS_PROVIDER === "disabled" ? "Disabled - no provider configured" : e.SMS_PROVIDER,
+              ],
               ["Timezone / currency", "Africa/Lagos · NGN (amounts stored in kobo)"],
             ].map(([k, v]) => (
               <li key={k} className="flex flex-wrap justify-between gap-2 px-5 py-3">

@@ -56,23 +56,52 @@ export default async function PatientsPage({
         }
       />
       <Card>
-        <form className="flex flex-wrap items-end gap-3 border-b border-border p-4" method="get" role="search">
+        <form
+          className="flex flex-wrap items-end gap-3 border-b border-border p-4"
+          method="get"
+          role="search"
+        >
           <div className="min-w-[220px] flex-1">
             <label htmlFor="q" className="mb-1 block text-[13px] font-medium">
               Search
             </label>
-            <Input id="q" name="q" defaultValue={input.q} placeholder="e.g. ADK0000018, 0809 000 0101, Bakare" autoComplete="off" />
+            <Input
+              id="q"
+              name="q"
+              defaultValue={input.q}
+              placeholder="e.g. ADK0000018, 0809 000 0101, Bakare"
+              autoComplete="off"
+            />
           </div>
           <label className="flex min-h-11 items-center gap-2 text-[13px] sm:min-h-9">
-            <input type="checkbox" name="inactive" value="1" defaultChecked={input.includeInactive} className="h-4 w-4" /> Include inactive
+            <input
+              type="checkbox"
+              name="inactive"
+              value="1"
+              defaultChecked={input.includeInactive}
+              className="h-4 w-4"
+            />{" "}
+            Include inactive
           </label>
           <label className="flex min-h-11 items-center gap-2 text-[13px] sm:min-h-9">
-            <input type="checkbox" name="provisional" value="1" defaultChecked={input.provisionalOnly} className="h-4 w-4" /> Provisional only
+            <input
+              type="checkbox"
+              name="provisional"
+              value="1"
+              defaultChecked={input.provisionalOnly}
+              className="h-4 w-4"
+            />{" "}
+            Provisional only
           </label>
-          <Button type="submit" variant="secondary">Search</Button>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
         </form>
         {rows.length === 0 ? (
-          <EmptyState icon={<Users className="h-5 w-5" />} title={input.q ? "No matching patients" : "No patients yet"}>
+          <EmptyState
+            icon={<Users className="h-5 w-5" />}
+            title={input.q ? "No matching patients" : "No patients yet"}
+          >
             {input.q
               ? "Check the spelling, try the phone number or MRN, or register a new patient. Always search before registering to avoid duplicate records."
               : "Registered patients will appear here."}

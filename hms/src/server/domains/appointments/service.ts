@@ -29,16 +29,25 @@ interface SlotInput {
   override?: { reason: string };
 }
 
-async function validateSlot(ctx: AuthContext, db: DbClient, branchId: string, input: SlotInput, excludeAppointmentId?: string) {
+async function validateSlot(
+  ctx: AuthContext,
+  db: DbClient,
+  branchId: string,
+  input: SlotInput,
+  excludeAppointmentId?: string,
+) {
   const visitType = await db.visitType.findUnique({ where: { id: input.visitTypeId } });
-  if (!visitType || !visitType.active) throw new ValidationError("Choose an active visit type.", { visitTypeId: "Invalid" });
+  if (!visitType || !visitType.active)
+    throw new ValidationError("Choose an active visit type.", { visitTypeId: "Invalid" });
   const startAt = localDateTimeToUtc(input.date, input.time);
   const endAt = new Date(startAt.getTime() + (input.durationMin ?? visitType.defaultDurationMin) * 60_000);
   if (startAt.getTime() < Date.now() - PAST_TOLERANCE_MS) {
     throw new ValidationError("Appointments cannot be booked in the past.", { time: "In the past" });
   }
   if (input.clinicianId && !(await isClinicianInBranch(input.clinicianId, branchId, db))) {
-    throw new ValidationError("The selected clinician is not available in this branch.", { clinicianId: "Not available" });
+    throw new ValidationError("The selected clinician is not available in this branch.", {
+      clinicianId: "Not available",
+    });
   }
   if (input.override) requirePermission(ctx, "appointment.override", { branchId });
 
@@ -54,7 +63,10 @@ async function validateSlot(ctx: AuthContext, db: DbClient, branchId: string, in
       select: { ref: true },
     });
     if (patientClash) {
-      throw new ConflictError(`This patient already has appointment ${patientClash.ref} at an overlapping time.`, "PATIENT_CONFLICT");
+      throw new ConflictError(
+        `This patient already has appointment ${patientClash.ref} at an overlapping time.`,
+        "PATIENT_CONFLICT",
+      );
     }
   }
   return { visitType, startAt, endAt };
@@ -114,7 +126,8 @@ export async function bookAppointment(
 ) {
   const branchId = requireActingBranch(ctx, "appointment.manage");
   const patient = await loadScopedPatient(ctx, input.patientId, "patient.search", db);
-  if (patient.status !== "ACTIVE") throw new ConflictError(`Cannot book: patient record is ${patient.status.toLowerCase()}.`);
+  if (patient.status !== "ACTIVE")
+    throw new ConflictError(`Cannot book: patient record is ${patient.status.toLowerCase()}.`);
   const { startAt, endAt, visitType } = await validateSlot(ctx, db, branchId, input);
   try {
     return await withTx(db, async (tx) => {
@@ -157,7 +170,8 @@ export async function rescheduleAppointment(
 ) {
   const old = await loadScopedAppointment(ctx, input.appointmentId, db);
   if (old.status !== "BOOKED") throw new ConflictError("Only booked appointments can be rescheduled.");
-  if (old.version !== input.version) throw new ConflictError("This appointment changed since you opened it. Reload and retry.", "STALE");
+  if (old.version !== input.version)
+    throw new ConflictError("This appointment changed since you opened it. Reload and retry.", "STALE");
   const clinicianId = input.clinicianId ?? old.clinicianId ?? undefined;
   const { startAt, endAt } = await validateSlot(
     ctx,
@@ -172,7 +186,8 @@ export async function rescheduleAppointment(
         where: { id: old.id, version: input.version, status: "BOOKED" },
         data: { status: "RESCHEDULED", version: { increment: 1 } },
       });
-      if (r.count !== 1) throw new ConflictError("This appointment changed since you opened it. Reload and retry.", "STALE");
+      if (r.count !== 1)
+        throw new ConflictError("This appointment changed since you opened it. Reload and retry.", "STALE");
       const appt = await createAppointment(tx, ctx, old.branchId, {
         patientId: old.patientId,
         visitTypeId: old.visitTypeId,
@@ -233,7 +248,8 @@ export async function cancelAppointment(
 export async function markNoShow(ctx: AuthContext, appointmentId: string, db: DbClient = prisma) {
   const appt = await loadScopedAppointment(ctx, appointmentId, db);
   if (appt.status !== "BOOKED") throw new ConflictError("Only booked appointments can be marked as no-show.");
-  if (appt.startAt > new Date()) throw new ConflictError("An appointment cannot be a no-show before its start time.");
+  if (appt.startAt > new Date())
+    throw new ConflictError("An appointment cannot be a no-show before its start time.");
   await withTx(db, async (tx) => {
     const r = await tx.appointment.updateMany({
       where: { id: appt.id, status: "BOOKED" },
@@ -270,7 +286,15 @@ export async function listAppointmentsForDay(
     take: 500,
     include: {
       patient: {
-        select: { id: true, mrn: true, givenName: true, familyName: true, sexAtBirth: true, dateOfBirth: true, phoneE164: true },
+        select: {
+          id: true,
+          mrn: true,
+          givenName: true,
+          familyName: true,
+          sexAtBirth: true,
+          dateOfBirth: true,
+          phoneE164: true,
+        },
       },
       clinician: { select: { id: true, displayName: true } },
       visitType: { select: { id: true, name: true } },

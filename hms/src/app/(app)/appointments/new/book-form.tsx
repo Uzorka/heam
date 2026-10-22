@@ -40,7 +40,7 @@ export function BookForm({ patientId, visitTypes, clinicians, today, canOverride
       onSubmit={(e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
-        const get = (k: string) => (String(fd.get(k) ?? "").trim() || undefined);
+        const get = (k: string) => String(fd.get(k) ?? "").trim() || undefined;
         run(
           {
             patientId,
@@ -71,7 +71,12 @@ export function BookForm({ patientId, visitTypes, clinicians, today, canOverride
             ))}
           </Select>
         </Field>
-        <Field label="Clinician" htmlFor="clinicianId" error={fieldErrors.clinicianId} hint="Leave as 'Any available' for open clinics">
+        <Field
+          label="Clinician"
+          htmlFor="clinicianId"
+          error={fieldErrors.clinicianId}
+          hint="Leave as 'Any available' for open clinics"
+        >
           <Select name="clinicianId" defaultValue="">
             <option value="">Any available</option>
             {clinicians.map((c) => (
@@ -88,8 +93,19 @@ export function BookForm({ patientId, visitTypes, clinicians, today, canOverride
         <Field label="Time" htmlFor="time" required error={fieldErrors.time} hint="Hospital time (WAT)">
           <Input type="time" name="time" step={300} />
         </Field>
-        <Field label="Duration (minutes)" htmlFor="durationMin" error={fieldErrors.durationMin} hint={vt ? `Default ${vt.defaultDurationMin} min` : undefined}>
-          <Input type="number" name="durationMin" min={5} max={240} placeholder={vt ? String(vt.defaultDurationMin) : undefined} />
+        <Field
+          label="Duration (minutes)"
+          htmlFor="durationMin"
+          error={fieldErrors.durationMin}
+          hint={vt ? `Default ${vt.defaultDurationMin} min` : undefined}
+        >
+          <Input
+            type="number"
+            name="durationMin"
+            min={5}
+            max={240}
+            placeholder={vt ? String(vt.defaultDurationMin) : undefined}
+          />
         </Field>
         <Field label="Booked via" htmlFor="source" required>
           <Select name="source" defaultValue="PHONE">
@@ -100,7 +116,13 @@ export function BookForm({ patientId, visitTypes, clinicians, today, canOverride
             <option value="ONLINE_REQUEST">Online request</option>
           </Select>
         </Field>
-        <Field label="Reason for visit" htmlFor="reason" className="sm:col-span-2" error={fieldErrors.reason} hint="Brief, non-clinical description">
+        <Field
+          label="Reason for visit"
+          htmlFor="reason"
+          className="sm:col-span-2"
+          error={fieldErrors.reason}
+          hint="Brief, non-clinical description"
+        >
           <Textarea name="reason" />
         </Field>
       </div>
@@ -111,7 +133,13 @@ export function BookForm({ patientId, visitTypes, clinicians, today, canOverride
             <span>Book anyway as an authorised overlap (recorded in the audit trail).</span>
           </label>
           {override && (
-            <Field label="Override reason" htmlFor="override-reason" required className="mt-3" error={fieldErrors["override.reason"]}>
+            <Field
+              label="Override reason"
+              htmlFor="override-reason"
+              required
+              className="mt-3"
+              error={fieldErrors["override.reason"]}
+            >
               <Input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} />
             </Field>
           )}
@@ -122,7 +150,9 @@ export function BookForm({ patientId, visitTypes, clinicians, today, canOverride
           Book appointment
         </Button>
         <Button asChild variant="ghost">
-          <Link prefetch={false} href={`/patients/${patientId}`}>Cancel</Link>
+          <Link prefetch={false} href={`/patients/${patientId}`}>
+            Cancel
+          </Link>
         </Button>
       </div>
     </form>

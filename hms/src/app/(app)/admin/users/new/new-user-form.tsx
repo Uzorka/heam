@@ -20,21 +20,40 @@ interface RoleRow {
   allBranches: boolean;
 }
 
-export function NewUserForm({ roles, branches, defaultBranchId }: { roles: (Option & { requiresMfa: boolean })[]; branches: Option[]; defaultBranchId: string }) {
+export function NewUserForm({
+  roles,
+  branches,
+  defaultBranchId,
+}: {
+  roles: (Option & { requiresMfa: boolean })[];
+  branches: Option[];
+  defaultBranchId: string;
+}) {
   const { run, pending, error, fieldErrors, result } = useServerAction(createUserAction, { refresh: false });
-  const [rows, setRows] = React.useState<RoleRow[]>([{ roleId: "", branchId: defaultBranchId, allBranches: false }]);
+  const [rows, setRows] = React.useState<RoleRow[]>([
+    { roleId: "", branchId: defaultBranchId, allBranches: false },
+  ]);
   const [copied, setCopied] = React.useState(false);
 
   if (result) {
     return (
       <Card className="max-w-2xl">
-        <CardHeader title="Account created" description="Share this one-time link with the staff member in person or through a secure channel. It is shown only once." />
+        <CardHeader
+          title="Account created"
+          description="Share this one-time link with the staff member in person or through a secure channel. It is shown only once."
+        />
         <CardBody className="space-y-3">
           <Alert tone="warning">
-            The link lets the holder set the account password. It expires at {new Date(result.expiresAt).toLocaleString("en-NG", { timeZone: "Africa/Lagos" })}.
+            The link lets the holder set the account password. It expires at{" "}
+            {new Date(result.expiresAt).toLocaleString("en-NG", { timeZone: "Africa/Lagos" })}.
           </Alert>
           <div className="flex gap-2">
-            <Input readOnly value={result.setupLink} aria-label="One-time setup link" onFocus={(e) => e.currentTarget.select()} />
+            <Input
+              readOnly
+              value={result.setupLink}
+              aria-label="One-time setup link"
+              onFocus={(e) => e.currentTarget.select()}
+            />
             <Button
               type="button"
               variant="secondary"
@@ -51,7 +70,9 @@ export function NewUserForm({ roles, branches, defaultBranchId }: { roles: (Opti
             </Button>
           </div>
           <Button asChild>
-            <Link prefetch={false} href={`/admin/users/${result.userId}`}>Open account</Link>
+            <Link prefetch={false} href={`/admin/users/${result.userId}`}>
+              Open account
+            </Link>
           </Button>
         </CardBody>
       </Card>
@@ -75,7 +96,11 @@ export function NewUserForm({ roles, branches, defaultBranchId }: { roles: (Opti
           jobTitle: g("jobTitle"),
           staffNumber: g("staffNumber"),
           defaultBranchId: g("defaultBranchId") ?? "",
-          roles: rows.map((r) => ({ roleId: r.roleId, branchId: r.allBranches ? undefined : r.branchId, allBranches: r.allBranches })),
+          roles: rows.map((r) => ({
+            roleId: r.roleId,
+            branchId: r.allBranches ? undefined : r.branchId,
+            allBranches: r.allBranches,
+          })),
         });
       }}
     >
@@ -116,14 +141,25 @@ export function NewUserForm({ roles, branches, defaultBranchId }: { roles: (Opti
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Roles" description="Staff often hold several roles. Each is scoped to a branch. Roles marked MFA require two-step verification." />
+        <CardHeader
+          title="Roles"
+          description="Staff often hold several roles. Each is scoped to a branch. Roles marked MFA require two-step verification."
+        />
         <CardBody className="space-y-3">
           {fieldErrors.roles && <p className="text-xs font-medium text-danger">{fieldErrors.roles}</p>}
           {rows.map((r, i) => (
-            <fieldset key={i} className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+            <fieldset
+              key={i}
+              className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end"
+            >
               <legend className="sr-only">Role {i + 1}</legend>
               <Field label="Role" htmlFor={`role-${i}`} error={fieldErrors[`roles.${i}.roleId`]}>
-                <Select value={r.roleId} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, roleId: e.target.value } : y)))}>
+                <Select
+                  value={r.roleId}
+                  onChange={(e) =>
+                    setRows((x) => x.map((y, j) => (j === i ? { ...y, roleId: e.target.value } : y)))
+                  }
+                >
                   <option value="">Select role</option>
                   {roles.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -134,7 +170,13 @@ export function NewUserForm({ roles, branches, defaultBranchId }: { roles: (Opti
                 </Select>
               </Field>
               <Field label="Branch" htmlFor={`branch-${i}`} error={fieldErrors[`roles.${i}.branchId`]}>
-                <Select value={r.branchId} disabled={r.allBranches} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, branchId: e.target.value } : y)))}>
+                <Select
+                  value={r.branchId}
+                  disabled={r.allBranches}
+                  onChange={(e) =>
+                    setRows((x) => x.map((y, j) => (j === i ? { ...y, branchId: e.target.value } : y)))
+                  }
+                >
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -143,14 +185,34 @@ export function NewUserForm({ roles, branches, defaultBranchId }: { roles: (Opti
                 </Select>
               </Field>
               <label className="flex min-h-11 items-center gap-2 text-[13px] sm:min-h-9">
-                <Checkbox checked={r.allBranches} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, allBranches: e.target.checked } : y)))} /> All branches
+                <Checkbox
+                  checked={r.allBranches}
+                  onChange={(e) =>
+                    setRows((x) => x.map((y, j) => (j === i ? { ...y, allBranches: e.target.checked } : y)))
+                  }
+                />{" "}
+                All branches
               </label>
-              <Button type="button" variant="ghost" size="icon" aria-label={`Remove role ${i + 1}`} disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((_, j) => j !== i))}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove role ${i + 1}`}
+                disabled={rows.length === 1}
+                onClick={() => setRows((x) => x.filter((_, j) => j !== i))}
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </fieldset>
           ))}
-          <Button type="button" variant="secondary" size="sm" onClick={() => setRows((x) => [...x, { roleId: "", branchId: defaultBranchId, allBranches: false }])}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setRows((x) => [...x, { roleId: "", branchId: defaultBranchId, allBranches: false }])
+            }
+          >
             <Plus className="h-4 w-4" aria-hidden /> Add another role
           </Button>
         </CardBody>
@@ -160,7 +222,9 @@ export function NewUserForm({ roles, branches, defaultBranchId }: { roles: (Opti
           Create account
         </Button>
         <Button asChild variant="ghost">
-          <Link prefetch={false} href="/admin/users">Cancel</Link>
+          <Link prefetch={false} href="/admin/users">
+            Cancel
+          </Link>
         </Button>
       </div>
     </form>

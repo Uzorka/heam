@@ -21,7 +21,9 @@ export async function issueResetToken(
   await withTx(db, async (tx) => {
     // Invalidate older outstanding tokens.
     await tx.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } });
-    await tx.passwordResetToken.create({ data: { userId, tokenHash: sha256(token), expiresAt, createdById } });
+    await tx.passwordResetToken.create({
+      data: { userId, tokenHash: sha256(token), expiresAt, createdById },
+    });
     await recordAudit(tx, {
       actorType: createdById ? "USER" : "SYSTEM",
       actorUserId: createdById,

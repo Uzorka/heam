@@ -118,7 +118,12 @@ export async function verifyAuditChain(batchSize = 2000): Promise<ChainVerificat
     if (rows.length === 0) break;
     for (const r of rows) {
       if (r.prevHash !== prevHash) {
-        return { ok: false, checked, brokenAtSeq: r.seq.toString(), reason: "prevHash does not match previous row" };
+        return {
+          ok: false,
+          checked,
+          brokenAtSeq: r.seq.toString(),
+          reason: "prevHash does not match previous row",
+        };
       }
       const expected = computeAuditHash(prevHash, {
         id: r.id,
@@ -134,7 +139,12 @@ export async function verifyAuditChain(batchSize = 2000): Promise<ChainVerificat
         details: r.details,
       });
       if (expected !== r.hash) {
-        return { ok: false, checked, brokenAtSeq: r.seq.toString(), reason: "row content does not match its hash" };
+        return {
+          ok: false,
+          checked,
+          brokenAtSeq: r.seq.toString(),
+          reason: "row content does not match its hash",
+        };
       }
       prevHash = r.hash;
       checked++;

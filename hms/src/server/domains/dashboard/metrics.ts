@@ -1,5 +1,11 @@
 import { prisma, type DbClient } from "../../db";
-import { branchesWith, can, requireActingBranch, requirePermission, type AuthContext } from "../../authz/context";
+import {
+  branchesWith,
+  can,
+  requireActingBranch,
+  requirePermission,
+  type AuthContext,
+} from "../../authz/context";
 import { ForbiddenError } from "../../errors";
 import { localDayRange, todayLocal } from "@/lib/time";
 import { ACTIVE_STAGES } from "../queue/state-machine";
@@ -19,7 +25,8 @@ export const METRIC_DEFINITIONS = {
   newPatients: "Patients registered within the selected dates.",
   repeatVisits: "Visits within the dates by patients registered before the start date.",
   waitingNow: "Open visits currently in a waiting or active queue stage.",
-  medianWait: "Median minutes from check-in to first 'In consultation', for visits in range that reached consultation.",
+  medianWait:
+    "Median minutes from check-in to first 'In consultation', for visits in range that reached consultation.",
   missed: "Appointments in range marked as no-show.",
   beds: "Configured beds by current status. Demo beds are labelled.",
 };
@@ -44,7 +51,17 @@ export async function executiveSummary(ctx: AuthContext, from: string, to: strin
   const branchFilter = scope === "ALL" ? {} : { branchId: { in: scope } };
   const { start, end } = rangeFromLocalDates(from, to);
 
-  const [checkedIn, newPatients, repeatVisits, waitingNow, missed, completed, beds, consultEvents, stageCounts] = await Promise.all([
+  const [
+    checkedIn,
+    newPatients,
+    repeatVisits,
+    waitingNow,
+    missed,
+    completed,
+    beds,
+    consultEvents,
+    stageCounts,
+  ] = await Promise.all([
     db.encounter.count({ where: { ...branchFilter, arrivedAt: { gte: start, lt: end } } }),
     db.patient.count({
       where: {
@@ -53,17 +70,27 @@ export async function executiveSummary(ctx: AuthContext, from: string, to: strin
         ...(scope === "ALL" ? {} : { registeredBranchId: { in: scope } }),
       },
     }),
-    db.encounter.count({ where: { ...branchFilter, arrivedAt: { gte: start, lt: end }, patient: { createdAt: { lt: start } } } }),
+    db.encounter.count({
+      where: { ...branchFilter, arrivedAt: { gte: start, lt: end }, patient: { createdAt: { lt: start } } },
+    }),
     db.encounter.count({ where: { ...branchFilter, status: "OPEN", queueStage: { in: ACTIVE_STAGES } } }),
     db.appointment.count({ where: { ...branchFilter, startAt: { gte: start, lt: end }, status: "NO_SHOW" } }),
-    db.encounter.count({ where: { ...branchFilter, arrivedAt: { gte: start, lt: end }, status: "COMPLETED" } }),
+    db.encounter.count({
+      where: { ...branchFilter, arrivedAt: { gte: start, lt: end }, status: "COMPLETED" },
+    }),
     db.bed.groupBy({
       by: ["status", "isDemo"],
-      where: { active: true, ward: scope === "ALL" ? { active: true } : { active: true, branchId: { in: scope } } },
+      where: {
+        active: true,
+        ward: scope === "ALL" ? { active: true } : { active: true, branchId: { in: scope } },
+      },
       _count: { _all: true },
     }),
     db.visitQueueEvent.findMany({
-      where: { toStage: "IN_CONSULTATION", encounter: { ...branchFilter, arrivedAt: { gte: start, lt: end } } },
+      where: {
+        toStage: "IN_CONSULTATION",
+        encounter: { ...branchFilter, arrivedAt: { gte: start, lt: end } },
+      },
       orderBy: { changedAt: "asc" },
       select: { encounterId: true, changedAt: true, encounter: { select: { arrivedAt: true } } },
       take: 5000,
@@ -77,7 +104,10 @@ export async function executiveSummary(ctx: AuthContext, from: string, to: strin
   const firstConsult = new Map<string, number>();
   for (const e of consultEvents) {
     if (!firstConsult.has(e.encounterId)) {
-      firstConsult.set(e.encounterId, Math.round((e.changedAt.getTime() - e.encounter.arrivedAt.getTime()) / 60_000));
+      firstConsult.set(
+        e.encounterId,
+        Math.round((e.changedAt.getTime() - e.encounter.arrivedAt.getTime()) / 60_000),
+      );
     }
   }
   const bedSummary = { FREE: 0, RESERVED: 0, OCCUPIED: 0, CLEANING: 0, UNAVAILABLE: 0, demo: 0 };
@@ -109,7 +139,9 @@ export async function frontDeskSummary(ctx: AuthContext, db: DbClient = prisma) 
     db.appointment.count({ where: { branchId, startAt: { gte: start, lt: end }, status: "NO_SHOW" } }),
     db.encounter.count({ where: { branchId, status: "OPEN", queueStage: { in: ACTIVE_STAGES } } }),
     can(ctx, "patient.search")
-      ? db.patient.count({ where: { registrationStatus: "PROVISIONAL", status: "ACTIVE", registeredBranchId: branchId } })
+      ? db.patient.count({
+          where: { registrationStatus: "PROVISIONAL", status: "ACTIVE", registeredBranchId: branchId },
+        })
       : Promise.resolve(null),
     can(ctx, "patient.merge.request")
       ? db.duplicatePatientReview.count({ where: { status: { in: ["OPEN", "MERGE_REQUESTED"] } } })
@@ -119,7 +151,17 @@ export async function frontDeskSummary(ctx: AuthContext, db: DbClient = prisma) 
   const overdue = await db.appointment.count({
     where: { branchId, startAt: { gte: start, lt: new Date(Date.now() - 30 * 60_000) }, status: "BOOKED" },
   });
-  return { generatedAt: new Date(), expected, checkedIn, noShows, waiting, provisional, duplicates, newToday, overdue };
+  return {
+    generatedAt: new Date(),
+    expected,
+    checkedIn,
+    noShows,
+    waiting,
+    provisional,
+    duplicates,
+    newToday,
+    overdue,
+  };
 }
 
 export async function clinicianSummary(ctx: AuthContext, db: DbClient = prisma) {
@@ -131,7 +173,12 @@ export async function clinicianSummary(ctx: AuthContext, db: DbClient = prisma) 
     }),
     db.encounter.count({ where: { branchId, status: "OPEN", queueStage: "READY_FOR_DOCTOR" } }),
     db.appointment.count({
-      where: { branchId, clinicianId: ctx.userId, startAt: { gte: start, lt: end }, status: { in: ["BOOKED", "CHECKED_IN"] } },
+      where: {
+        branchId,
+        clinicianId: ctx.userId,
+        startAt: { gte: start, lt: end },
+        status: { in: ["BOOKED", "CHECKED_IN"] },
+      },
     }),
     db.encounter.count({ where: { branchId, status: "OPEN", queueStage: "AWAITING_VITALS" } }),
   ]);
@@ -156,7 +203,11 @@ export async function visitsByDay(ctx: AuthContext, from: string, to: string, db
           GROUP BY 1 ORDER BY 1`;
   const byDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
   const out: { day: string; visits: number }[] = [];
-  for (let d = new Date(`${from}T00:00:00Z`); d <= new Date(`${to}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+  for (
+    let d = new Date(`${from}T00:00:00Z`);
+    d <= new Date(`${to}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1)
+  ) {
     const key = d.toISOString().slice(0, 10);
     out.push({ day: key, visits: byDay.get(key) ?? 0 });
     if (out.length > 370) break;
@@ -166,10 +217,16 @@ export async function visitsByDay(ctx: AuthContext, from: string, to: string, db
 
 export async function pendingApprovals(ctx: AuthContext, db: DbClient = prisma) {
   const [roleChanges, breakGlass, merges] = await Promise.all([
-    can(ctx, "roles.approve_change") ? db.roleChangeRequest.count({ where: { status: "PENDING", NOT: { requestedById: ctx.userId } } }) : null,
-    can(ctx, "audit.breakglass.review") ? db.breakGlassGrant.count({ where: { reviewStatus: "PENDING" } }) : null,
+    can(ctx, "roles.approve_change")
+      ? db.roleChangeRequest.count({ where: { status: "PENDING", NOT: { requestedById: ctx.userId } } })
+      : null,
+    can(ctx, "audit.breakglass.review")
+      ? db.breakGlassGrant.count({ where: { reviewStatus: "PENDING" } })
+      : null,
     can(ctx, "patient.merge.approve")
-      ? db.duplicatePatientReview.count({ where: { status: "MERGE_REQUESTED", NOT: { mergeRequestedById: ctx.userId } } })
+      ? db.duplicatePatientReview.count({
+          where: { status: "MERGE_REQUESTED", NOT: { mergeRequestedById: ctx.userId } },
+        })
       : null,
   ]);
   return { roleChanges, breakGlass, merges };

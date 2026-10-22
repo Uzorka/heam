@@ -51,7 +51,12 @@ describe("field encryption", () => {
 
 describe("log redaction", () => {
   it("strips secrets and personal fields", () => {
-    const out = redact({ password: "x", user: { phoneE164: "+234", id: "1" }, sessionToken: "t", count: 2 }) as Record<string, unknown>;
+    const out = redact({
+      password: "x",
+      user: { phoneE164: "+234", id: "1" },
+      sessionToken: "t",
+      count: 2,
+    }) as Record<string, unknown>;
     expect(out.password).toBe("[redacted]");
     expect(out.sessionToken).toBe("[redacted]");
     expect((out.user as Record<string, unknown>).phoneE164).toBe("[redacted]");
@@ -62,8 +67,17 @@ describe("log redaction", () => {
 
 describe("audit hash", () => {
   const fields = {
-    id: "1", occurredAt: "2026-01-01T00:00:00.000Z", actorType: "USER", actorUserId: "u", action: "a",
-    resourceType: "r", resourceId: null, patientId: null, branchId: null, outcome: "SUCCESS", details: { b: 1, a: 2 },
+    id: "1",
+    occurredAt: "2026-01-01T00:00:00.000Z",
+    actorType: "USER",
+    actorUserId: "u",
+    action: "a",
+    resourceType: "r",
+    resourceId: null,
+    patientId: null,
+    branchId: null,
+    outcome: "SUCCESS",
+    details: { b: 1, a: 2 },
   };
   it("is independent of key order but sensitive to content and chain", () => {
     const h1 = computeAuditHash(GENESIS_HASH, fields);
@@ -95,6 +109,8 @@ describe("local production test mode", () => {
     expect(() => parseEnv({ ...base, APP_URL: "https://hms.example.org" })).toThrow(/only allowed/);
   });
   it("still requires encryption keys", () => {
-    expect(() => parseEnv({ ...base, APP_URL: "http://localhost:3100", DATA_ENCRYPTION_KEY: "" })).toThrow(/refusing to start/i);
+    expect(() => parseEnv({ ...base, APP_URL: "http://localhost:3100", DATA_ENCRYPTION_KEY: "" })).toThrow(
+      /refusing to start/i,
+    );
   });
 });

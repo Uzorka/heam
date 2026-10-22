@@ -100,7 +100,8 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   {
     code: "HOSPITAL_ADMIN",
     name: "Hospital administrator / operations manager",
-    description: "Configuration, staff accounts and operations. Demographic lookup only - no clinical records.",
+    description:
+      "Configuration, staff accounts and operations. Demographic lookup only - no clinical records.",
     kind: "STAFF",
     requiresMfa: true,
     permissions: [
@@ -338,7 +339,14 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     description: "Employee records, rosters, leave and payroll. No patient access.",
     kind: "STAFF",
     requiresMfa: true,
-    permissions: ["hr.read", "hr.manage", "hr.roster.manage", "hr.leave.approve", "payroll.read", "payroll.run"],
+    permissions: [
+      "hr.read",
+      "hr.manage",
+      "hr.roster.manage",
+      "hr.leave.approve",
+      "payroll.read",
+      "payroll.run",
+    ],
   },
   {
     code: "SYSTEM_SUPPORT",

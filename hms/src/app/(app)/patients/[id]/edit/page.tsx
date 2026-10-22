@@ -22,17 +22,43 @@ export default async function EditPatientPage({ params }: { params: Promise<{ id
   const dob = p.dateOfBirth ? p.dateOfBirth.toISOString().slice(0, 10) : undefined;
   return (
     <>
-      <PageHeader title={`Edit ${p.givenName} ${p.familyName}`} description={`MRN ${p.mrn}. Changes are recorded in the audit trail (field names only).`} back={{ href: `/patients/${id}`, label: "Back to record" }} />
+      <PageHeader
+        title={`Edit ${p.givenName} ${p.familyName}`}
+        description={`MRN ${p.mrn}. Changes are recorded in the audit trail (field names only).`}
+        back={{ href: `/patients/${id}`, label: "Back to record" }}
+      />
       <Card className="max-w-3xl">
         <CardBody>
           <EditPatientForm
             id={p.id}
             version={p.version}
             fields={[
-              { name: "givenName", label: "First name", type: "text", required: true, defaultValue: p.givenName },
-              { name: "middleName", label: "Middle name", type: "text", defaultValue: p.middleName ?? undefined },
-              { name: "familyName", label: "Surname", type: "text", required: true, defaultValue: p.familyName },
-              { name: "preferredName", label: "Preferred name", type: "text", defaultValue: p.preferredName ?? undefined },
+              {
+                name: "givenName",
+                label: "First name",
+                type: "text",
+                required: true,
+                defaultValue: p.givenName,
+              },
+              {
+                name: "middleName",
+                label: "Middle name",
+                type: "text",
+                defaultValue: p.middleName ?? undefined,
+              },
+              {
+                name: "familyName",
+                label: "Surname",
+                type: "text",
+                required: true,
+                defaultValue: p.familyName,
+              },
+              {
+                name: "preferredName",
+                label: "Preferred name",
+                type: "text",
+                defaultValue: p.preferredName ?? undefined,
+              },
               {
                 name: "sexAtBirth",
                 label: "Sex at birth",
@@ -61,17 +87,54 @@ export default async function EditPatientPage({ params }: { params: Promise<{ id
                 ],
               },
               { name: "dateOfBirth", label: "Date of birth", type: "date", defaultValue: dob },
-              { name: "estimatedAgeYears", label: "Or estimated age (years)", type: "number", hint: "Only if the date is cleared" },
+              {
+                name: "estimatedAgeYears",
+                label: "Or estimated age (years)",
+                type: "number",
+                hint: "Only if the date is cleared",
+              },
               { name: "phone", label: "Mobile phone", type: "tel", defaultValue: p.phoneE164 ?? undefined },
-              { name: "altPhone", label: "Alternative phone", type: "tel", defaultValue: p.altPhoneE164 ?? undefined },
+              {
+                name: "altPhone",
+                label: "Alternative phone",
+                type: "tel",
+                defaultValue: p.altPhoneE164 ?? undefined,
+              },
               { name: "email", label: "Email", type: "email", defaultValue: p.email ?? undefined },
-              { name: "addressLine", label: "Address", type: "text", span: 2, defaultValue: p.addressLine ?? undefined },
+              {
+                name: "addressLine",
+                label: "Address",
+                type: "text",
+                span: 2,
+                defaultValue: p.addressLine ?? undefined,
+              },
               { name: "city", label: "Town / city", type: "text", defaultValue: p.city ?? undefined },
               { name: "lga", label: "LGA", type: "text", defaultValue: p.lga ?? undefined },
-              { name: "state", label: "State", type: "select", defaultValue: p.state ?? "", options: NIGERIAN_STATES.map((s) => ({ value: s, label: s })) },
-              { name: "occupation", label: "Occupation", type: "text", defaultValue: p.occupation ?? undefined },
-              { name: "maritalStatus", label: "Marital status", type: "text", defaultValue: p.maritalStatus ?? undefined },
-              { name: "referralSource", label: "Referral source", type: "text", defaultValue: p.referralSource ?? undefined },
+              {
+                name: "state",
+                label: "State",
+                type: "select",
+                defaultValue: p.state ?? "",
+                options: NIGERIAN_STATES.map((s) => ({ value: s, label: s })),
+              },
+              {
+                name: "occupation",
+                label: "Occupation",
+                type: "text",
+                defaultValue: p.occupation ?? undefined,
+              },
+              {
+                name: "maritalStatus",
+                label: "Marital status",
+                type: "text",
+                defaultValue: p.maritalStatus ?? undefined,
+              },
+              {
+                name: "referralSource",
+                label: "Referral source",
+                type: "text",
+                defaultValue: p.referralSource ?? undefined,
+              },
             ]}
           />
         </CardBody>

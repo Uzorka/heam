@@ -50,14 +50,23 @@ const COMMON: FieldSpec[] = [
     ],
   },
   { name: "reason", label: "Reason for visit", type: "textarea", hint: "Brief, non-clinical" },
-  { name: "financialTermsAcknowledged", label: "Patient informed of fees / deposit policy", type: "checkbox" },
+  {
+    name: "financialTermsAcknowledged",
+    label: "Patient informed of fees / deposit policy",
+    type: "checkbox",
+  },
 ];
 
-export default async function CheckInPage({ searchParams }: { searchParams: Promise<{ patientId?: string; appointmentId?: string; q?: string }> }) {
+export default async function CheckInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ patientId?: string; appointmentId?: string; q?: string }>;
+}) {
   const ctx = await requireAuthContext();
   if (!(await allowed(ctx, "/queue/check-in", ["queue.manage"]))) return <Forbidden />;
   if (!ctx.activeBranchId) return <Alert tone="warning">Select a branch first.</Alert>;
-  if (!can(ctx, "queue.manage", { branchId: ctx.activeBranchId })) return <Forbidden message="You cannot check patients in at this branch." />;
+  if (!can(ctx, "queue.manage", { branchId: ctx.activeBranchId }))
+    return <Forbidden message="You cannot check patients in at this branch." />;
   const sp = await searchParams;
   const uuidRe = /^[0-9a-f-]{36}$/i;
 
@@ -66,18 +75,32 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
       where: { id: sp.appointmentId },
       include: { patient: true, visitType: true, clinician: { select: { displayName: true } } },
     });
-    if (!appt || appt.branchId !== ctx.activeBranchId) return <Alert tone="warning">Appointment not found in this branch.</Alert>;
-    const allergies = await prisma.patientAllergy.findMany({ where: { patientId: appt.patientId, status: "ACTIVE" }, select: { substance: true } });
+    if (!appt || appt.branchId !== ctx.activeBranchId)
+      return <Alert tone="warning">Appointment not found in this branch.</Alert>;
+    const allergies = await prisma.patientAllergy.findMany({
+      where: { patientId: appt.patientId, status: "ACTIVE" },
+      select: { substance: true },
+    });
     return (
       <>
         <PageHeader title="Check in appointment" back={{ href: "/appointments", label: "Appointments" }} />
         <div className="max-w-3xl">
-          <PatientBanner p={appt.patient} age={appt.patient.dateOfBirth ? formatAge(appt.patient.dateOfBirth) : null} activeAllergies={allergies.length} allergyNames={allergies.map((a) => a.substance)} />
+          <PatientBanner
+            p={appt.patient}
+            age={appt.patient.dateOfBirth ? formatAge(appt.patient.dateOfBirth) : null}
+            activeAllergies={allergies.length}
+            allergyNames={allergies.map((a) => a.substance)}
+          />
           <Card>
-            <CardHeader title={`${appt.visitType.name} at ${formatTime(appt.startAt)}`} description={`${appt.ref} · ${appt.clinician?.displayName ?? "Any clinician"}`} />
+            <CardHeader
+              title={`${appt.visitType.name} at ${formatTime(appt.startAt)}`}
+              description={`${appt.ref} · ${appt.clinician?.displayName ?? "Any clinician"}`}
+            />
             <CardBody>
               {appt.status !== "BOOKED" ? (
-                <Alert tone="info">This appointment is already {appt.status.toLowerCase().replace("_", " ")}.</Alert>
+                <Alert tone="info">
+                  This appointment is already {appt.status.toLowerCase().replace("_", " ")}.
+                </Alert>
               ) : (
                 <CheckInForm fixed={{ appointmentId: appt.id }} fields={COMMON} />
               )}
@@ -89,23 +112,40 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
   }
 
   if (sp.patientId && uuidRe.test(sp.patientId)) {
-    const res = await load(ctx, "/queue/check-in", () => loadScopedPatient(ctx, sp.patientId!, "patient.search"));
+    const res = await load(ctx, "/queue/check-in", () =>
+      loadScopedPatient(ctx, sp.patientId!, "patient.search"),
+    );
     if (!res.ok) return <Forbidden message={res.message} />;
     const p = res.data;
     const [visitTypes, clinicians, open, allergies] = await Promise.all([
       listVisitTypes({ activeOnly: true }),
       listClinicians(ctx.activeBranchId),
-      prisma.encounter.findFirst({ where: { patientId: p.id, branchId: ctx.activeBranchId, status: "OPEN" }, select: { id: true, ref: true } }),
-      prisma.patientAllergy.findMany({ where: { patientId: p.id, status: "ACTIVE" }, select: { substance: true } }),
+      prisma.encounter.findFirst({
+        where: { patientId: p.id, branchId: ctx.activeBranchId, status: "OPEN" },
+        select: { id: true, ref: true },
+      }),
+      prisma.patientAllergy.findMany({
+        where: { patientId: p.id, status: "ACTIVE" },
+        select: { substance: true },
+      }),
     ]);
     return (
       <>
         <PageHeader title="Walk-in check in" back={{ href: `/patients/${p.id}`, label: "Back to patient" }} />
         <div className="max-w-3xl">
-          <PatientBanner p={p} age={p.dateOfBirth ? formatAge(p.dateOfBirth) : null} activeAllergies={allergies.length} allergyNames={allergies.map((a) => a.substance)} />
+          <PatientBanner
+            p={p}
+            age={p.dateOfBirth ? formatAge(p.dateOfBirth) : null}
+            activeAllergies={allergies.length}
+            allergyNames={allergies.map((a) => a.substance)}
+          />
           {open ? (
             <Alert tone="info" title="Already checked in">
-              This patient has an open visit ({open.ref}). <Link prefetch={false} className="underline" href="/queue">Go to the queue</Link>.
+              This patient has an open visit ({open.ref}).{" "}
+              <Link prefetch={false} className="underline" href="/queue">
+                Go to the queue
+              </Link>
+              .
             </Alert>
           ) : p.status !== "ACTIVE" ? (
             <Alert tone="warning">This record is {p.status.toLowerCase()} and cannot be checked in.</Alert>
@@ -115,8 +155,21 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
                 <CheckInForm
                   fixed={{ patientId: p.id }}
                   fields={[
-                    { name: "visitTypeId", label: "Visit type", type: "select", required: true, defaultValue: visitTypes[0]?.id, options: visitTypes.map((v) => ({ value: v.id, label: v.name })) },
-                    { name: "clinicianId", label: "Clinician (optional)", type: "select", placeholder: "Not assigned yet", options: clinicians.map((c) => ({ value: c.id, label: c.displayName })) },
+                    {
+                      name: "visitTypeId",
+                      label: "Visit type",
+                      type: "select",
+                      required: true,
+                      defaultValue: visitTypes[0]?.id,
+                      options: visitTypes.map((v) => ({ value: v.id, label: v.name })),
+                    },
+                    {
+                      name: "clinicianId",
+                      label: "Clinician (optional)",
+                      type: "select",
+                      placeholder: "Not assigned yet",
+                      options: clinicians.map((c) => ({ value: c.id, label: c.displayName })),
+                    },
                     ...COMMON,
                     { name: "referralSource", label: "Referred by", type: "text" },
                   ]}
@@ -131,7 +184,15 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
 
   const [appointments, results] = await Promise.all([
     listAppointmentsForDay(ctx, { date: todayLocal() }),
-    sp.q ? searchPatients(ctx, { q: sp.q, page: 1, pageSize: 10, includeInactive: false, provisionalOnly: false }) : null,
+    sp.q
+      ? searchPatients(ctx, {
+          q: sp.q,
+          page: 1,
+          pageSize: 10,
+          includeInactive: false,
+          provisionalOnly: false,
+        })
+      : null,
   ]);
   const booked = appointments.filter((a) => a.status === "BOOKED");
   return (
@@ -142,7 +203,9 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
         back={{ href: "/queue", label: "Queue" }}
         actions={
           <Button asChild variant="danger">
-            <Link prefetch={false} href="/patients/new?emergency=1">Emergency registration</Link>
+            <Link prefetch={false} href="/patients/new?emergency=1">
+              Emergency registration
+            </Link>
           </Button>
         }
       />
@@ -160,11 +223,14 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
                       {formatTime(a.startAt)} · {a.patient.givenName} {a.patient.familyName}
                     </p>
                     <p className="text-[13px] text-muted">
-                      <span className="font-mono">{a.patient.mrn}</span> · {a.visitType.name} · {a.clinician?.displayName ?? "Any"}
+                      <span className="font-mono">{a.patient.mrn}</span> · {a.visitType.name} ·{" "}
+                      {a.clinician?.displayName ?? "Any"}
                     </p>
                   </div>
                   <Button asChild size="sm">
-                    <Link prefetch={false} href={`/queue/check-in?appointmentId=${a.id}`}>Check in</Link>
+                    <Link prefetch={false} href={`/queue/check-in?appointmentId=${a.id}`}>
+                      Check in
+                    </Link>
                   </Button>
                 </li>
               ))}
@@ -198,11 +264,14 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
                     <div>
                       <p className="font-medium">{r.name}</p>
                       <p className="text-[13px] text-muted">
-                        <span className="font-mono">{r.mrn}</span> · {r.age ?? "age unknown"} · {r.maskedPhone || "no phone"}
+                        <span className="font-mono">{r.mrn}</span> · {r.age ?? "age unknown"} ·{" "}
+                        {r.maskedPhone || "no phone"}
                       </p>
                     </div>
                     <Button asChild size="sm" variant="secondary">
-                      <Link prefetch={false} href={`/queue/check-in?patientId=${r.id}`}>Select</Link>
+                      <Link prefetch={false} href={`/queue/check-in?patientId=${r.id}`}>
+                        Select
+                      </Link>
                     </Button>
                   </li>
                 ))}

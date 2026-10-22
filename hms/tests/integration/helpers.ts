@@ -42,7 +42,12 @@ export async function createUser(
   for (const code of roleCodes) {
     const role = await prisma.role.findUniqueOrThrow({ where: { code } });
     await prisma.userRole.create({
-      data: { userId: user.id, roleId: role.id, branchId: opts.allBranches ? null : b.id, allBranches: !!opts.allBranches },
+      data: {
+        userId: user.id,
+        roleId: role.id,
+        branchId: opts.allBranches ? null : b.id,
+        allBranches: !!opts.allBranches,
+      },
     });
   }
   return user;
@@ -52,7 +57,10 @@ export async function ctxFor(userId: string, opts: { activeBranchId?: string } =
   return loadAuthContext(prisma, userId, { activeBranchId: opts.activeBranchId, enforceMfa: false });
 }
 
-export async function userCtx(roleCodes: string[], opts: { branch?: "T-MAIN" | "T-OTHER"; allBranches?: boolean } = {}) {
+export async function userCtx(
+  roleCodes: string[],
+  opts: { branch?: "T-MAIN" | "T-OTHER"; allBranches?: boolean } = {},
+) {
   const user = await createUser(roleCodes, opts);
   return { user, ctx: await ctxFor(user.id) };
 }
@@ -77,6 +85,7 @@ export async function newPatient(
     ...overrides,
   });
   const r = await registerPatient(ctx, input);
-  if (r.status !== "CREATED") throw new Error(`Unexpected duplicate warning: ${JSON.stringify(r.candidates)}`);
+  if (r.status !== "CREATED")
+    throw new Error(`Unexpected duplicate warning: ${JSON.stringify(r.candidates)}`);
   return r;
 }

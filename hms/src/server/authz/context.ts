@@ -44,7 +44,11 @@ export interface LoadContextOptions {
  * Build the effective permissions for a user from the database. Called on every request so that a
  * revoked role, expired delegation or suspended account loses access immediately.
  */
-export async function loadAuthContext(db: DbClient, userId: string, opts: LoadContextOptions = {}): Promise<AuthContext> {
+export async function loadAuthContext(
+  db: DbClient,
+  userId: string,
+  opts: LoadContextOptions = {},
+): Promise<AuthContext> {
   const now = opts.now ?? new Date();
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -132,7 +136,11 @@ export function branchesWith(ctx: AuthContext, permission: PermissionCode): "ALL
 }
 
 /** Resolve the branch to act in: the active branch, if the user holds `permission` there. */
-export function requireActingBranch(ctx: AuthContext, permission: PermissionCode, branchId?: string | null): string {
+export function requireActingBranch(
+  ctx: AuthContext,
+  permission: PermissionCode,
+  branchId?: string | null,
+): string {
   const target = branchId ?? ctx.activeBranchId;
   if (!target) throw new ForbiddenError("Select a branch before performing this action.");
   requirePermission(ctx, permission, { branchId: target });

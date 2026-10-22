@@ -21,7 +21,11 @@ const p = (code: string, sensitivity: Sensitivity, description: string): Permiss
 export const PERMISSIONS = [
   // Administration & configuration
   p("settings.read", "ADMIN", "View hospital configuration"),
-  p("settings.manage", "ADMIN", "Change hospital, branch, department, ward, bed and visit-type configuration"),
+  p(
+    "settings.manage",
+    "ADMIN",
+    "Change hospital, branch, department, ward, bed and visit-type configuration",
+  ),
   p("setup.verify", "ADMIN", "Verify or reject imported public facts in the setup checklist"),
   p("users.read", "ADMIN", "View staff accounts and their role assignments"),
   p("users.manage", "ADMIN", "Create staff accounts, assign/revoke roles, suspend accounts"),

@@ -22,20 +22,30 @@ function safeNext(next: unknown): string {
   return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 }
 
-const loginSchema = z.object({ email: z.string().trim().min(1).max(200), password: z.string().min(1).max(200) });
+const loginSchema = z.object({
+  email: z.string().trim().min(1).max(200),
+  password: z.string().min(1).max(200),
+});
 
 export async function loginAction(_prev: FormState, form: FormData): Promise<FormState> {
   const parsed = loginSchema.safeParse({ email: form.get("email"), password: form.get("password") });
   if (!parsed.success) return { error: "Enter your email and password." };
   const meta = await getRequestMeta();
   const result = await authenticate(prisma, parsed.data, meta);
-  if (result.status === "RATE_LIMITED") return { error: "Too many attempts from this network. Wait 15 minutes and try again." };
+  if (result.status === "RATE_LIMITED")
+    return { error: "Too many attempts from this network. Wait 15 minutes and try again." };
   if (result.status === "LOCKED") {
-    return { error: "This account is temporarily locked after repeated failed sign-ins. Try again later or contact your administrator." };
+    return {
+      error:
+        "This account is temporarily locked after repeated failed sign-ins. Try again later or contact your administrator.",
+    };
   }
   if (result.status !== "OK") return { error: LOGIN_FAILURE_MESSAGE };
 
-  const session = await startSession(result.userId, { mfaVerified: !result.mfaRequired, activeBranchId: result.defaultBranchId });
+  const session = await startSession(result.userId, {
+    mfaVerified: !result.mfaRequired,
+    activeBranchId: result.defaultBranchId,
+  });
   if (result.mfaRequired) redirect(`/login/mfa?next=${encodeURIComponent(safeNext(form.get("next")))}`);
   await recordAudit(prisma, {
     actorType: "USER",
@@ -63,7 +73,10 @@ export async function mfaAction(_prev: FormState, form: FormData): Promise<FormS
     }
     return { error: "That code is not valid. Codes change every 30 seconds." };
   }
-  const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { mustChangePassword: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { mustChangePassword: true },
+  });
   redirect(user?.mustChangePassword ? "/account/security?required=password" : safeNext(form.get("next")));
 }
 
@@ -85,7 +98,9 @@ export async function logoutAction() {
 }
 
 export async function forgotPasswordAction(_prev: FormState, form: FormData): Promise<FormState> {
-  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const email = String(form.get("email") ?? "")
+    .trim()
+    .toLowerCase();
   const generic = {
     message:
       "If an active account exists for that email, a reset link will be sent. Email delivery is not configured in this installation yet - ask your administrator to issue a reset link from Staff & Access.",

@@ -13,7 +13,15 @@ export function MfaForm({ next }: { next?: string }) {
       {state.error && <Alert tone="danger">{state.error}</Alert>}
       <input type="hidden" name="next" value={next ?? ""} />
       <Field label="Verification code" htmlFor="code" required>
-        <Input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} autoFocus className="text-center text-lg tracking-[0.4em] tabular" />
+        <Input
+          name="code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="\d{6}"
+          maxLength={6}
+          autoFocus
+          className="tabular text-center text-lg tracking-[0.4em]"
+        />
       </Field>
       <Button type="submit" className="w-full" loading={pending}>
         Verify

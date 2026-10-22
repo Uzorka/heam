@@ -19,7 +19,8 @@ export const SETTING_DEFS = {
     schema: z.number().int().min(1).max(365),
     default: 30,
     label: "Care relationship window (days)",
-    description: "How long after a care-team assignment ends a clinician keeps read access to that patient's chart.",
+    description:
+      "How long after a care-team assignment ends a clinician keeps read access to that patient's chart.",
   },
   "breakglass.durationMinutes": {
     schema: z.number().int().min(15).max(240),

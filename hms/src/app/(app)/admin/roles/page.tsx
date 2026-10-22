@@ -17,7 +17,10 @@ export const metadata: Metadata = { title: "Roles & permissions" };
 
 export default async function RolesPage() {
   const ctx = await requireAuthContext();
-  const res = await load(ctx, "/admin/roles", async () => ({ roles: await listRoles(ctx), pending: await listPendingRoleChanges(ctx) }));
+  const res = await load(ctx, "/admin/roles", async () => ({
+    roles: await listRoles(ctx),
+    pending: await listPendingRoleChanges(ctx),
+  }));
   if (!res.ok) return <Forbidden message={res.message} />;
   const { roles, pending } = res.data;
   const approver = can(ctx, "roles.approve_change");
@@ -78,10 +81,14 @@ export default async function RolesPage() {
                   </div>
                   <div className="flex flex-wrap gap-1 text-[12px]">
                     {p.addPermissions.map((c) => (
-                      <Badge key={c} tone="success">+ {c}</Badge>
+                      <Badge key={c} tone="success">
+                        + {c}
+                      </Badge>
                     ))}
                     {p.removePermissions.map((c) => (
-                      <Badge key={c} tone="danger">− {c}</Badge>
+                      <Badge key={c} tone="danger">
+                        − {c}
+                      </Badge>
                     ))}
                   </div>
                   {warnings.length > 0 && (
@@ -114,13 +121,17 @@ export default async function RolesPage() {
               {roles.map((r) => (
                 <TR key={r.id}>
                   <TD>
-                    <Link prefetch={false} href={`/admin/roles/${r.id}`} className="font-medium hover:text-accent hover:underline">
+                    <Link
+                      prefetch={false}
+                      href={`/admin/roles/${r.id}`}
+                      className="font-medium hover:text-accent hover:underline"
+                    >
                       {r.name}
                     </Link>
                     <div className="text-[13px] text-muted">{r.description}</div>
                   </TD>
-                  <TD className="text-right tabular">{r._count.permissions}</TD>
-                  <TD className="text-right tabular">{r._count.userRoles}</TD>
+                  <TD className="tabular text-right">{r._count.permissions}</TD>
+                  <TD className="tabular text-right">{r._count.userRoles}</TD>
                   <TD>
                     <div className="flex flex-wrap gap-1">
                       {r.requiresMfa && <Badge tone="info">MFA</Badge>}

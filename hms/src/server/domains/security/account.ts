@@ -19,7 +19,9 @@ export async function changePassword(
   const problems = passwordProblems(input.newPassword, { email: user.email });
   if (problems.length) throw new ValidationError(problems.join(" "), { newPassword: problems.join(" ") });
   if (await verifyPassword(user.passwordHash, input.newPassword)) {
-    throw new ValidationError("Choose a password you have not just used.", { newPassword: "Same as current" });
+    throw new ValidationError("Choose a password you have not just used.", {
+      newPassword: "Same as current",
+    });
   }
   await withTx(db, async (tx) => {
     await tx.user.update({
@@ -55,7 +57,10 @@ export async function beginMfaEnrollment(ctx: AuthContext, db: DbClient = prisma
 export async function confirmMfaEnrollment(ctx: AuthContext, code: string, db: DbClient = prisma) {
   const user = await db.user.findUniqueOrThrow({ where: { id: ctx.userId } });
   if (!user.mfaPendingSecretEnc) throw new ConflictError("Start enrolment first.");
-  if (!verifyTotp(user.mfaPendingSecretEnc, code)) throw new ValidationError("That code is not valid. Check your device clock and try again.", { code: "Invalid code" });
+  if (!verifyTotp(user.mfaPendingSecretEnc, code))
+    throw new ValidationError("That code is not valid. Check your device clock and try again.", {
+      code: "Invalid code",
+    });
   await withTx(db, async (tx) => {
     await tx.user.update({
       where: { id: user.id },
@@ -74,13 +79,27 @@ export async function confirmMfaEnrollment(ctx: AuthContext, code: string, db: D
   });
 }
 
-export async function disableMfa(ctx: AuthContext, input: { password: string; code: string }, enforced: boolean, db: DbClient = prisma) {
-  const user = await db.user.findUniqueOrThrow({ where: { id: ctx.userId }, include: { roles: { where: { revokedAt: null }, include: { role: true } } } });
-  if (!user.mfaEnabled || !user.mfaSecretEnc) throw new ConflictError("Two-step verification is not enabled.");
+export async function disableMfa(
+  ctx: AuthContext,
+  input: { password: string; code: string },
+  enforced: boolean,
+  db: DbClient = prisma,
+) {
+  const user = await db.user.findUniqueOrThrow({
+    where: { id: ctx.userId },
+    include: { roles: { where: { revokedAt: null }, include: { role: true } } },
+  });
+  if (!user.mfaEnabled || !user.mfaSecretEnc)
+    throw new ConflictError("Two-step verification is not enabled.");
   if (enforced && user.roles.some((r) => r.role.requiresMfa)) {
-    throw new ForbiddenError("Your role requires two-step verification. Ask an administrator if you need it reset.");
+    throw new ForbiddenError(
+      "Your role requires two-step verification. Ask an administrator if you need it reset.",
+    );
   }
-  if (!(await verifyPassword(user.passwordHash, input.password)) || !verifyTotp(user.mfaSecretEnc, input.code)) {
+  if (
+    !(await verifyPassword(user.passwordHash, input.password)) ||
+    !verifyTotp(user.mfaSecretEnc, input.code)
+  ) {
     throw new ValidationError("Password or code is incorrect.");
   }
   await withTx(db, async (tx) => {
@@ -99,10 +118,18 @@ export async function disableMfa(ctx: AuthContext, input: { password: string; co
 export const MFA_MAX_FAILURES = 5;
 
 /** Second login step. Rate limited per user; too many failures revoke the pending session. */
-export async function verifyLoginMfa(sessionId: string, userId: string, code: string, meta: RequestMeta, db: DbClient = prisma) {
+export async function verifyLoginMfa(
+  sessionId: string,
+  userId: string,
+  code: string,
+  meta: RequestMeta,
+  db: DbClient = prisma,
+) {
   const identifier = `mfa:${userId}`;
   const since = new Date(Date.now() - 15 * 60_000);
-  const failures = await db.loginAttempt.count({ where: { identifier, success: false, createdAt: { gt: since } } });
+  const failures = await db.loginAttempt.count({
+    where: { identifier, success: false, createdAt: { gt: since } },
+  });
   if (failures >= MFA_MAX_FAILURES) {
     await revokeSession(db, sessionId, "MFA_TOO_MANY_FAILURES");
     return { ok: false as const, locked: true };

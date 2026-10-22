@@ -13,7 +13,13 @@ import { DescriptionList, Forbidden, PageHeader } from "@/components/ui/misc";
 import { Table, TableWrap, TD, TH, THead, TR } from "@/components/ui/table";
 import { ActionDialog, ConfirmAction } from "@/components/forms/action-form";
 import { load } from "../../../_lib/guard";
-import { assignRoleAction, resetMfaAction, revokeRoleAction, revokeSessionsAction, setUserStatusAction } from "../../actions";
+import {
+  assignRoleAction,
+  resetMfaAction,
+  revokeRoleAction,
+  revokeSessionsAction,
+  setUserStatusAction,
+} from "../../actions";
 import { ResetLinkButton } from "./reset-link";
 
 export const metadata: Metadata = { title: "Staff account" };
@@ -30,10 +36,26 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
   const creds = can(ctx, "users.credentials.reset") && !self;
   const now = new Date();
   const [roles, branches, others, sessions] = await Promise.all([
-    manage ? prisma.role.findMany({ where: { active: true, kind: u.kind }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [],
-    manage ? prisma.branch.findMany({ where: { status: { not: "INACTIVE" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [],
     manage
-      ? prisma.user.findMany({ where: { status: "ACTIVE", kind: "STAFF", NOT: { id: u.id } }, orderBy: { displayName: "asc" }, select: { id: true, displayName: true } })
+      ? prisma.role.findMany({
+          where: { active: true, kind: u.kind },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : [],
+    manage
+      ? prisma.branch.findMany({
+          where: { status: { not: "INACTIVE" } },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : [],
+    manage
+      ? prisma.user.findMany({
+          where: { status: "ACTIVE", kind: "STAFF", NOT: { id: u.id } },
+          orderBy: { displayName: "asc" },
+          select: { id: true, displayName: true },
+        })
       : [],
     can(ctx, "sessions.manage") ? listUserSessions(ctx, u.id) : null,
   ]);
@@ -42,8 +64,16 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <PageHeader title={u.displayName} description={`${u.jobTitle ?? "No job title"} · ${u.email}`} back={{ href: "/admin/users", label: "Staff & access" }} />
-      {self && <Alert tone="info" className="mb-4">This is your own account. Role and status changes must be made by another administrator.</Alert>}
+      <PageHeader
+        title={u.displayName}
+        description={`${u.jobTitle ?? "No job title"} · ${u.email}`}
+        back={{ href: "/admin/users", label: "Staff & access" }}
+      />
+      {self && (
+        <Alert tone="info" className="mb-4">
+          This is your own account. Role and status changes must be made by another administrator.
+        </Alert>
+      )}
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card>
@@ -62,13 +92,30 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                     submitLabel="Assign"
                     successMessage="Role assigned."
                     fields={[
-                      { name: "roleId", label: "Role", type: "select", required: true, options: roles.map((r) => ({ value: r.id, label: r.name })) },
-                      { name: "branchId", label: "Branch", type: "select", defaultValue: ctx.activeBranchId ?? undefined, options: branches.map((b) => ({ value: b.id, label: b.name })) },
+                      {
+                        name: "roleId",
+                        label: "Role",
+                        type: "select",
+                        required: true,
+                        options: roles.map((r) => ({ value: r.id, label: r.name })),
+                      },
+                      {
+                        name: "branchId",
+                        label: "Branch",
+                        type: "select",
+                        defaultValue: ctx.activeBranchId ?? undefined,
+                        options: branches.map((b) => ({ value: b.id, label: b.name })),
+                      },
                       { name: "allBranches", label: "All branches", type: "checkbox" },
                       { name: "effectiveFrom", label: "Starts", type: "date" },
                       { name: "effectiveTo", label: "Ends", type: "date" },
                       { name: "isDelegation", label: "Temporary cover for a colleague", type: "checkbox" },
-                      { name: "delegatedFromUserId", label: "Covering for", type: "select", options: others.map((o) => ({ value: o.id, label: o.displayName })) },
+                      {
+                        name: "delegatedFromUserId",
+                        label: "Covering for",
+                        type: "select",
+                        options: others.map((o) => ({ value: o.id, label: o.displayName })),
+                      },
                       { name: "reason", label: "Reason", type: "textarea", required: true },
                     ]}
                   />
@@ -88,7 +135,11 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                       <TH>Scope</TH>
                       <TH>Period</TH>
                       <TH>Granted by</TH>
-                      {manage && <TH><span className="sr-only">Actions</span></TH>}
+                      {manage && (
+                        <TH>
+                          <span className="sr-only">Actions</span>
+                        </TH>
+                      )}
                     </tr>
                   </THead>
                   <tbody>
@@ -98,7 +149,9 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                           <span className="font-medium">{r.role.name}</span>
                           <div className="flex flex-wrap gap-1 pt-0.5">
                             {r.role.requiresMfa && <Badge tone="info">MFA required</Badge>}
-                            {r.isDelegation && <Badge tone="warning">Cover for {r.delegatedFrom?.displayName}</Badge>}
+                            {r.isDelegation && (
+                              <Badge tone="warning">Cover for {r.delegatedFrom?.displayName}</Badge>
+                            )}
                             {r.effectiveFrom > now && <Badge tone="outline">Starts later</Badge>}
                           </div>
                         </TD>
@@ -107,7 +160,8 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                           {r.department ? ` · ${r.department.name}` : ""}
                         </TD>
                         <TD className="whitespace-nowrap text-[13px]">
-                          {formatDate(r.effectiveFrom)} – {r.effectiveTo ? formatDate(r.effectiveTo) : "ongoing"}
+                          {formatDate(r.effectiveFrom)} –{" "}
+                          {r.effectiveTo ? formatDate(r.effectiveTo) : "ongoing"}
                         </TD>
                         <TD className="text-[13px]">{r.grantedBy?.displayName ?? "System"}</TD>
                         {manage && (
@@ -139,8 +193,13 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
               <ul className="divide-y divide-border text-[13px]">
                 {pastRoles.map((r) => (
                   <li key={r.id} className="px-5 py-2.5">
-                    <span className="font-medium">{r.role.name}</span> · {r.allBranches ? "All branches" : r.branch?.name} · {formatDate(r.effectiveFrom)} –{" "}
-                    {r.revokedAt ? `revoked ${formatDate(r.revokedAt)} by ${r.revokedBy?.displayName ?? "?"}${r.revokedReason ? ` (${r.revokedReason})` : ""}` : r.effectiveTo ? `ended ${formatDate(r.effectiveTo)}` : ""}
+                    <span className="font-medium">{r.role.name}</span> ·{" "}
+                    {r.allBranches ? "All branches" : r.branch?.name} · {formatDate(r.effectiveFrom)} –{" "}
+                    {r.revokedAt
+                      ? `revoked ${formatDate(r.revokedAt)} by ${r.revokedBy?.displayName ?? "?"}${r.revokedReason ? ` (${r.revokedReason})` : ""}`
+                      : r.effectiveTo
+                        ? `ended ${formatDate(r.effectiveTo)}`
+                        : ""}
                   </li>
                 ))}
               </ul>
@@ -174,7 +233,8 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                 <ul className="divide-y divide-border text-[13px]">
                   {sessions.map((s) => (
                     <li key={s.id} className="px-5 py-2.5">
-                      Signed in {formatDateTime(s.createdAt)} · last active {formatDateTime(s.lastSeenAt)} · {s.ip ?? "unknown IP"}
+                      Signed in {formatDateTime(s.createdAt)} · last active {formatDateTime(s.lastSeenAt)} ·{" "}
+                      {s.ip ?? "unknown IP"}
                       <span className="block truncate text-muted">{s.userAgent}</span>
                     </li>
                   ))}
@@ -190,13 +250,20 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
               <DescriptionList
                 className="sm:grid-cols-1"
                 items={[
-                  ["Status", <Badge key="s" tone={u.status === "ACTIVE" ? "success" : "outline"}>{u.status.toLowerCase()}</Badge>],
+                  [
+                    "Status",
+                    <Badge key="s" tone={u.status === "ACTIVE" ? "success" : "outline"}>
+                      {u.status.toLowerCase()}
+                    </Badge>,
+                  ],
                   ["Two-step verification", u.mfaEnabled ? "Enabled" : "Not enabled"],
                   ["Staff number", u.staffNumber],
                   ["Phone", u.phoneE164 ? formatPhone(u.phoneE164) : null],
                   ["Last sign-in", u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "Never"],
                   ["Created", formatDateTime(u.createdAt)],
-                  ...(u.lockedUntil && u.lockedUntil > now ? ([["Locked until", formatDateTime(u.lockedUntil)]] as [string, string][]) : []),
+                  ...(u.lockedUntil && u.lockedUntil > now
+                    ? ([["Locked until", formatDateTime(u.lockedUntil)]] as [string, string][])
+                    : []),
                   ...(u.statusReason ? ([["Status reason", u.statusReason]] as [string, string][]) : []),
                 ]}
               />
@@ -239,7 +306,14 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                     submitLabel="Reset"
                     tone="danger"
                     successMessage="Two-step verification reset."
-                    fields={[{ name: "reason", label: "Reason and identity check performed", type: "textarea", required: true }]}
+                    fields={[
+                      {
+                        name: "reason",
+                        label: "Reason and identity check performed",
+                        type: "textarea",
+                        required: true,
+                      },
+                    ]}
                   />
                 )}
               </div>

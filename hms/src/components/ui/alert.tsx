@@ -3,10 +3,30 @@ import { AlertTriangle, CheckCircle2, Info, OctagonAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tones = {
-  info: { cls: "border-info/25 bg-info-soft text-foreground", icon: Info, iconCls: "text-info", label: "Information" },
-  success: { cls: "border-success/25 bg-success-soft text-foreground", icon: CheckCircle2, iconCls: "text-success", label: "Success" },
-  warning: { cls: "border-warning/30 bg-warning-soft text-foreground", icon: AlertTriangle, iconCls: "text-warning", label: "Warning" },
-  danger: { cls: "border-danger/30 bg-danger-soft text-foreground", icon: OctagonAlert, iconCls: "text-danger", label: "Alert" },
+  info: {
+    cls: "border-info/25 bg-info-soft text-foreground",
+    icon: Info,
+    iconCls: "text-info",
+    label: "Information",
+  },
+  success: {
+    cls: "border-success/25 bg-success-soft text-foreground",
+    icon: CheckCircle2,
+    iconCls: "text-success",
+    label: "Success",
+  },
+  warning: {
+    cls: "border-warning/30 bg-warning-soft text-foreground",
+    icon: AlertTriangle,
+    iconCls: "text-warning",
+    label: "Warning",
+  },
+  danger: {
+    cls: "border-danger/30 bg-danger-soft text-foreground",
+    icon: OctagonAlert,
+    iconCls: "text-danger",
+    label: "Alert",
+  },
 };
 
 export function Alert({

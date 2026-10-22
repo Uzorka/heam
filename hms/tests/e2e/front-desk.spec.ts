@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 import { login, uniqueName, uniquePhone } from "./helpers";
 
 test.describe("Phase 1: registration -> appointment -> check-in -> queue", () => {
-  test("reception registers a patient, books, checks in, and the doctor sees them", async ({ page, browser }) => {
+  test("reception registers a patient, books, checks in, and the doctor sees them", async ({
+    page,
+    browser,
+  }) => {
     await login(page, "reception");
     const family = uniqueName("Okon");
     const given = uniqueName("Efe");
@@ -39,10 +42,19 @@ test.describe("Phase 1: registration -> appointment -> check-in -> queue", () =>
     // "Any available" avoids colliding with slots from earlier runs; double-booking is covered by integration tests.
     await page.getByLabel("Clinician").selectOption({ label: "Any available" });
     const now = new Date(Date.now() + 2 * 60 * 60_000);
-    const lagos = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Lagos" }).format(now);
+    const lagos = new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Africa/Lagos",
+    }).format(now);
     const [h] = lagos.split(":");
     const hour = Math.min(Number(h), 22);
-    await page.getByLabel("Time").fill(`${String(hour).padStart(2, "0")}:${String(Math.floor(Math.random() * 11) * 5).padStart(2, "0")}`);
+    await page
+      .getByLabel("Time")
+      .fill(
+        `${String(hour).padStart(2, "0")}:${String(Math.floor(Math.random() * 11) * 5).padStart(2, "0")}`,
+      );
     await page.getByRole("button", { name: "Book appointment" }).click();
     await expect(page).toHaveURL(/tab=appointments/);
     await expect(page.getByRole("cell", { name: "booked" })).toBeVisible();
@@ -67,14 +79,22 @@ test.describe("Phase 1: registration -> appointment -> check-in -> queue", () =>
     const nurse = await nurseCtx.newPage();
     await login(nurse, "nurse");
     await nurse.goto("/queue");
-    await nurse.getByRole("listitem").filter({ hasText: family }).getByRole("button", { name: /Ready for doctor/ }).click();
+    await nurse
+      .getByRole("listitem")
+      .filter({ hasText: family })
+      .getByRole("button", { name: /Ready for doctor/ })
+      .click();
     await expect(nurse.getByText("Moved to Ready for doctor.")).toBeVisible();
 
     const docCtx = await browser.newContext();
     const doc = await docCtx.newPage();
     await login(doc, "doctor2");
     await doc.goto("/queue?stage=READY_FOR_DOCTOR");
-    await doc.getByRole("listitem").filter({ hasText: family }).getByRole("button", { name: /In consultation/ }).click();
+    await doc
+      .getByRole("listitem")
+      .filter({ hasText: family })
+      .getByRole("button", { name: /In consultation/ })
+      .click();
     await expect(doc.getByText("Moved to In consultation.")).toBeVisible();
     await nurseCtx.close();
     await docCtx.close();

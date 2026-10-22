@@ -58,7 +58,10 @@ export async function validateSessionToken(
   if (session.expiresAt <= now) return null;
   const idleDeadline = new Date(session.lastSeenAt.getTime() + cfg.idleMinutes * 60_000);
   if (idleDeadline <= now) {
-    await db.session.update({ where: { id: session.id }, data: { revokedAt: now, revokedReason: "IDLE_TIMEOUT" } });
+    await db.session.update({
+      where: { id: session.id },
+      data: { revokedAt: now, revokedReason: "IDLE_TIMEOUT" },
+    });
     return null;
   }
   if (now.getTime() - session.lastSeenAt.getTime() > 60_000) {
@@ -74,7 +77,10 @@ export async function validateSessionToken(
 }
 
 export async function revokeSession(db: DbClient, sessionId: string, reason: string): Promise<void> {
-  await db.session.updateMany({ where: { id: sessionId, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: reason } });
+  await db.session.updateMany({
+    where: { id: sessionId, revokedAt: null },
+    data: { revokedAt: new Date(), revokedReason: reason },
+  });
 }
 
 export async function revokeAllSessions(

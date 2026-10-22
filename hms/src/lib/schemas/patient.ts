@@ -3,13 +3,53 @@ import { localDate, optionalEmail, optionalPhone, optionalText, requiredText, uu
 
 export const SEX_OPTIONS = ["FEMALE", "MALE", "INTERSEX", "UNKNOWN"] as const;
 export const DOB_PROVENANCE = ["DOCUMENT", "STATED", "ESTIMATED", "UNKNOWN"] as const;
-export const IDENTIFIER_TYPES = ["NIN", "NHIA_NUMBER", "PASSPORT", "VOTERS_CARD", "DRIVERS_LICENCE", "OTHER"] as const;
+export const IDENTIFIER_TYPES = [
+  "NIN",
+  "NHIA_NUMBER",
+  "PASSPORT",
+  "VOTERS_CARD",
+  "DRIVERS_LICENCE",
+  "OTHER",
+] as const;
 export const ALLERGY_REVIEW = ["NOT_ASKED", "NO_KNOWN_ALLERGIES", "HAS_ALLERGIES"] as const;
 export const NIGERIAN_STATES = [
-  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta",
-  "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi",
-  "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto",
-  "Taraba", "Yobe", "Zamfara",
+  "Abia",
+  "Adamawa",
+  "Akwa Ibom",
+  "Anambra",
+  "Bauchi",
+  "Bayelsa",
+  "Benue",
+  "Borno",
+  "Cross River",
+  "Delta",
+  "Ebonyi",
+  "Edo",
+  "Ekiti",
+  "Enugu",
+  "FCT",
+  "Gombe",
+  "Imo",
+  "Jigawa",
+  "Kaduna",
+  "Kano",
+  "Katsina",
+  "Kebbi",
+  "Kogi",
+  "Kwara",
+  "Lagos",
+  "Nasarawa",
+  "Niger",
+  "Ogun",
+  "Ondo",
+  "Osun",
+  "Oyo",
+  "Plateau",
+  "Rivers",
+  "Sokoto",
+  "Taraba",
+  "Yobe",
+  "Zamfara",
 ] as const;
 
 const nextOfKin = z
@@ -19,7 +59,10 @@ const nextOfKin = z
     phone: optionalPhone,
   })
   .optional()
-  .refine((v) => !v || !v.name || !!v.relationship, { message: "Relationship is required", path: ["relationship"] });
+  .refine((v) => !v || !v.name || !!v.relationship, {
+    message: "Relationship is required",
+    path: ["relationship"],
+  });
 
 const demographics = {
   givenName: requiredText("First name", 80),
@@ -28,7 +71,9 @@ const demographics = {
   preferredName: optionalText(80),
   dateOfBirth: localDate.optional().or(z.literal("").transform(() => undefined)),
   estimatedAgeYears: z.coerce.number().int().min(0).max(130).optional(),
-  dobProvenance: z.enum(DOB_PROVENANCE, { errorMap: () => ({ message: "Select where the date of birth came from" }) }),
+  dobProvenance: z.enum(DOB_PROVENANCE, {
+    errorMap: () => ({ message: "Select where the date of birth came from" }),
+  }),
   sexAtBirth: z.enum(SEX_OPTIONS, { errorMap: () => ({ message: "Select sex at birth" }) }),
   genderIdentity: optionalText(60),
   phone: optionalPhone,
@@ -49,9 +94,7 @@ export const registerPatientSchema = z
     referralSource: optionalText(120),
     registrationStatus: z.enum(["COMPLETE", "PROVISIONAL"]).default("COMPLETE"),
     nextOfKin,
-    identifier: z
-      .object({ type: z.enum(IDENTIFIER_TYPES), value: optionalText(40) })
-      .optional(),
+    identifier: z.object({ type: z.enum(IDENTIFIER_TYPES), value: optionalText(40) }).optional(),
     allergyReviewStatus: z.enum(ALLERGY_REVIEW).default("NOT_ASKED"),
     privacyNoticeGiven: z.boolean(),
     smsReminderConsent: z.boolean().default(false),
@@ -60,20 +103,40 @@ export const registerPatientSchema = z
   .superRefine((v, ctx) => {
     if (v.registrationStatus === "COMPLETE") {
       if (!v.dateOfBirth && v.estimatedAgeYears === undefined) {
-        ctx.addIssue({ code: "custom", path: ["dateOfBirth"], message: "Date of birth or estimated age is required" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["dateOfBirth"],
+          message: "Date of birth or estimated age is required",
+        });
       }
       if (!v.phone && !v.nextOfKin?.phone) {
-        ctx.addIssue({ code: "custom", path: ["phone"], message: "A patient or next-of-kin phone is required" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["phone"],
+          message: "A patient or next-of-kin phone is required",
+        });
       }
       if (!v.privacyNoticeGiven) {
-        ctx.addIssue({ code: "custom", path: ["privacyNoticeGiven"], message: "Confirm the privacy notice was given" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["privacyNoticeGiven"],
+          message: "Confirm the privacy notice was given",
+        });
       }
     }
     if (v.dateOfBirth && v.dobProvenance === "ESTIMATED") {
-      ctx.addIssue({ code: "custom", path: ["dobProvenance"], message: "Use 'Estimated' only with an estimated age" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["dobProvenance"],
+        message: "Use 'Estimated' only with an estimated age",
+      });
     }
     if (v.estimatedAgeYears !== undefined && v.dateOfBirth) {
-      ctx.addIssue({ code: "custom", path: ["estimatedAgeYears"], message: "Enter either a date of birth or an estimated age" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["estimatedAgeYears"],
+        message: "Enter either a date of birth or an estimated age",
+      });
     }
   });
 export type RegisterPatientInput = z.input<typeof registerPatientSchema>;

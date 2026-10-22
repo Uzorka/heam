@@ -17,13 +17,18 @@ describe("authentication", () => {
   it("logs in with a correct password and gives a generic failure otherwise", async () => {
     const u = await createUser(["NURSE"]);
     expect((await authenticate(prisma, { email: u.email, password: TEST_PASSWORD }, meta)).status).toBe("OK");
-    expect((await authenticate(prisma, { email: u.email, password: "wrong-password-1A" }, meta)).status).toBe("INVALID");
-    expect((await authenticate(prisma, { email: "nobody@test.local", password: "x" }, meta)).status).toBe("INVALID");
+    expect((await authenticate(prisma, { email: u.email, password: "wrong-password-1A" }, meta)).status).toBe(
+      "INVALID",
+    );
+    expect((await authenticate(prisma, { email: "nobody@test.local", password: "x" }, meta)).status).toBe(
+      "INVALID",
+    );
   });
 
   it("locks the account after repeated failures", async () => {
     const u = await createUser(["NURSE"]);
-    for (let i = 0; i < LOCKOUT_THRESHOLD; i++) await authenticate(prisma, { email: u.email, password: "nope-nope-Nope1" }, { ...meta, ip: null });
+    for (let i = 0; i < LOCKOUT_THRESHOLD; i++)
+      await authenticate(prisma, { email: u.email, password: "nope-nope-Nope1" }, { ...meta, ip: null });
     const r = await authenticate(prisma, { email: u.email, password: TEST_PASSWORD }, { ...meta, ip: null });
     expect(r.status).toBe("LOCKED");
   });
@@ -52,15 +57,24 @@ describe("authentication", () => {
     const { token } = await issueResetToken(prisma, u.id, null, meta);
     await expect(consumeResetToken(prisma, token, "weak", meta)).rejects.toBeInstanceOf(ValidationError);
     await consumeResetToken(prisma, token, "A-New-Strong-Passphrase-7", meta);
-    await expect(consumeResetToken(prisma, token, "Another-Strong-Pass-8", meta)).rejects.toBeInstanceOf(ValidationError);
+    await expect(consumeResetToken(prisma, token, "Another-Strong-Pass-8", meta)).rejects.toBeInstanceOf(
+      ValidationError,
+    );
     expect(await validateSessionToken(prisma, s.token, cfg)).toBeNull();
-    expect((await authenticate(prisma, { email: u.email, password: "A-New-Strong-Passphrase-7" }, meta)).status).toBe("OK");
+    expect(
+      (await authenticate(prisma, { email: u.email, password: "A-New-Strong-Passphrase-7" }, meta)).status,
+    ).toBe("OK");
   });
 });
 
 describe("audit trail", () => {
   it("is hash-chained and verifies", async () => {
-    await recordAudit(prisma, { actorType: "SYSTEM", action: "test.event", resourceType: "Test", details: { n: 1 } });
+    await recordAudit(prisma, {
+      actorType: "SYSTEM",
+      action: "test.event",
+      resourceType: "Test",
+      details: { n: 1 },
+    });
     const r = await verifyAuditChain();
     expect(r.ok).toBe(true);
     expect(r.checked).toBeGreaterThan(0);
@@ -68,13 +82,22 @@ describe("audit trail", () => {
 
   it("cannot be updated or deleted", async () => {
     const ev = await prisma.auditEvent.findFirstOrThrow();
-    await expect(prisma.auditEvent.update({ where: { seq: ev.seq }, data: { action: "tampered" } })).rejects.toThrow(/append-only/);
+    await expect(
+      prisma.auditEvent.update({ where: { seq: ev.seq }, data: { action: "tampered" } }),
+    ).rejects.toThrow(/append-only/);
     await expect(prisma.auditEvent.delete({ where: { seq: ev.seq } })).rejects.toThrow(/append-only/);
   });
 
   it("concurrent writes keep a valid chain", async () => {
     await Promise.all(
-      Array.from({ length: 20 }, (_, i) => recordAudit(prisma, { actorType: "SYSTEM", action: "test.concurrent", resourceType: "Test", details: { i } })),
+      Array.from({ length: 20 }, (_, i) =>
+        recordAudit(prisma, {
+          actorType: "SYSTEM",
+          action: "test.concurrent",
+          resourceType: "Test",
+          details: { i },
+        }),
+      ),
     );
     expect((await verifyAuditChain()).ok).toBe(true);
   });
@@ -88,15 +111,36 @@ describe("break-glass emergency access", () => {
     const p = await newPatient(reception);
     expect((await getClinicalAccess(doctor, p.patientId)).allowed).toBe(false);
     await expect(
-      invokeBreakGlass(reception, { patientId: p.patientId, reason: "EMERGENCY_TREATMENT", justification: "Patient collapsed in the waiting area" }),
+      invokeBreakGlass(reception, {
+        patientId: p.patientId,
+        reason: "EMERGENCY_TREATMENT",
+        justification: "Patient collapsed in the waiting area",
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    const grant = await invokeBreakGlass(doctor, { patientId: p.patientId, reason: "EMERGENCY_TREATMENT", justification: "Patient collapsed in the waiting area" });
+    const grant = await invokeBreakGlass(doctor, {
+      patientId: p.patientId,
+      reason: "EMERGENCY_TREATMENT",
+      justification: "Patient collapsed in the waiting area",
+    });
     const access = await getClinicalAccess(doctor, p.patientId);
     expect(access.basis).toBe("BREAK_GLASS");
-    expect(await prisma.notification.count({ where: { template: "breakglass.review_needed", userId: auditor.userId } })).toBeGreaterThan(0);
-    await prisma.breakGlassGrant.update({ where: { id: grant.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect(
+      await prisma.notification.count({
+        where: { template: "breakglass.review_needed", userId: auditor.userId },
+      }),
+    ).toBeGreaterThan(0);
+    await prisma.breakGlassGrant.update({
+      where: { id: grant.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
     expect((await getClinicalAccess(doctor, p.patientId)).allowed).toBe(false);
-    await reviewBreakGlass(auditor, { grantId: grant.id, status: "APPROPRIATE", notes: "Verified with ward sister" });
-    expect((await prisma.breakGlassGrant.findUniqueOrThrow({ where: { id: grant.id } })).reviewStatus).toBe("APPROPRIATE");
+    await reviewBreakGlass(auditor, {
+      grantId: grant.id,
+      status: "APPROPRIATE",
+      notes: "Verified with ward sister",
+    });
+    expect((await prisma.breakGlassGrant.findUniqueOrThrow({ where: { id: grant.id } })).reviewStatus).toBe(
+      "APPROPRIATE",
+    );
   });
 });

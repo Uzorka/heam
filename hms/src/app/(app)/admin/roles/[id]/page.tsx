@@ -14,7 +14,14 @@ import { cancelRoleChangeAction, requestRoleChangeAction } from "../../actions";
 
 export const metadata: Metadata = { title: "Role" };
 
-const SENS_TONE = { LOW: "neutral", ADMIN: "info", PHI: "warning", CLINICAL: "danger", FINANCIAL: "accent", HR: "success" } as const;
+const SENS_TONE = {
+  LOW: "neutral",
+  ADMIN: "info",
+  PHI: "warning",
+  CLINICAL: "danger",
+  FINANCIAL: "accent",
+  HR: "success",
+} as const;
 
 export default async function RolePage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthContext();
@@ -51,13 +58,21 @@ export default async function RolePage({ params }: { params: Promise<{ id: strin
                   name: "add",
                   label: "Add permissions",
                   type: "multicheck",
-                  options: PERMISSIONS.filter((p) => !held.has(p.code)).map((p) => ({ value: p.code, label: p.code, hint: `${p.description} · ${p.sensitivity}` })),
+                  options: PERMISSIONS.filter((p) => !held.has(p.code)).map((p) => ({
+                    value: p.code,
+                    label: p.code,
+                    hint: `${p.description} · ${p.sensitivity}`,
+                  })),
                 },
                 {
                   name: "remove",
                   label: "Remove permissions",
                   type: "multicheck",
-                  options: PERMISSIONS.filter((p) => held.has(p.code)).map((p) => ({ value: p.code, label: p.code, hint: p.description })),
+                  options: PERMISSIONS.filter((p) => held.has(p.code)).map((p) => ({
+                    value: p.code,
+                    label: p.code,
+                    hint: p.description,
+                  })),
                 },
                 { name: "reason", label: "Reason", type: "textarea", required: true },
               ]}
@@ -86,10 +101,14 @@ export default async function RolePage({ params }: { params: Promise<{ id: strin
           />
           <CardBody className="flex flex-wrap gap-1">
             {pending.addPermissions.map((c) => (
-              <Badge key={c} tone="success">+ {c}</Badge>
+              <Badge key={c} tone="success">
+                + {c}
+              </Badge>
             ))}
             {pending.removePermissions.map((c) => (
-              <Badge key={c} tone="danger">− {c}</Badge>
+              <Badge key={c} tone="danger">
+                − {c}
+              </Badge>
             ))}
           </CardBody>
         </Card>
@@ -124,7 +143,10 @@ export default async function RolePage({ params }: { params: Promise<{ id: strin
               .filter((r) => r.status !== "PENDING")
               .map((r) => (
                 <li key={r.id} className="px-5 py-2.5">
-                  <Badge tone={r.status === "APPROVED" ? "success" : "outline"}>{r.status.toLowerCase()}</Badge> {r.addPermissions.length} added, {r.removePermissions.length} removed · requested by{" "}
+                  <Badge tone={r.status === "APPROVED" ? "success" : "outline"}>
+                    {r.status.toLowerCase()}
+                  </Badge>{" "}
+                  {r.addPermissions.length} added, {r.removePermissions.length} removed · requested by{" "}
                   {r.requestedBy.displayName}
                   {r.decidedBy ? `, decided by ${r.decidedBy.displayName}` : ""} · {r.reason}
                 </li>

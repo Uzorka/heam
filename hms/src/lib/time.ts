@@ -135,9 +135,10 @@ function fmt(opts: Intl.DateTimeFormatOptions, tz: string) {
 }
 
 export function formatDateTime(date: Date | string, tz: string = HOSPITAL_TZ): string {
-  return fmt({ day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }, tz).format(
-    new Date(date),
-  );
+  return fmt(
+    { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false },
+    tz,
+  ).format(new Date(date));
 }
 
 export function formatDate(date: Date | string, tz: string = HOSPITAL_TZ): string {

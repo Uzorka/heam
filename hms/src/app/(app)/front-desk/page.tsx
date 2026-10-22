@@ -23,7 +23,9 @@ export default async function FrontDeskPage() {
   if (!ctx.activeBranchId) return <Alert tone="warning">Select a branch to use the front desk.</Alert>;
   const res = await load(ctx, "/front-desk", async () => {
     const [summary, queue] = await Promise.all([frontDeskSummary(ctx), listQueue(ctx)]);
-    const appts = can(ctx, "appointment.read") ? await listAppointmentsForDay(ctx, { date: todayLocal() }) : [];
+    const appts = can(ctx, "appointment.read")
+      ? await listAppointmentsForDay(ctx, { date: todayLocal() })
+      : [];
     return { summary, queue, appts };
   });
   if (!res.ok) return <Forbidden message={res.message} />;
@@ -73,7 +75,12 @@ export default async function FrontDeskPage() {
         <StatTile label="Expected" value={summary.expected} hint="Booked, not yet arrived" />
         <StatTile label="Checked in" value={summary.checkedIn} />
         <StatTile label="Waiting" value={summary.waiting} href="/queue" />
-        <StatTile label="Overdue" value={summary.overdue} tone={summary.overdue ? "warning" : "default"} hint="30+ min past start" />
+        <StatTile
+          label="Overdue"
+          value={summary.overdue}
+          tone={summary.overdue ? "warning" : "default"}
+          hint="30+ min past start"
+        />
       </div>
       {((summary.provisional ?? 0) > 0 || (summary.duplicates ?? 0) > 0) && (
         <div className="mb-6 flex flex-wrap gap-3">
@@ -97,7 +104,15 @@ export default async function FrontDeskPage() {
       )}
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Expected arrivals" description={`${expected.length} remaining today`} actions={<Link prefetch={false} className="text-[13px] text-accent hover:underline" href="/appointments">All appointments</Link>} />
+          <CardHeader
+            title="Expected arrivals"
+            description={`${expected.length} remaining today`}
+            actions={
+              <Link prefetch={false} className="text-[13px] text-accent hover:underline" href="/appointments">
+                All appointments
+              </Link>
+            }
+          />
           {expected.length === 0 ? (
             <EmptyState title="No outstanding appointments" />
           ) : (
@@ -106,7 +121,8 @@ export default async function FrontDeskPage() {
                 <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
                   <div className="min-w-0">
                     <p className="font-medium">
-                      <span className="tabular">{formatTime(a.startAt)}</span> · {a.patient.givenName} {a.patient.familyName}{" "}
+                      <span className="tabular">{formatTime(a.startAt)}</span> · {a.patient.givenName}{" "}
+                      {a.patient.familyName}{" "}
                       {a.startAt.getTime() < now - 30 * 60_000 && <Badge tone="warning">Late</Badge>}
                     </p>
                     <p className="truncate text-[13px] text-muted">
@@ -115,7 +131,9 @@ export default async function FrontDeskPage() {
                   </div>
                   {can(ctx, "queue.manage") && (
                     <Button asChild size="sm">
-                      <Link prefetch={false} href={`/queue/check-in?appointmentId=${a.id}`}>Check in</Link>
+                      <Link prefetch={false} href={`/queue/check-in?appointmentId=${a.id}`}>
+                        Check in
+                      </Link>
                     </Button>
                   )}
                 </li>

@@ -6,7 +6,9 @@ export const PAYER_CLASSES = ["UNDETERMINED", "CASH", "HMO", "CORPORATE", "PART_
 export const PRIORITIES = ["ROUTINE", "URGENT", "EMERGENCY"] as const;
 
 const override = z
-  .object({ reason: requiredText("Override reason", 300).refine((v) => v.length >= 5, "Give a specific reason") })
+  .object({
+    reason: requiredText("Override reason", 300).refine((v) => v.length >= 5, "Give a specific reason"),
+  })
   .optional();
 
 export const bookAppointmentSchema = z.object({

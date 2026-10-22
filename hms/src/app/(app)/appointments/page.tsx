@@ -39,13 +39,22 @@ function safeDate(v: string | undefined, fallback: string) {
   }
 }
 
-export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string; clinicianId?: string; mine?: string }> }) {
+export default async function AppointmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string; clinicianId?: string; mine?: string }>;
+}) {
   const ctx = await requireAuthContext();
   const sp = await searchParams;
   if (!ctx.activeBranchId) return <Alert tone="warning">Select a branch to view appointments.</Alert>;
   const today = todayLocal();
   const date = safeDate(sp.date, today);
-  const clinicianId = sp.mine === "1" ? ctx.userId : sp.clinicianId && /^[0-9a-f-]{36}$/i.test(sp.clinicianId) ? sp.clinicianId : undefined;
+  const clinicianId =
+    sp.mine === "1"
+      ? ctx.userId
+      : sp.clinicianId && /^[0-9a-f-]{36}$/i.test(sp.clinicianId)
+        ? sp.clinicianId
+        : undefined;
   const res = await load(ctx, "/appointments", () => listAppointmentsForDay(ctx, { date, clinicianId }));
   if (!res.ok) return <Forbidden message={res.message} />;
   const rows = res.data;
@@ -53,7 +62,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const manage = can(ctx, "appointment.manage", { branchId: ctx.activeBranchId });
   const checkin = can(ctx, "queue.manage", { branchId: ctx.activeBranchId });
   const now = Date.now();
-  const link = (d: string) => `/appointments?date=${d}${clinicianId && sp.mine !== "1" ? `&clinicianId=${clinicianId}` : ""}${sp.mine === "1" ? "&mine=1" : ""}`;
+  const link = (d: string) =>
+    `/appointments?date=${d}${clinicianId && sp.mine !== "1" ? `&clinicianId=${clinicianId}` : ""}${sp.mine === "1" ? "&mine=1" : ""}`;
   const active = rows.filter((r) => r.status === "BOOKED" || r.status === "CHECKED_IN").length;
 
   return (
@@ -80,7 +90,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               </Link>
             </Button>
             <Button asChild variant="secondary" size="sm">
-              <Link prefetch={false} href={link(today)}>Today</Link>
+              <Link prefetch={false} href={link(today)}>
+                Today
+              </Link>
             </Button>
             <Button asChild variant="secondary" size="icon" aria-label="Next day">
               <Link prefetch={false} href={link(addDays(date, 1))}>
@@ -95,7 +107,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
             </label>
             <label className="text-[13px]">
               <span className="mb-1 block text-muted">Clinician</span>
-              <Select name="clinicianId" defaultValue={sp.mine === "1" ? ctx.userId : clinicianId ?? ""} className="w-56">
+              <Select
+                name="clinicianId"
+                defaultValue={sp.mine === "1" ? ctx.userId : (clinicianId ?? "")}
+                className="w-56"
+              >
                 <option value="">All clinicians</option>
                 {clinicians.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -131,11 +147,15 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                   const late = a.status === "BOOKED" && a.startAt.getTime() < now - 30 * 60_000;
                   return (
                     <TR key={a.id}>
-                      <TD className="whitespace-nowrap tabular">
+                      <TD className="tabular whitespace-nowrap">
                         {formatTime(a.startAt)}–{formatTime(a.endAt)}
                       </TD>
                       <TD>
-                        <Link prefetch={false} href={`/patients/${a.patient.id}`} className="font-medium hover:text-accent hover:underline">
+                        <Link
+                          prefetch={false}
+                          href={`/patients/${a.patient.id}`}
+                          className="font-medium hover:text-accent hover:underline"
+                        >
                           {a.patient.givenName} {a.patient.familyName}
                         </Link>
                         <div className="text-[13px] text-muted">
@@ -156,7 +176,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <div className="flex flex-wrap gap-1">
                           <Badge tone={TONE[a.status]}>{a.status.toLowerCase().replace("_", " ")}</Badge>
                           {late && <Badge tone="warning">Late</Badge>}
-                          {a.encounter && <Badge tone="outline">{STAGE_LABELS[a.encounter.queueStage]}</Badge>}
+                          {a.encounter && (
+                            <Badge tone="outline">{STAGE_LABELS[a.encounter.queueStage]}</Badge>
+                          )}
                         </div>
                       </TD>
                       <TD className="whitespace-nowrap text-right">
@@ -181,7 +203,14 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                                   submitLabel="Reschedule"
                                   successMessage="Appointment rescheduled."
                                   fields={[
-                                    { name: "date", label: "New date", type: "date", required: true, defaultValue: date, min: today },
+                                    {
+                                      name: "date",
+                                      label: "New date",
+                                      type: "date",
+                                      required: true,
+                                      defaultValue: date,
+                                      min: today,
+                                    },
                                     { name: "time", label: "New time", type: "time", required: true },
                                     {
                                       name: "clinicianId",
@@ -214,7 +243,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                                   submitLabel="Cancel appointment"
                                   tone="danger"
                                   successMessage="Appointment cancelled."
-                                  fields={[{ name: "reason", label: "Reason", type: "textarea", required: true }]}
+                                  fields={[
+                                    { name: "reason", label: "Reason", type: "textarea", required: true },
+                                  ]}
                                 />
                               </>
                             )}

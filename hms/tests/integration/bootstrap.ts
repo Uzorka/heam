@@ -37,7 +37,9 @@ async function main() {
       },
     });
   }
-  const org = (await prisma.organization.findFirst()) ?? (await prisma.organization.create({ data: { name: "Test Hospital" } }));
+  const org =
+    (await prisma.organization.findFirst()) ??
+    (await prisma.organization.create({ data: { name: "Test Hospital" } }));
   for (const code of ["T-MAIN", "T-OTHER"]) {
     const b = await prisma.branch.upsert({
       where: { code },

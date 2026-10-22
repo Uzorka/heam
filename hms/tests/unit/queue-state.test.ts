@@ -1,9 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { QUEUE_TRANSITIONS, STAGE_ENTRY_PERMISSION, TERMINAL_STAGES, canTransition, transitionPermission } from "@/server/domains/queue/state-machine";
+import {
+  QUEUE_TRANSITIONS,
+  STAGE_ENTRY_PERMISSION,
+  TERMINAL_STAGES,
+  canTransition,
+  transitionPermission,
+} from "@/server/domains/queue/state-machine";
 
 describe("visit queue state machine", () => {
   it("allows the normal outpatient path", () => {
-    const path = ["AWAITING_VITALS", "READY_FOR_DOCTOR", "IN_CONSULTATION", "AWAITING_SERVICES", "AWAITING_REVIEW", "READY_TO_DISCHARGE", "COMPLETED"] as const;
+    const path = [
+      "AWAITING_VITALS",
+      "READY_FOR_DOCTOR",
+      "IN_CONSULTATION",
+      "AWAITING_SERVICES",
+      "AWAITING_REVIEW",
+      "READY_TO_DISCHARGE",
+      "COMPLETED",
+    ] as const;
     for (let i = 0; i < path.length - 1; i++) expect(canTransition(path[i]!, path[i + 1]!)).toBe(true);
   });
   it("rejects skipping consultation and reopening closed visits", () => {

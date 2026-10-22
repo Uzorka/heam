@@ -11,7 +11,11 @@ const NOTICES: Record<string, string> = {
   expired: "Your session ended. Please sign in again.",
 };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; reason?: string }>;
+}) {
   const sp = await searchParams;
   const s = await getSessionState();
   if (s.state === "authenticated") redirect("/dashboard");

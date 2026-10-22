@@ -3,7 +3,13 @@ import type { z } from "zod";
 import { prisma, withTx, type DbClient } from "../../db";
 import { recordAudit } from "../../audit";
 import { can, requireActingBranch, requirePermission, type AuthContext } from "../../authz/context";
-import { ConflictError, ForbiddenError, InvalidTransitionError, NotFoundError, ValidationError } from "../../errors";
+import {
+  ConflictError,
+  ForbiddenError,
+  InvalidTransitionError,
+  NotFoundError,
+  ValidationError,
+} from "../../errors";
 import { isConstraintViolation } from "../../db-errors";
 import { nextYearlyRef } from "../../sequence";
 import { localDayRange, todayLocal } from "@/lib/time";
@@ -21,7 +27,11 @@ import {
 
 const OPEN_ENCOUNTER_INDEX = "Encounter_one_open_per_patient_branch";
 
-export async function checkIn(ctx: AuthContext, input: z.output<typeof checkInSchema>, db: DbClient = prisma) {
+export async function checkIn(
+  ctx: AuthContext,
+  input: z.output<typeof checkInSchema>,
+  db: DbClient = prisma,
+) {
   const branchId = requireActingBranch(ctx, "queue.manage");
   const initialStage = await getSetting(db, "queue.initialStage");
 
@@ -33,10 +43,13 @@ export async function checkIn(ctx: AuthContext, input: z.output<typeof checkInSc
   if (input.appointmentId) {
     const appt = await db.appointment.findUnique({ where: { id: input.appointmentId } });
     if (!appt || appt.branchId !== branchId) throw new NotFoundError("Appointment not found in this branch.");
-    if (appt.status !== "BOOKED") throw new ConflictError(`This appointment is ${appt.status.toLowerCase().replace("_", " ")}.`);
+    if (appt.status !== "BOOKED")
+      throw new ConflictError(`This appointment is ${appt.status.toLowerCase().replace("_", " ")}.`);
     const { start, end } = localDayRange(todayLocal());
     if (appt.startAt < start || appt.startAt >= end) {
-      throw new ConflictError("Only today's appointments can be checked in. Reschedule the appointment first.");
+      throw new ConflictError(
+        "Only today's appointments can be checked in. Reschedule the appointment first.",
+      );
     }
     patientId = appt.patientId;
     visitTypeId = appt.visitTypeId;
@@ -51,9 +64,12 @@ export async function checkIn(ctx: AuthContext, input: z.output<typeof checkInSc
     throw new ConflictError(`Cannot check in: patient record is ${patient.status.toLowerCase()}.`);
   }
   const visitType = await db.visitType.findUnique({ where: { id: visitTypeId } });
-  if (!visitType?.active) throw new ValidationError("Choose an active visit type.", { visitTypeId: "Invalid" });
+  if (!visitType?.active)
+    throw new ValidationError("Choose an active visit type.", { visitTypeId: "Invalid" });
   if (clinicianId && !(await isClinicianInBranch(clinicianId, branchId, db))) {
-    throw new ValidationError("The selected clinician is not available in this branch.", { clinicianId: "Not available" });
+    throw new ValidationError("The selected clinician is not available in this branch.", {
+      clinicianId: "Not available",
+    });
   }
 
   try {
@@ -64,7 +80,8 @@ export async function checkIn(ctx: AuthContext, input: z.output<typeof checkInSc
           where: { id: appointmentId, status: "BOOKED" },
           data: { status: "CHECKED_IN", version: { increment: 1 } },
         });
-        if (r.count !== 1) throw new ConflictError("This appointment was just checked in by someone else.", "STALE");
+        if (r.count !== 1)
+          throw new ConflictError("This appointment was just checked in by someone else.", "STALE");
       }
       const encounter = await tx.encounter.create({
         data: {
@@ -106,7 +123,12 @@ export async function checkIn(ctx: AuthContext, input: z.output<typeof checkInSc
         resourceId: encounter.id,
         patientId: patient.id,
         branchId,
-        details: { ref, appointmentId: appointmentId ?? null, priority: input.priority, payerClass: input.payerClass },
+        details: {
+          ref,
+          appointmentId: appointmentId ?? null,
+          priority: input.priority,
+          payerClass: input.payerClass,
+        },
         meta: ctx.meta,
       });
       return encounter;
@@ -119,7 +141,11 @@ export async function checkIn(ctx: AuthContext, input: z.output<typeof checkInSc
   }
 }
 
-export async function transitionStage(ctx: AuthContext, input: z.output<typeof transitionSchema>, db: DbClient = prisma) {
+export async function transitionStage(
+  ctx: AuthContext,
+  input: z.output<typeof transitionSchema>,
+  db: DbClient = prisma,
+) {
   const enc = await db.encounter.findUnique({ where: { id: input.encounterId } });
   if (!enc) throw new NotFoundError("Visit not found.");
   requirePermission(ctx, "queue.read", { branchId: enc.branchId });
@@ -141,13 +167,24 @@ export async function transitionStage(ctx: AuthContext, input: z.output<typeof t
       data: {
         queueStage: to,
         version: { increment: 1 },
-        ...(terminal ? { status: to === "COMPLETED" ? "COMPLETED" : "CANCELLED", completedAt: new Date() } : {}),
-        ...(to === "IN_CONSULTATION" && !enc.attendingClinicianId ? { attendingClinicianId: ctx.userId } : {}),
+        ...(terminal
+          ? { status: to === "COMPLETED" ? "COMPLETED" : "CANCELLED", completedAt: new Date() }
+          : {}),
+        ...(to === "IN_CONSULTATION" && !enc.attendingClinicianId
+          ? { attendingClinicianId: ctx.userId }
+          : {}),
       },
     });
-    if (r.count !== 1) throw new ConflictError("This visit was updated by someone else. Refresh the queue.", "STALE");
+    if (r.count !== 1)
+      throw new ConflictError("This visit was updated by someone else. Refresh the queue.", "STALE");
     await tx.visitQueueEvent.create({
-      data: { encounterId: enc.id, fromStage: enc.queueStage, toStage: to, note: input.note, changedById: ctx.userId },
+      data: {
+        encounterId: enc.id,
+        fromStage: enc.queueStage,
+        toStage: to,
+        note: input.note,
+        changedById: ctx.userId,
+      },
     });
     if (to === "IN_CONSULTATION") {
       // Taking a patient into consultation establishes the care relationship.
@@ -160,7 +197,10 @@ export async function transitionStage(ctx: AuthContext, input: z.output<typeof t
             encounterId: enc.id,
             patientId: enc.patientId,
             userId: ctx.userId,
-            role: enc.attendingClinicianId && enc.attendingClinicianId !== ctx.userId ? "CONSULTING" : "ATTENDING",
+            role:
+              enc.attendingClinicianId && enc.attendingClinicianId !== ctx.userId
+                ? "CONSULTING"
+                : "ATTENDING",
             assignedById: ctx.userId,
           },
         });
@@ -172,7 +212,11 @@ export async function transitionStage(ctx: AuthContext, input: z.output<typeof t
         data:
           to === "COMPLETED"
             ? { status: "COMPLETED", version: { increment: 1 } }
-            : { status: "CANCELLED", cancelReason: input.note ?? "Visit cancelled", version: { increment: 1 } },
+            : {
+                status: "CANCELLED",
+                cancelReason: input.note ?? "Visit cancelled",
+                version: { increment: 1 },
+              },
       });
     }
     await recordAudit(tx, {
@@ -190,7 +234,11 @@ export async function transitionStage(ctx: AuthContext, input: z.output<typeof t
   });
 }
 
-export async function assignAttending(ctx: AuthContext, input: z.output<typeof assignClinicianSchema>, db: DbClient = prisma) {
+export async function assignAttending(
+  ctx: AuthContext,
+  input: z.output<typeof assignClinicianSchema>,
+  db: DbClient = prisma,
+) {
   const enc = await db.encounter.findUnique({ where: { id: input.encounterId } });
   if (!enc) throw new NotFoundError("Visit not found.");
   requirePermission(ctx, "queue.manage", { branchId: enc.branchId });
@@ -212,7 +260,13 @@ export async function assignAttending(ctx: AuthContext, input: z.output<typeof a
     });
     if (!existing) {
       await tx.careTeamAssignment.create({
-        data: { encounterId: enc.id, patientId: enc.patientId, userId: input.clinicianId, role: "ATTENDING", assignedById: ctx.userId },
+        data: {
+          encounterId: enc.id,
+          patientId: enc.patientId,
+          userId: input.clinicianId,
+          role: "ATTENDING",
+          assignedById: ctx.userId,
+        },
       });
     }
     await recordAudit(tx, {
@@ -253,7 +307,11 @@ export interface QueueRow {
 
 const PRIORITY_ORDER = { EMERGENCY: 0, URGENT: 1, ROUTINE: 2 } as const;
 
-export async function listQueue(ctx: AuthContext, opts: { stages?: QueueStage[]; mine?: boolean } = {}, db: DbClient = prisma) {
+export async function listQueue(
+  ctx: AuthContext,
+  opts: { stages?: QueueStage[]; mine?: boolean } = {},
+  db: DbClient = prisma,
+) {
   const branchId = requireActingBranch(ctx, "queue.read");
   const rows = await db.encounter.findMany({
     where: {
@@ -304,7 +362,9 @@ export async function listQueue(ctx: AuthContext, opts: { stages?: QueueStage[];
     },
   }));
   return mapped.sort(
-    (a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.arrivedAt.getTime() - b.arrivedAt.getTime(),
+    (a, b) =>
+      PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] ||
+      a.arrivedAt.getTime() - b.arrivedAt.getTime(),
   );
 }
 
@@ -312,7 +372,9 @@ export async function getEncounterForSlip(ctx: AuthContext, encounterId: string,
   const enc = await db.encounter.findUnique({
     where: { id: encounterId },
     include: {
-      patient: { select: { mrn: true, givenName: true, familyName: true, sexAtBirth: true, dateOfBirth: true } },
+      patient: {
+        select: { mrn: true, givenName: true, familyName: true, sexAtBirth: true, dateOfBirth: true },
+      },
       visitType: { select: { name: true } },
       attending: { select: { displayName: true } },
       branch: { select: { name: true, addressLine: true, phoneE164: true } },

@@ -51,7 +51,12 @@ async function loadReview(db: DbClient, ctx: AuthContext, reviewId: string) {
   return review;
 }
 
-export async function dismissDuplicate(ctx: AuthContext, reviewId: string, notes: string, db: DbClient = prisma) {
+export async function dismissDuplicate(
+  ctx: AuthContext,
+  reviewId: string,
+  notes: string,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "patient.merge.request");
   const review = await loadReview(db, ctx, reviewId);
   if (review.status !== "OPEN" && review.status !== "MERGE_REQUESTED") {
@@ -133,27 +138,61 @@ export async function approveMerge(ctx: AuthContext, reviewId: string, db: DbCli
     if (survivor.status === "MERGED" || loser.status === "MERGED") {
       throw new ConflictError("One of these records has already been merged.");
     }
-    const loserOpen = await tx.encounter.findMany({ where: { patientId: loserId, status: "OPEN" }, select: { branchId: true } });
+    const loserOpen = await tx.encounter.findMany({
+      where: { patientId: loserId, status: "OPEN" },
+      select: { branchId: true },
+    });
     const openOnBoth = loserOpen.length
       ? await tx.encounter.count({
-          where: { patientId: survivorId, status: "OPEN", branchId: { in: loserOpen.map((e) => e.branchId) } },
+          where: {
+            patientId: survivorId,
+            status: "OPEN",
+            branchId: { in: loserOpen.map((e) => e.branchId) },
+          },
         })
       : 0;
-    if (openOnBoth) throw new ConflictError("Both records have an open visit in the same branch. Close one visit first.");
+    if (openOnBoth)
+      throw new ConflictError("Both records have an open visit in the same branch. Close one visit first.");
 
     const moved = {
-      appointments: (await tx.appointment.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })).count,
-      encounters: (await tx.encounter.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })).count,
-      careTeam: (await tx.careTeamAssignment.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })).count,
-      identifiers: (await tx.patientIdentifier.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })).count,
-      contacts: (await tx.patientContact.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })).count,
-      allergies: (await tx.patientAllergy.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })).count,
-      consents: (await tx.consentRecord.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })).count,
+      appointments: (
+        await tx.appointment.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })
+      ).count,
+      encounters: (
+        await tx.encounter.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })
+      ).count,
+      careTeam: (
+        await tx.careTeamAssignment.updateMany({
+          where: { patientId: loserId },
+          data: { patientId: survivorId },
+        })
+      ).count,
+      identifiers: (
+        await tx.patientIdentifier.updateMany({
+          where: { patientId: loserId },
+          data: { patientId: survivorId },
+        })
+      ).count,
+      contacts: (
+        await tx.patientContact.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })
+      ).count,
+      allergies: (
+        await tx.patientAllergy.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })
+      ).count,
+      consents: (
+        await tx.consentRecord.updateMany({ where: { patientId: loserId }, data: { patientId: survivorId } })
+      ).count,
       guardianLinks: (
-        await tx.guardianRelationship.updateMany({ where: { dependentPatientId: loserId }, data: { dependentPatientId: survivorId } })
+        await tx.guardianRelationship.updateMany({
+          where: { dependentPatientId: loserId },
+          data: { dependentPatientId: survivorId },
+        })
       ).count,
       dependentLinks: (
-        await tx.guardianRelationship.updateMany({ where: { guardianPatientId: loserId }, data: { guardianPatientId: survivorId } })
+        await tx.guardianRelationship.updateMany({
+          where: { guardianPatientId: loserId },
+          data: { guardianPatientId: survivorId },
+        })
       ).count,
     };
     if (survivor.allergyReviewStatus !== "HAS_ALLERGIES" && moved.allergies > 0) {
@@ -161,12 +200,22 @@ export async function approveMerge(ctx: AuthContext, reviewId: string, db: DbCli
     }
     await tx.patient.update({
       where: { id: loserId },
-      data: { status: "MERGED", mergedIntoId: survivorId, statusReason: `Merged into ${survivor.mrn}`, version: { increment: 1 } },
+      data: {
+        status: "MERGED",
+        mergedIntoId: survivorId,
+        statusReason: `Merged into ${survivor.mrn}`,
+        version: { increment: 1 },
+      },
     });
     await tx.patient.update({ where: { id: survivorId }, data: { version: { increment: 1 } } });
     await tx.duplicatePatientReview.update({
       where: { id: review.id },
-      data: { status: "MERGED", decidedById: ctx.userId, decidedAt: new Date(), mergeSummary: { loserMrn: loser.mrn, moved } },
+      data: {
+        status: "MERGED",
+        decidedById: ctx.userId,
+        decidedAt: new Date(),
+        mergeSummary: { loserMrn: loser.mrn, moved },
+      },
     });
     await recordAudit(tx, {
       actorType: "USER",

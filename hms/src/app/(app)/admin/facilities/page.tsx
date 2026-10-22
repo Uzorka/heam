@@ -19,23 +19,46 @@ const DEPT_KINDS = [
   { value: "SUPPORT", label: "Support" },
   { value: "ADMINISTRATIVE", label: "Administrative" },
 ];
-const WARD_KINDS = ["GENERAL", "MATERNITY", "LABOUR", "PAEDIATRIC", "NEWBORN", "EMERGENCY", "PRIVATE", "OTHER"].map((v) => ({ value: v, label: v.charAt(0) + v.slice(1).toLowerCase() }));
-const BED_TONE = { FREE: "success", RESERVED: "info", OCCUPIED: "accent", CLEANING: "warning", UNAVAILABLE: "outline" } as const;
+const WARD_KINDS = [
+  "GENERAL",
+  "MATERNITY",
+  "LABOUR",
+  "PAEDIATRIC",
+  "NEWBORN",
+  "EMERGENCY",
+  "PRIVATE",
+  "OTHER",
+].map((v) => ({ value: v, label: v.charAt(0) + v.slice(1).toLowerCase() }));
+const BED_TONE = {
+  FREE: "success",
+  RESERVED: "info",
+  OCCUPIED: "accent",
+  CLEANING: "warning",
+  UNAVAILABLE: "outline",
+} as const;
 
 export default async function FacilitiesPage() {
   const ctx = await requireAuthContext();
   if (!(await allowed(ctx, "/admin/facilities", ["settings.read"]))) return <Forbidden />;
-  const [branches, departments, wards] = await Promise.all([listBranches(), listDepartments(), listWardsWithBeds()]);
+  const [branches, departments, wards] = await Promise.all([
+    listBranches(),
+    listDepartments(),
+    listWardsWithBeds(),
+  ]);
   const manage = can(ctx, "settings.manage");
   const branchOptions = branches.map((b) => ({ value: b.id, label: b.name }));
   const defaultBranch = ctx.activeBranchId ?? branches[0]?.id;
 
   return (
     <>
-      <PageHeader title="Departments, wards & beds" description="Configure the physical layout. Bed allocation to patients arrives with admissions (Phase 5)." />
+      <PageHeader
+        title="Departments, wards & beds"
+        description="Configure the physical layout. Bed allocation to patients arrives with admissions (Phase 5)."
+      />
       {wards.some((w) => w.isDemo) && (
         <Alert tone="warning" className="mb-5" title="Demo wards present">
-          Wards and beds labelled DEMO are sample configuration, not the hospital&apos;s real capacity. Replace them with the confirmed layout before go-live.
+          Wards and beds labelled DEMO are sample configuration, not the hospital&apos;s real capacity.
+          Replace them with the confirmed layout before go-live.
         </Alert>
       )}
       <div className="space-y-5">
@@ -51,10 +74,24 @@ export default async function FacilitiesPage() {
                   submitLabel="Save"
                   successMessage="Department saved."
                   fields={[
-                    { name: "branchId", label: "Branch", type: "select", required: true, defaultValue: defaultBranch, options: branchOptions },
+                    {
+                      name: "branchId",
+                      label: "Branch",
+                      type: "select",
+                      required: true,
+                      defaultValue: defaultBranch,
+                      options: branchOptions,
+                    },
                     { name: "code", label: "Code", type: "text", required: true },
                     { name: "name", label: "Name", type: "text", required: true },
-                    { name: "kind", label: "Type", type: "select", required: true, defaultValue: "CLINICAL", options: DEPT_KINDS },
+                    {
+                      name: "kind",
+                      label: "Type",
+                      type: "select",
+                      required: true,
+                      defaultValue: "CLINICAL",
+                      options: DEPT_KINDS,
+                    },
                     { name: "active", label: "Active", type: "checkbox", defaultChecked: true },
                   ]}
                 />
@@ -70,7 +107,11 @@ export default async function FacilitiesPage() {
                   <TH>Type</TH>
                   <TH>Branch</TH>
                   <TH>Status</TH>
-                  {manage && <TH><span className="sr-only">Actions</span></TH>}
+                  {manage && (
+                    <TH>
+                      <span className="sr-only">Actions</span>
+                    </TH>
+                  )}
                 </tr>
               </THead>
               <tbody>
@@ -80,7 +121,13 @@ export default async function FacilitiesPage() {
                     <TD>{d.name}</TD>
                     <TD className="text-[13px]">{d.kind.toLowerCase()}</TD>
                     <TD className="text-[13px]">{d.branch.name}</TD>
-                    <TD>{d.active ? <Badge tone="success">Active</Badge> : <Badge tone="outline">Inactive</Badge>}</TD>
+                    <TD>
+                      {d.active ? (
+                        <Badge tone="success">Active</Badge>
+                      ) : (
+                        <Badge tone="outline">Inactive</Badge>
+                      )}
+                    </TD>
                     {manage && (
                       <TD className="text-right">
                         <ActionDialog
@@ -92,9 +139,28 @@ export default async function FacilitiesPage() {
                           submitLabel="Save"
                           successMessage="Department saved."
                           fields={[
-                            { name: "code", label: "Code", type: "text", required: true, defaultValue: d.code },
-                            { name: "name", label: "Name", type: "text", required: true, defaultValue: d.name },
-                            { name: "kind", label: "Type", type: "select", required: true, defaultValue: d.kind, options: DEPT_KINDS },
+                            {
+                              name: "code",
+                              label: "Code",
+                              type: "text",
+                              required: true,
+                              defaultValue: d.code,
+                            },
+                            {
+                              name: "name",
+                              label: "Name",
+                              type: "text",
+                              required: true,
+                              defaultValue: d.name,
+                            },
+                            {
+                              name: "kind",
+                              label: "Type",
+                              type: "select",
+                              required: true,
+                              defaultValue: d.kind,
+                              options: DEPT_KINDS,
+                            },
                             { name: "active", label: "Active", type: "checkbox", defaultChecked: d.active },
                           ]}
                         />
@@ -119,11 +185,30 @@ export default async function FacilitiesPage() {
                   submitLabel="Save"
                   successMessage="Ward saved."
                   fields={[
-                    { name: "branchId", label: "Branch", type: "select", required: true, defaultValue: defaultBranch, options: branchOptions },
+                    {
+                      name: "branchId",
+                      label: "Branch",
+                      type: "select",
+                      required: true,
+                      defaultValue: defaultBranch,
+                      options: branchOptions,
+                    },
                     { name: "code", label: "Code", type: "text", required: true },
                     { name: "name", label: "Name", type: "text", required: true },
-                    { name: "kind", label: "Ward type", type: "select", required: true, defaultValue: "GENERAL", options: WARD_KINDS },
-                    { name: "departmentId", label: "Department", type: "select", options: departments.map((d) => ({ value: d.id, label: d.name })) },
+                    {
+                      name: "kind",
+                      label: "Ward type",
+                      type: "select",
+                      required: true,
+                      defaultValue: "GENERAL",
+                      options: WARD_KINDS,
+                    },
+                    {
+                      name: "departmentId",
+                      label: "Department",
+                      type: "select",
+                      options: departments.map((d) => ({ value: d.id, label: d.name })),
+                    },
                     { name: "active", label: "Active", type: "checkbox", defaultChecked: true },
                   ]}
                 />
@@ -139,7 +224,8 @@ export default async function FacilitiesPage() {
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-medium">
-                        {w.name} {w.isDemo && <Badge tone="warning">DEMO</Badge>} {!w.active && <Badge tone="outline">Inactive</Badge>}
+                        {w.name} {w.isDemo && <Badge tone="warning">DEMO</Badge>}{" "}
+                        {!w.active && <Badge tone="outline">Inactive</Badge>}
                       </p>
                       <p className="text-[13px] text-muted">
                         {w.kind.toLowerCase()} · {w.branch.name}
@@ -156,9 +242,22 @@ export default async function FacilitiesPage() {
                         submitLabel="Save"
                         successMessage="Bed added."
                         fields={[
-                          { name: "code", label: "Code", type: "text", required: true, placeholder: "e.g. B05" },
+                          {
+                            name: "code",
+                            label: "Code",
+                            type: "text",
+                            required: true,
+                            placeholder: "e.g. B05",
+                          },
                           { name: "label", label: "Label", type: "text", required: true },
-                          { name: "category", label: "Category", type: "text", required: true, defaultValue: "STANDARD", hint: "Used for bed tariffs in Phase 4/5" },
+                          {
+                            name: "category",
+                            label: "Category",
+                            type: "text",
+                            required: true,
+                            defaultValue: "STANDARD",
+                            hint: "Used for bed tariffs in Phase 4/5",
+                          },
                           { name: "active", label: "Active", type: "checkbox", defaultChecked: true },
                         ]}
                       />
@@ -186,9 +285,27 @@ export default async function FacilitiesPage() {
                               submitLabel="Save"
                               successMessage="Bed updated."
                               fields={[
-                                { name: "code", label: "Code", type: "text", required: true, defaultValue: b.code },
-                                { name: "label", label: "Label", type: "text", required: true, defaultValue: b.label },
-                                { name: "category", label: "Category", type: "text", required: true, defaultValue: b.category },
+                                {
+                                  name: "code",
+                                  label: "Code",
+                                  type: "text",
+                                  required: true,
+                                  defaultValue: b.code,
+                                },
+                                {
+                                  name: "label",
+                                  label: "Label",
+                                  type: "text",
+                                  required: true,
+                                  defaultValue: b.label,
+                                },
+                                {
+                                  name: "category",
+                                  label: "Category",
+                                  type: "text",
+                                  required: true,
+                                  defaultValue: b.category,
+                                },
                                 ...(b.status === "OCCUPIED" || b.status === "RESERVED"
                                   ? []
                                   : [
@@ -204,7 +321,12 @@ export default async function FacilitiesPage() {
                                         ],
                                       },
                                     ]),
-                                { name: "active", label: "Active", type: "checkbox", defaultChecked: b.active },
+                                {
+                                  name: "active",
+                                  label: "Active",
+                                  type: "checkbox",
+                                  defaultChecked: b.active,
+                                },
                               ]}
                             />
                           </div>

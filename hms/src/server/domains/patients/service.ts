@@ -9,7 +9,12 @@ import { isValidMrn, nextMrn } from "../../sequence";
 import { normalizePhone, maskPhone } from "@/lib/phone";
 import { calendarDateToUtcMidnight, formatAge, parseLocalDate, todayLocal } from "@/lib/time";
 import { maskIdentifier } from "@/lib/mask";
-import type { registerPatientSchema, searchPatientsSchema, statusSchema, updatePatientSchema } from "@/lib/schemas/patient";
+import type {
+  registerPatientSchema,
+  searchPatientsSchema,
+  statusSchema,
+  updatePatientSchema,
+} from "@/lib/schemas/patient";
 import { buildNameSearch, normalizeName } from "./normalize";
 import { DUPLICATE_WARN_THRESHOLD, orderedPair, scoreDuplicate, type DuplicateProbe } from "./duplicates";
 import { patientScopeWhere } from "./scope";
@@ -44,11 +49,17 @@ function fullName(p: { givenName: string; middleName?: string | null; familyName
   return [p.givenName, p.middleName, p.familyName].filter(Boolean).join(" ");
 }
 
-function resolveDob(input: { dateOfBirth?: string; estimatedAgeYears?: number }, now = new Date()): Date | null {
+function resolveDob(
+  input: { dateOfBirth?: string; estimatedAgeYears?: number },
+  now = new Date(),
+): Date | null {
   if (input.dateOfBirth) {
     const dob = calendarDateToUtcMidnight(input.dateOfBirth);
     const today = calendarDateToUtcMidnight(todayLocal(now));
-    if (dob > today) throw new ValidationError("Date of birth cannot be in the future.", { dateOfBirth: "Cannot be in the future" });
+    if (dob > today)
+      throw new ValidationError("Date of birth cannot be in the future.", {
+        dateOfBirth: "Cannot be in the future",
+      });
     if (today.getUTCFullYear() - dob.getUTCFullYear() > 130) {
       throw new ValidationError("Date of birth is implausible.", { dateOfBirth: "Check the year" });
     }
@@ -137,9 +148,11 @@ export async function registerPatient(
 ): Promise<RegisterResult> {
   const branchId = requireActingBranch(ctx, "patient.create");
   const dob = resolveDob(input);
-  const dobProvenance = input.estimatedAgeYears !== undefined ? "ESTIMATED" : dob ? input.dobProvenance : "UNKNOWN";
+  const dobProvenance =
+    input.estimatedAgeYears !== undefined ? "ESTIMATED" : dob ? input.dobProvenance : "UNKNOWN";
   const identifierValue = input.identifier?.value?.replace(/\s+/g, "");
-  const idIndex = identifierValue && input.identifier ? identifierIndex(input.identifier.type, identifierValue) : null;
+  const idIndex =
+    identifierValue && input.identifier ? identifierIndex(input.identifier.type, identifierValue) : null;
 
   const probe: DuplicateProbe = {
     givenName: input.givenName,
@@ -267,7 +280,9 @@ export async function searchPatients(
 
   const q = input.q.trim();
   const filters: Prisma.PatientWhereInput[] = [scope];
-  filters.push(input.includeInactive ? { status: { not: "MERGED" } } : { status: { in: ["ACTIVE", "DECEASED"] } });
+  filters.push(
+    input.includeInactive ? { status: { not: "MERGED" } } : { status: { in: ["ACTIVE", "DECEASED"] } },
+  );
   if (input.provisionalOnly) filters.push({ registrationStatus: "PROVISIONAL" });
   if (q) {
     const upper = q.toUpperCase().replace(/\s+/g, "");
@@ -277,7 +292,10 @@ export async function searchPatients(
     } else if (phone) {
       filters.push({ OR: [{ phoneE164: phone }, { altPhoneE164: phone }] });
     } else {
-      const tokens = normalizeName(q).split(" ").filter((t) => t.length >= 2).slice(0, 4);
+      const tokens = normalizeName(q)
+        .split(" ")
+        .filter((t) => t.length >= 2)
+        .slice(0, 4);
       if (!tokens.length) return { rows: [], total: 0, page: input.page, pageSize: input.pageSize };
       for (const t of tokens) filters.push({ nameSearch: { contains: t } });
     }
@@ -329,7 +347,12 @@ export async function searchPatients(
 export async function loadScopedPatient(
   ctx: AuthContext,
   patientId: string,
-  permission: "patient.read" | "patient.update" | "patient.search" | "patient.status.manage" | "patient.identifiers.read",
+  permission:
+    | "patient.read"
+    | "patient.update"
+    | "patient.search"
+    | "patient.status.manage"
+    | "patient.identifiers.read",
   db: DbClient = prisma,
 ) {
   const scope = patientScopeWhere(ctx, permission);
@@ -342,7 +365,10 @@ export async function loadScopedPatient(
 export async function getPatientDetail(ctx: AuthContext, patientId: string, db: DbClient = prisma) {
   const patient = await loadScopedPatient(ctx, patientId, "patient.read", db);
   const [contacts, allergies, consents, identifiers, guardians, dependents, mergedInto] = await Promise.all([
-    db.patientContact.findMany({ where: { patientId, active: true }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }),
+    db.patientContact.findMany({
+      where: { patientId, active: true },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+    }),
     db.patientAllergy.findMany({ where: { patientId }, orderBy: { recordedAt: "desc" } }),
     db.consentRecord.findMany({ where: { patientId, supersededAt: null }, orderBy: { capturedAt: "desc" } }),
     db.patientIdentifier.findMany({
@@ -401,7 +427,12 @@ export async function revealIdentifier(ctx: AuthContext, identifierId: string, d
 
 export async function addIdentifier(
   ctx: AuthContext,
-  input: { patientId: string; type: "NIN" | "NHIA_NUMBER" | "PASSPORT" | "VOTERS_CARD" | "DRIVERS_LICENCE" | "OTHER"; value: string; issuer?: string },
+  input: {
+    patientId: string;
+    type: "NIN" | "NHIA_NUMBER" | "PASSPORT" | "VOTERS_CARD" | "DRIVERS_LICENCE" | "OTHER";
+    value: string;
+    issuer?: string;
+  },
   db: DbClient = prisma,
 ) {
   const patient = await loadScopedPatient(ctx, input.patientId, "patient.update", db);
@@ -428,7 +459,13 @@ export async function addIdentifier(
       const [a, b] = orderedPair(patient.id, clash.patientId);
       await tx.duplicatePatientReview.upsert({
         where: { patientAId_patientBId: { patientAId: a, patientBId: b } },
-        create: { patientAId: a, patientBId: b, score: 60, reasons: ["Same identity document number"], raisedById: ctx.userId },
+        create: {
+          patientAId: a,
+          patientBId: b,
+          score: 60,
+          reasons: ["Same identity document number"],
+          raisedById: ctx.userId,
+        },
         update: {},
       });
     }
@@ -476,7 +513,8 @@ export async function updatePatient(
   db: DbClient = prisma,
 ): Promise<{ version: number }> {
   const existing = await loadScopedPatient(ctx, input.id, "patient.update", db);
-  if (existing.status === "MERGED") throw new ConflictError("Merged records cannot be edited. Edit the surviving record.");
+  if (existing.status === "MERGED")
+    throw new ConflictError("Merged records cannot be edited. Edit the surviving record.");
   const dob = resolveDob(input);
   const data = {
     givenName: input.givenName,
@@ -484,7 +522,12 @@ export async function updatePatient(
     familyName: input.familyName,
     preferredName: input.preferredName ?? null,
     dateOfBirth: dob,
-    dobProvenance: input.estimatedAgeYears !== undefined ? ("ESTIMATED" as const) : dob ? input.dobProvenance : ("UNKNOWN" as const),
+    dobProvenance:
+      input.estimatedAgeYears !== undefined
+        ? ("ESTIMATED" as const)
+        : dob
+          ? input.dobProvenance
+          : ("UNKNOWN" as const),
     sexAtBirth: input.sexAtBirth,
     genderIdentity: input.genderIdentity ?? null,
     phoneE164: input.phone ?? null,
@@ -524,7 +567,10 @@ export async function updatePatient(
       },
     });
     if (res.count !== 1) {
-      throw new ConflictError("This record was changed by someone else. Reload the page and re-apply your edits.", "STALE");
+      throw new ConflictError(
+        "This record was changed by someone else. Reload the page and re-apply your edits.",
+        "STALE",
+      );
     }
     await recordAudit(tx, {
       actorType: "USER",
@@ -551,9 +597,13 @@ export async function completeRegistration(ctx: AuthContext, patientId: string, 
     where: { patientId, type: "DATA_PROCESSING_NOTICE", status: "GRANTED", supersededAt: null },
   });
   if (!notice) problems.push("privacy notice acknowledgement");
-  if (problems.length) throw new ValidationError(`Before completing registration, record: ${problems.join(", ")}.`);
+  if (problems.length)
+    throw new ValidationError(`Before completing registration, record: ${problems.join(", ")}.`);
   await withTx(db, async (tx) => {
-    await tx.patient.update({ where: { id: p.id }, data: { registrationStatus: "COMPLETE", version: { increment: 1 } } });
+    await tx.patient.update({
+      where: { id: p.id },
+      data: { registrationStatus: "COMPLETE", version: { increment: 1 } },
+    });
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,
@@ -585,7 +635,10 @@ export async function setPatientStatus(
       data: {
         status: input.status,
         statusReason: input.reason,
-        deceasedAt: input.status === "DECEASED" && input.deceasedDate ? calendarDateToUtcMidnight(input.deceasedDate) : null,
+        deceasedAt:
+          input.status === "DECEASED" && input.deceasedDate
+            ? calendarDateToUtcMidnight(input.deceasedDate)
+            : null,
         version: { increment: 1 },
       },
     });
@@ -593,7 +646,11 @@ export async function setPatientStatus(
     if (input.status === "DECEASED") {
       const r = await tx.appointment.updateMany({
         where: { patientId: p.id, status: "BOOKED", startAt: { gt: new Date() } },
-        data: { status: "CANCELLED", cancelReason: "Patient record status changed", version: { increment: 1 } },
+        data: {
+          status: "CANCELLED",
+          cancelReason: "Patient record status changed",
+          version: { increment: 1 },
+        },
       });
       cancelled = r.count;
     }

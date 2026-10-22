@@ -50,7 +50,11 @@ export default async function UsersPage() {
               {users.map((u) => (
                 <TR key={u.id}>
                   <TD>
-                    <Link prefetch={false} href={`/admin/users/${u.id}`} className="font-medium hover:text-accent hover:underline">
+                    <Link
+                      prefetch={false}
+                      href={`/admin/users/${u.id}`}
+                      className="font-medium hover:text-accent hover:underline"
+                    >
                       {u.displayName}
                     </Link>
                     <div className="text-[13px] text-muted">
@@ -59,9 +63,15 @@ export default async function UsersPage() {
                   </TD>
                   <TD>
                     <div className="flex max-w-md flex-wrap gap-1">
-                      {u.roles.length === 0 && <span className="text-[13px] text-muted">No active roles</span>}
+                      {u.roles.length === 0 && (
+                        <span className="text-[13px] text-muted">No active roles</span>
+                      )}
                       {u.roles.map((r) => (
-                        <Badge key={r.id} tone={r.isDelegation ? "warning" : "neutral"} title={r.allBranches ? "All branches" : r.branch?.name}>
+                        <Badge
+                          key={r.id}
+                          tone={r.isDelegation ? "warning" : "neutral"}
+                          title={r.allBranches ? "All branches" : r.branch?.name}
+                        >
                           {r.role.name.split(" /")[0]}
                           {r.isDelegation ? " (cover)" : ""}
                         </Badge>
@@ -70,13 +80,19 @@ export default async function UsersPage() {
                   </TD>
                   <TD>
                     <div className="flex flex-wrap gap-1">
-                      <Badge tone={u.status === "ACTIVE" ? "success" : "outline"}>{u.status.toLowerCase()}</Badge>
+                      <Badge tone={u.status === "ACTIVE" ? "success" : "outline"}>
+                        {u.status.toLowerCase()}
+                      </Badge>
                       {u.lockedUntil && u.lockedUntil > new Date() && <Badge tone="danger">Locked</Badge>}
                       {u.isDemo && <Badge tone="warning">Demo</Badge>}
                     </div>
                   </TD>
-                  <TD>{u.mfaEnabled ? <Badge tone="success">On</Badge> : <Badge tone="outline">Off</Badge>}</TD>
-                  <TD className="whitespace-nowrap text-[13px]">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "Never"}</TD>
+                  <TD>
+                    {u.mfaEnabled ? <Badge tone="success">On</Badge> : <Badge tone="outline">Off</Badge>}
+                  </TD>
+                  <TD className="whitespace-nowrap text-[13px]">
+                    {u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "Never"}
+                  </TD>
                 </TR>
               ))}
             </tbody>

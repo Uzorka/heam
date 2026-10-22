@@ -18,10 +18,16 @@ export const metadata: Metadata = { title: "Duplicate review" };
 const STATUSES = ["OPEN", "MERGE_REQUESTED", "NOT_DUPLICATE", "MERGED"] as const;
 type Status = (typeof STATUSES)[number];
 
-export default async function DuplicatesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function DuplicatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const ctx = await requireAuthContext();
   const sp = await searchParams;
-  const status: Status = (STATUSES as readonly string[]).includes(sp.status ?? "") ? (sp.status as Status) : "OPEN";
+  const status: Status = (STATUSES as readonly string[]).includes(sp.status ?? "")
+    ? (sp.status as Status)
+    : "OPEN";
   const res = await load(ctx, "/patients/duplicates", () => listDuplicateReviews(ctx, status));
   if (!res.ok) return <Forbidden message={res.message} />;
   const reviews = res.data;
@@ -37,15 +43,24 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
         current={status}
         tabs={[
           { key: "OPEN", label: "To review", href: "/patients/duplicates" },
-          { key: "MERGE_REQUESTED", label: "Awaiting approval", href: "/patients/duplicates?status=MERGE_REQUESTED" },
-          { key: "NOT_DUPLICATE", label: "Not duplicates", href: "/patients/duplicates?status=NOT_DUPLICATE" },
+          {
+            key: "MERGE_REQUESTED",
+            label: "Awaiting approval",
+            href: "/patients/duplicates?status=MERGE_REQUESTED",
+          },
+          {
+            key: "NOT_DUPLICATE",
+            label: "Not duplicates",
+            href: "/patients/duplicates?status=NOT_DUPLICATE",
+          },
           { key: "MERGED", label: "Merged", href: "/patients/duplicates?status=MERGED" },
         ]}
       />
       {reviews.length === 0 ? (
         <Card>
           <EmptyState icon={<Copy className="h-5 w-5" />} title="Nothing here">
-            Suspected duplicates are raised automatically at registration or when an identity number matches another record.
+            Suspected duplicates are raised automatically at registration or when an identity number matches
+            another record.
           </EmptyState>
         </Card>
       ) : (
@@ -62,9 +77,17 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
               />
               <CardBody className="grid gap-4 md:grid-cols-2">
                 {[r.patientA, r.patientB].map((p) => (
-                  <div key={p.id} className={`rounded-md border p-3 ${r.survivorId === p.id ? "border-accent" : "border-border"}`}>
+                  <div
+                    key={p.id}
+                    className={`rounded-md border p-3 ${r.survivorId === p.id ? "border-accent" : "border-border"}`}
+                  >
                     <p className="font-medium">
-                      <Link prefetch={false} className="hover:underline" href={`/patients/${p.id}`} target="_blank">
+                      <Link
+                        prefetch={false}
+                        className="hover:underline"
+                        href={`/patients/${p.id}`}
+                        target="_blank"
+                      >
                         {p.givenName} {p.middleName ?? ""} {p.familyName}
                       </Link>{" "}
                       {r.survivorId === p.id && <Badge tone="accent">Proposed survivor</Badge>}
@@ -105,27 +128,39 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
                             label: "Keep which record?",
                             type: "select",
                             required: true,
-                            options: [r.patientA, r.patientB].map((p) => ({ value: p.id, label: `${p.mrn} - ${p.givenName} ${p.familyName}` })),
+                            options: [r.patientA, r.patientB].map((p) => ({
+                              value: p.id,
+                              label: `${p.mrn} - ${p.givenName} ${p.familyName}`,
+                            })),
                           },
-                          { name: "notes", label: "How was this confirmed?", type: "textarea", required: true },
+                          {
+                            name: "notes",
+                            label: "How was this confirmed?",
+                            type: "textarea",
+                            required: true,
+                          },
                         ]}
                       />
                     )}
-                    {r.status === "MERGE_REQUESTED" && can(ctx, "patient.merge.approve") && r.mergeRequestedById !== ctx.userId && (
-                      <ConfirmAction
-                        action={approveMergeAction}
-                        fixed={{ reviewId: r.id }}
-                        trigger="Approve merge"
-                        triggerVariant="primary"
-                        title="Approve this merge?"
-                        description={`Requester's note: ${r.decisionNotes ?? "-"}. This moves records to the surviving MRN and cannot be silently undone.`}
-                        submitLabel="Approve merge"
-                        tone="danger"
-                        successMessage="Records merged."
-                      />
-                    )}
+                    {r.status === "MERGE_REQUESTED" &&
+                      can(ctx, "patient.merge.approve") &&
+                      r.mergeRequestedById !== ctx.userId && (
+                        <ConfirmAction
+                          action={approveMergeAction}
+                          fixed={{ reviewId: r.id }}
+                          trigger="Approve merge"
+                          triggerVariant="primary"
+                          title="Approve this merge?"
+                          description={`Requester's note: ${r.decisionNotes ?? "-"}. This moves records to the surviving MRN and cannot be silently undone.`}
+                          submitLabel="Approve merge"
+                          tone="danger"
+                          successMessage="Records merged."
+                        />
+                      )}
                     {r.status === "MERGE_REQUESTED" && r.mergeRequestedById === ctx.userId && (
-                      <p className="text-[13px] text-muted">You requested this merge; another person must approve it.</p>
+                      <p className="text-[13px] text-muted">
+                        You requested this merge; another person must approve it.
+                      </p>
                     )}
                     <ActionDialog
                       action={dismissDuplicateAction}
@@ -135,7 +170,9 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
                       title="Mark as not duplicates"
                       submitLabel="Confirm"
                       successMessage="Marked as different people."
-                      fields={[{ name: "notes", label: "How was this confirmed?", type: "textarea", required: true }]}
+                      fields={[
+                        { name: "notes", label: "How was this confirmed?", type: "textarea", required: true },
+                      ]}
                     />
                   </div>
                 )}

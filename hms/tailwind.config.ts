@@ -14,7 +14,11 @@ export default {
         border: token("border"),
         foreground: token("foreground"),
         muted: token("muted"),
-        accent: { DEFAULT: token("accent"), foreground: token("accent-foreground"), soft: token("accent-soft") },
+        accent: {
+          DEFAULT: token("accent"),
+          foreground: token("accent-foreground"),
+          soft: token("accent-soft"),
+        },
         danger: { DEFAULT: token("danger"), soft: token("danger-soft") },
         warning: { DEFAULT: token("warning"), soft: token("warning-soft") },
         success: { DEFAULT: token("success"), soft: token("success-soft") },

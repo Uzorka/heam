@@ -7,7 +7,10 @@ import type { PermissionCode } from "../../authz/permissions";
  * there or have an appointment/encounter there. Users with an all-branches grant see everyone.
  * Returns null if the user has no grant at all for the permission.
  */
-export function patientScopeWhere(ctx: AuthContext, permission: PermissionCode): Prisma.PatientWhereInput | null {
+export function patientScopeWhere(
+  ctx: AuthContext,
+  permission: PermissionCode,
+): Prisma.PatientWhereInput | null {
   const scope = branchesWith(ctx, permission);
   if (scope === "ALL") return {};
   if (scope.length === 0) return null;

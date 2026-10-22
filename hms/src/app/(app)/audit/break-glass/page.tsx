@@ -13,7 +13,11 @@ import { reviewBreakGlassAction } from "../actions";
 export const metadata: Metadata = { title: "Emergency access review" };
 const STATUSES = ["PENDING", "APPROPRIATE", "CONCERN"] as const;
 
-export default async function BreakGlassPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function BreakGlassPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const ctx = await requireAuthContext();
   const sp = await searchParams;
   const status = STATUSES.find((s) => s === sp.status) ?? "PENDING";
@@ -21,7 +25,10 @@ export default async function BreakGlassPage({ searchParams }: { searchParams: P
   if (!res.ok) return <Forbidden message={res.message} />;
   return (
     <>
-      <PageHeader title="Emergency access review" description="Every break-glass access to a patient's clinical record must be reviewed. Reviewers cannot review their own access." />
+      <PageHeader
+        title="Emergency access review"
+        description="Every break-glass access to a patient's clinical record must be reviewed. Reviewers cannot review their own access."
+      />
       <LinkTabs
         label="Review status"
         current={status}
@@ -67,7 +74,17 @@ export default async function BreakGlassPage({ searchParams }: { searchParams: P
                       ]}
                     />
                   ) : (
-                    <Badge tone={g.reviewStatus === "CONCERN" ? "danger" : g.reviewStatus === "APPROPRIATE" ? "success" : "outline"}>{g.reviewStatus.toLowerCase()}</Badge>
+                    <Badge
+                      tone={
+                        g.reviewStatus === "CONCERN"
+                          ? "danger"
+                          : g.reviewStatus === "APPROPRIATE"
+                            ? "success"
+                            : "outline"
+                      }
+                    >
+                      {g.reviewStatus.toLowerCase()}
+                    </Badge>
                   )
                 }
               />

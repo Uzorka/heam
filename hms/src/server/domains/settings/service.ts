@@ -16,7 +16,14 @@ import type {
 } from "@/lib/schemas/settings";
 import { SETTING_DEFS, type SettingKey } from "./system-settings";
 
-function audit(ctx: AuthContext, tx: DbClient, action: string, resourceType: string, resourceId: string, details?: Record<string, unknown>) {
+function audit(
+  ctx: AuthContext,
+  tx: DbClient,
+  action: string,
+  resourceType: string,
+  resourceId: string,
+  details?: Record<string, unknown>,
+) {
   return recordAudit(tx, {
     actorType: "USER",
     actorUserId: ctx.userId,
@@ -43,7 +50,11 @@ export async function getOrganization(db: DbClient = prisma) {
   return org;
 }
 
-export async function updateOrganization(ctx: AuthContext, input: z.output<typeof organizationSchema>, db: DbClient = prisma) {
+export async function updateOrganization(
+  ctx: AuthContext,
+  input: z.output<typeof organizationSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "settings.manage");
   const org = await getOrganization(db);
   await withTx(db, async (tx) => {
@@ -61,7 +72,8 @@ export async function updateOrganization(ctx: AuthContext, input: z.output<typeo
         version: { increment: 1 },
       },
     });
-    if (r.count !== 1) throw new ConflictError("Settings changed since you opened them. Reload and retry.", "STALE");
+    if (r.count !== 1)
+      throw new ConflictError("Settings changed since you opened them. Reload and retry.", "STALE");
     await audit(ctx, tx, "settings.organization.update", "Organization", org.id);
   });
 }
@@ -70,7 +82,11 @@ export async function listBranches(db: DbClient = prisma) {
   return db.branch.findMany({ orderBy: [{ status: "asc" }, { name: "asc" }] });
 }
 
-export async function saveBranch(ctx: AuthContext, input: z.output<typeof branchSchema>, db: DbClient = prisma) {
+export async function saveBranch(
+  ctx: AuthContext,
+  input: z.output<typeof branchSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "settings.manage");
   const before = input.id ? await db.branch.findUnique({ where: { id: input.id } }) : null;
   if (input.id && !before) throw new NotFoundError("Branch not found.");
@@ -117,16 +133,32 @@ export async function listDepartments(branchId?: string, db: DbClient = prisma) 
   });
 }
 
-export async function saveDepartment(ctx: AuthContext, input: z.output<typeof departmentSchema>, db: DbClient = prisma) {
+export async function saveDepartment(
+  ctx: AuthContext,
+  input: z.output<typeof departmentSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "settings.manage");
-  const data = { branchId: input.branchId, code: input.code, name: input.name, kind: input.kind, active: input.active };
+  const data = {
+    branchId: input.branchId,
+    code: input.code,
+    name: input.name,
+    kind: input.kind,
+    active: input.active,
+  };
   return uniqueGuard(
     () =>
       withTx(db, async (tx) => {
         const d = input.id
           ? await tx.department.update({ where: { id: input.id }, data })
           : await tx.department.create({ data });
-        await audit(ctx, tx, input.id ? "settings.department.update" : "settings.department.create", "Department", d.id);
+        await audit(
+          ctx,
+          tx,
+          input.id ? "settings.department.update" : "settings.department.create",
+          "Department",
+          d.id,
+        );
         return d;
       }),
     "A department with that code already exists in this branch.",
@@ -137,7 +169,11 @@ export async function listWardsWithBeds(branchId?: string, db: DbClient = prisma
   return db.ward.findMany({
     where: branchId ? { branchId } : undefined,
     orderBy: [{ name: "asc" }],
-    include: { beds: { orderBy: { code: "asc" } }, branch: { select: { name: true } }, department: { select: { name: true } } },
+    include: {
+      beds: { orderBy: { code: "asc" } },
+      branch: { select: { name: true } },
+      department: { select: { name: true } },
+    },
   });
 }
 
@@ -154,7 +190,9 @@ export async function saveWard(ctx: AuthContext, input: z.output<typeof wardSche
   return uniqueGuard(
     () =>
       withTx(db, async (tx) => {
-        const w = input.id ? await tx.ward.update({ where: { id: input.id }, data }) : await tx.ward.create({ data });
+        const w = input.id
+          ? await tx.ward.update({ where: { id: input.id }, data })
+          : await tx.ward.create({ data });
         await audit(ctx, tx, input.id ? "settings.ward.update" : "settings.ward.create", "Ward", w.id);
         return w;
       }),
@@ -172,7 +210,9 @@ export async function saveBed(ctx: AuthContext, input: z.output<typeof bedSchema
           if (!existing) throw new NotFoundError("Bed not found.");
           if (existing.status === "OCCUPIED" || existing.status === "RESERVED") {
             if (input.status || !input.active) {
-              throw new ConflictError("An occupied or reserved bed cannot be deactivated or have its status changed here.");
+              throw new ConflictError(
+                "An occupied or reserved bed cannot be deactivated or have its status changed here.",
+              );
             }
           }
           const b = await tx.bed.update({
@@ -190,7 +230,13 @@ export async function saveBed(ctx: AuthContext, input: z.output<typeof bedSchema
           return b;
         }
         const b = await tx.bed.create({
-          data: { wardId: input.wardId, code: input.code, label: input.label, category: input.category, active: input.active },
+          data: {
+            wardId: input.wardId,
+            code: input.code,
+            label: input.label,
+            category: input.category,
+            active: input.active,
+          },
         });
         await audit(ctx, tx, "settings.bed.create", "Bed", b.id);
         return b;
@@ -207,7 +253,11 @@ export async function listVisitTypes(opts: { activeOnly?: boolean } = {}, db: Db
   });
 }
 
-export async function saveVisitType(ctx: AuthContext, input: z.output<typeof visitTypeSchema>, db: DbClient = prisma) {
+export async function saveVisitType(
+  ctx: AuthContext,
+  input: z.output<typeof visitTypeSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "settings.manage");
   const data = {
     code: input.code,
@@ -219,8 +269,16 @@ export async function saveVisitType(ctx: AuthContext, input: z.output<typeof vis
   return uniqueGuard(
     () =>
       withTx(db, async (tx) => {
-        const v = input.id ? await tx.visitType.update({ where: { id: input.id }, data }) : await tx.visitType.create({ data });
-        await audit(ctx, tx, input.id ? "settings.visit_type.update" : "settings.visit_type.create", "VisitType", v.id);
+        const v = input.id
+          ? await tx.visitType.update({ where: { id: input.id }, data })
+          : await tx.visitType.create({ data });
+        await audit(
+          ctx,
+          tx,
+          input.id ? "settings.visit_type.update" : "settings.visit_type.create",
+          "VisitType",
+          v.id,
+        );
         return v;
       }),
     "A visit type with that code already exists.",
@@ -234,7 +292,11 @@ export async function listSetupFacts(db: DbClient = prisma) {
   });
 }
 
-export async function decideSetupFact(ctx: AuthContext, input: z.output<typeof setupFactDecisionSchema>, db: DbClient = prisma) {
+export async function decideSetupFact(
+  ctx: AuthContext,
+  input: z.output<typeof setupFactDecisionSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "setup.verify");
   const fact = await db.setupFact.findUnique({ where: { id: input.id } });
   if (!fact) throw new NotFoundError();
@@ -258,11 +320,17 @@ export async function decideSetupFact(ctx: AuthContext, input: z.output<typeof s
   });
 }
 
-export async function updateSystemSetting(ctx: AuthContext, key: string, rawValue: unknown, db: DbClient = prisma) {
+export async function updateSystemSetting(
+  ctx: AuthContext,
+  key: string,
+  rawValue: unknown,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "settings.manage");
   if (!(key in SETTING_DEFS)) throw new ValidationError("Unknown setting.");
   const def = SETTING_DEFS[key as SettingKey];
-  const coerced = typeof def.default === "number" && typeof rawValue === "string" ? Number(rawValue) : rawValue;
+  const coerced =
+    typeof def.default === "number" && typeof rawValue === "string" ? Number(rawValue) : rawValue;
   const parsed = def.schema.safeParse(coerced);
   if (!parsed.success) throw new ValidationError(`Invalid value for ${def.label}.`);
   await withTx(db, async (tx) => {

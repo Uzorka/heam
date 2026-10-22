@@ -12,7 +12,11 @@ import { getSetting } from "../settings/system-settings";
  * role holding `clinical.breakglass`, a structured reason and a written justification; every grant
  * is queued for compliance review and notifies reviewers. It never widens non-clinical privileges.
  */
-export async function invokeBreakGlass(ctx: AuthContext, input: z.output<typeof breakGlassSchema>, db: DbClient = prisma) {
+export async function invokeBreakGlass(
+  ctx: AuthContext,
+  input: z.output<typeof breakGlassSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "clinical.breakglass");
   const patient = await loadScopedPatient(ctx, input.patientId, "patient.search", db);
   const minutes = await getSetting(db, "breakglass.durationMinutes");
@@ -31,7 +35,12 @@ export async function invokeBreakGlass(ctx: AuthContext, input: z.output<typeof 
     const reviewers = await tx.user.findMany({
       where: {
         status: "ACTIVE",
-        roles: { some: { revokedAt: null, role: { permissions: { some: { permissionCode: "audit.breakglass.review" } } } } },
+        roles: {
+          some: {
+            revokedAt: null,
+            role: { permissions: { some: { permissionCode: "audit.breakglass.review" } } },
+          },
+        },
       },
       select: { id: true },
     });
@@ -86,7 +95,11 @@ export async function endBreakGlass(ctx: AuthContext, grantId: string, db: DbCli
   });
 }
 
-export async function listBreakGlassForReview(ctx: AuthContext, status: "PENDING" | "APPROPRIATE" | "CONCERN" = "PENDING", db: DbClient = prisma) {
+export async function listBreakGlassForReview(
+  ctx: AuthContext,
+  status: "PENDING" | "APPROPRIATE" | "CONCERN" = "PENDING",
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "audit.breakglass.review");
   return db.breakGlassGrant.findMany({
     where: { reviewStatus: status },
@@ -100,7 +113,11 @@ export async function listBreakGlassForReview(ctx: AuthContext, status: "PENDING
   });
 }
 
-export async function reviewBreakGlass(ctx: AuthContext, input: z.output<typeof breakGlassReviewSchema>, db: DbClient = prisma) {
+export async function reviewBreakGlass(
+  ctx: AuthContext,
+  input: z.output<typeof breakGlassReviewSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "audit.breakglass.review");
   const g = await db.breakGlassGrant.findUnique({ where: { id: input.grantId } });
   if (!g) throw new NotFoundError();
@@ -109,7 +126,12 @@ export async function reviewBreakGlass(ctx: AuthContext, input: z.output<typeof 
   await withTx(db, async (tx) => {
     await tx.breakGlassGrant.update({
       where: { id: g.id },
-      data: { reviewStatus: input.status, reviewedById: ctx.userId, reviewedAt: new Date(), reviewNotes: input.notes },
+      data: {
+        reviewStatus: input.status,
+        reviewedById: ctx.userId,
+        reviewedAt: new Date(),
+        reviewNotes: input.notes,
+      },
     });
     await recordAudit(tx, {
       actorType: "USER",

@@ -35,7 +35,8 @@ function ctxWith(grants: Partial<Grant>[]): AuthContext {
 
 describe("role templates - protective defaults", () => {
   it("only reference permissions that exist", () => {
-    for (const t of ROLE_TEMPLATES) for (const p of t.permissions) expect(PERMISSION_CODES.has(p), `${t.code}:${p}`).toBe(true);
+    for (const t of ROLE_TEMPLATES)
+      for (const p of t.permissions) expect(PERMISSION_CODES.has(p), `${t.code}:${p}`).toBe(true);
   });
   it("HR/payroll have no patient or clinical access", () => {
     for (const p of perms("HR_PAYROLL")) expect(["PHI", "CLINICAL"]).not.toContain(sensitivity(p));

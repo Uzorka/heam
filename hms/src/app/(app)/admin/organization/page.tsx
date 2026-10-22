@@ -12,8 +12,26 @@ import { saveBranchAction, updateOrganizationAction } from "../actions";
 
 export const metadata: Metadata = { title: "Hospital & branches" };
 
-const branchFields = (b?: { code: string; name: string; addressLine: string | null; city: string | null; state: string | null; phoneE164: string | null; email: string | null; status: string; verificationStatus: string; verificationNotes: string | null }): FieldSpec[] => [
-  { name: "code", label: "Code", type: "text", required: true, defaultValue: b?.code, hint: "Short unique code, e.g. MAIN" },
+const branchFields = (b?: {
+  code: string;
+  name: string;
+  addressLine: string | null;
+  city: string | null;
+  state: string | null;
+  phoneE164: string | null;
+  email: string | null;
+  status: string;
+  verificationStatus: string;
+  verificationNotes: string | null;
+}): FieldSpec[] => [
+  {
+    name: "code",
+    label: "Code",
+    type: "text",
+    required: true,
+    defaultValue: b?.code,
+    hint: "Short unique code, e.g. MAIN",
+  },
   { name: "name", label: "Name", type: "text", required: true, defaultValue: b?.name },
   { name: "addressLine", label: "Address", type: "text", span: 2, defaultValue: b?.addressLine ?? undefined },
   { name: "city", label: "Town / city", type: "text", defaultValue: b?.city ?? undefined },
@@ -46,7 +64,12 @@ const branchFields = (b?: { code: string; name: string; addressLine: string | nu
       { value: "INACTIVE", label: "Inactive" },
     ],
   },
-  { name: "verificationNotes", label: "Verification notes", type: "textarea", defaultValue: b?.verificationNotes ?? undefined },
+  {
+    name: "verificationNotes",
+    label: "Verification notes",
+    type: "textarea",
+    defaultValue: b?.verificationNotes ?? undefined,
+  },
 ];
 
 export default async function OrganizationPage() {
@@ -56,7 +79,10 @@ export default async function OrganizationPage() {
   const manage = can(ctx, "settings.manage");
   return (
     <>
-      <PageHeader title="Hospital & branches" description="Identity shown on slips and documents. One campus is active by default until administrators confirm others." />
+      <PageHeader
+        title="Hospital & branches"
+        description="Identity shown on slips and documents. One campus is active by default until administrators confirm others."
+      />
       <div className="space-y-5">
         <Card>
           <CardHeader
@@ -71,14 +97,46 @@ export default async function OrganizationPage() {
                   submitLabel="Save"
                   successMessage="Hospital identity updated."
                   fields={[
-                    { name: "name", label: "Name", type: "text", required: true, defaultValue: org.name, span: 2 },
-                    { name: "subtitle", label: "Subtitle", type: "text", defaultValue: org.subtitle ?? undefined },
-                    { name: "tagline", label: "Tagline", type: "text", defaultValue: org.tagline ?? undefined },
-                    { name: "legalName", label: "Registered legal name", type: "text", defaultValue: org.legalName ?? undefined },
-                    { name: "website", label: "Website", type: "text", defaultValue: org.website ?? undefined },
+                    {
+                      name: "name",
+                      label: "Name",
+                      type: "text",
+                      required: true,
+                      defaultValue: org.name,
+                      span: 2,
+                    },
+                    {
+                      name: "subtitle",
+                      label: "Subtitle",
+                      type: "text",
+                      defaultValue: org.subtitle ?? undefined,
+                    },
+                    {
+                      name: "tagline",
+                      label: "Tagline",
+                      type: "text",
+                      defaultValue: org.tagline ?? undefined,
+                    },
+                    {
+                      name: "legalName",
+                      label: "Registered legal name",
+                      type: "text",
+                      defaultValue: org.legalName ?? undefined,
+                    },
+                    {
+                      name: "website",
+                      label: "Website",
+                      type: "text",
+                      defaultValue: org.website ?? undefined,
+                    },
                     { name: "email", label: "Email", type: "email", defaultValue: org.email ?? undefined },
                     { name: "phone", label: "Phone", type: "tel", defaultValue: org.phoneE164 ?? undefined },
-                    { name: "letterhead", label: "Letterhead text", type: "textarea", defaultValue: org.letterhead ?? undefined },
+                    {
+                      name: "letterhead",
+                      label: "Letterhead text",
+                      type: "textarea",
+                      defaultValue: org.letterhead ?? undefined,
+                    },
                   ]}
                 />
               )
@@ -105,7 +163,14 @@ export default async function OrganizationPage() {
             title="Branches"
             actions={
               manage && (
-                <ActionDialog action={saveBranchAction} trigger="Add branch" title="Add branch" submitLabel="Save" successMessage="Branch saved." fields={branchFields()} />
+                <ActionDialog
+                  action={saveBranchAction}
+                  trigger="Add branch"
+                  title="Add branch"
+                  submitLabel="Save"
+                  successMessage="Branch saved."
+                  fields={branchFields()}
+                />
               )
             }
           />
@@ -116,12 +181,20 @@ export default async function OrganizationPage() {
                   <p className="font-medium">
                     {b.name} <span className="font-mono text-[12px] text-muted">{b.code}</span>
                   </p>
-                  <p className="text-[13px] text-muted">{[b.addressLine, b.city, b.state].filter(Boolean).join(", ") || "No address"}</p>
+                  <p className="text-[13px] text-muted">
+                    {[b.addressLine, b.city, b.state].filter(Boolean).join(", ") || "No address"}
+                  </p>
                   {b.verificationNotes && <p className="mt-1 text-xs text-muted">{b.verificationNotes}</p>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={b.status === "ACTIVE" ? "success" : b.status === "INACTIVE" ? "outline" : "warning"}>{b.status.toLowerCase().replace("_", " ")}</Badge>
-                  <Badge tone={b.verificationStatus === "VERIFIED" ? "success" : "warning"}>{b.verificationStatus.toLowerCase().replace("_", " ")}</Badge>
+                  <Badge
+                    tone={b.status === "ACTIVE" ? "success" : b.status === "INACTIVE" ? "outline" : "warning"}
+                  >
+                    {b.status.toLowerCase().replace("_", " ")}
+                  </Badge>
+                  <Badge tone={b.verificationStatus === "VERIFIED" ? "success" : "warning"}>
+                    {b.verificationStatus.toLowerCase().replace("_", " ")}
+                  </Badge>
                   {manage && (
                     <ActionDialog
                       action={saveBranchAction}

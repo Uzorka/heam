@@ -9,31 +9,46 @@ import type { NavGroup } from "@/server/nav";
 import { NAV_ICONS } from "./icons";
 
 function isActive(pathname: string, href: string) {
-  if (href === "/patients") return pathname === "/patients" || (/^\/patients\/(?!duplicates)/.test(pathname));
+  if (href === "/patients") return pathname === "/patients" || /^\/patients\/(?!duplicates)/.test(pathname);
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavList({ groups, collapsed, onNavigate }: { groups: NavGroup[]; collapsed?: boolean; onNavigate?: () => void }) {
+function NavList({
+  groups,
+  collapsed,
+  onNavigate,
+}: {
+  groups: NavGroup[];
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   return (
     <nav aria-label="Main" className="space-y-5">
       {groups.map((g) => (
         <div key={g.label}>
-          {!collapsed && <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">{g.label}</p>}
+          {!collapsed && (
+            <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
+              {g.label}
+            </p>
+          )}
           <ul className="space-y-0.5">
             {g.items.map((item) => {
               const Icon = NAV_ICONS[item.icon];
               const active = isActive(pathname, item.href);
               return (
                 <li key={item.href}>
-                  <Link prefetch={false}
+                  <Link
+                    prefetch={false}
                     href={item.href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     title={collapsed ? item.label : undefined}
                     className={cn(
                       "flex min-h-11 items-center gap-3 rounded-md px-3 text-[14px] sm:min-h-9",
-                      active ? "bg-accent-soft font-medium text-accent" : "text-foreground/80 hover:bg-surface-2 hover:text-foreground",
+                      active
+                        ? "bg-accent-soft font-medium text-accent"
+                        : "text-foreground/80 hover:bg-surface-2 hover:text-foreground",
                       collapsed && "justify-center px-0",
                     )}
                   >
@@ -72,7 +87,12 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
         collapsed ? "w-[68px]" : "w-64",
       )}
     >
-      <div className={cn("flex h-16 items-center border-b border-border px-4", collapsed && "justify-center px-0")}>
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-border px-4",
+          collapsed && "justify-center px-0",
+        )}
+      >
         {collapsed ? <span className="text-[15px] font-semibold tracking-[0.18em]">A</span> : <Wordmark />}
       </div>
       <div className="flex-1 overflow-y-auto px-2 py-4">
@@ -84,7 +104,13 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
         className="flex min-h-11 items-center gap-2 border-t border-border px-4 text-[13px] text-muted hover:text-foreground"
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
       >
-        {collapsed ? <PanelLeftOpen className="mx-auto h-4 w-4" /> : <><PanelLeftClose className="h-4 w-4" /> Collapse</>}
+        {collapsed ? (
+          <PanelLeftOpen className="mx-auto h-4 w-4" />
+        ) : (
+          <>
+            <PanelLeftClose className="h-4 w-4" /> Collapse
+          </>
+        )}
       </button>
     </aside>
   );
@@ -108,10 +134,15 @@ export function MobileNav({ groups }: { groups: NavGroup[] }) {
       {open && (
         <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Navigation">
           <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-background shadow-pop animate-fade-in">
+          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] animate-fade-in flex-col bg-background shadow-pop">
             <div className="flex h-16 items-center justify-between border-b border-border px-4">
               <Wordmark />
-              <button type="button" onClick={() => setOpen(false)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-surface-2" aria-label="Close navigation">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-surface-2"
+                aria-label="Close navigation"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>

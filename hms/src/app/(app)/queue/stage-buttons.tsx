@@ -11,7 +11,15 @@ export interface StageOption {
   needsNote: boolean;
 }
 
-export function StageButtons({ encounterId, version, options }: { encounterId: string; version: number; options: StageOption[] }) {
+export function StageButtons({
+  encounterId,
+  version,
+  options,
+}: {
+  encounterId: string;
+  version: number;
+  options: StageOption[];
+}) {
   const toast = useToast();
   const { run, pending, error } = useServerAction(transitionAction);
   return (
@@ -28,7 +36,15 @@ export function StageButtons({ encounterId, version, options }: { encounterId: s
             submitLabel="Confirm"
             tone="danger"
             successMessage="Visit updated."
-            fields={[{ name: "note", label: "Reason", type: "textarea", required: true, placeholder: "e.g. Left before being seen" }]}
+            fields={[
+              {
+                name: "note",
+                label: "Reason",
+                type: "textarea",
+                required: true,
+                placeholder: "e.g. Left before being seen",
+              },
+            ]}
           />
         ) : (
           <Button
@@ -36,7 +52,11 @@ export function StageButtons({ encounterId, version, options }: { encounterId: s
             size="sm"
             variant={o.to === "IN_CONSULTATION" || o.to === "COMPLETED" ? "primary" : "secondary"}
             loading={pending}
-            onClick={() => run({ encounterId, version, toStage: o.to as "COMPLETED" }, () => toast(`Moved to ${o.label.replace(/^→ /, "")}.`))}
+            onClick={() =>
+              run({ encounterId, version, toStage: o.to as "COMPLETED" }, () =>
+                toast(`Moved to ${o.label.replace(/^→ /, "")}.`),
+              )
+            }
           >
             {o.label}
           </Button>

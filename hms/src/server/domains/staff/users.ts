@@ -9,7 +9,12 @@ import { hashPassword } from "../../auth/password";
 import { issueResetToken } from "../../auth/reset";
 import { revokeAllSessions } from "../../auth/session-store";
 import { localDayRange } from "@/lib/time";
-import type { assignRoleSchema, createUserSchema, revokeRoleSchema, userStatusSchema } from "@/lib/schemas/staff";
+import type {
+  assignRoleSchema,
+  createUserSchema,
+  revokeRoleSchema,
+  userStatusSchema,
+} from "@/lib/schemas/staff";
 
 const MAX_DELEGATION_DAYS = 31;
 
@@ -31,7 +36,13 @@ export async function listUsers(ctx: AuthContext, db: DbClient = prisma) {
       isDemo: true,
       roles: {
         where: { revokedAt: null, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] },
-        select: { id: true, allBranches: true, isDelegation: true, role: { select: { name: true, code: true } }, branch: { select: { name: true } } },
+        select: {
+          id: true,
+          allBranches: true,
+          isDelegation: true,
+          role: { select: { name: true, code: true } },
+          branch: { select: { name: true } },
+        },
       },
     },
   });
@@ -80,15 +91,24 @@ export async function getUserDetail(ctx: AuthContext, userId: string, db: DbClie
 function resolveEffective(from?: string, to?: string) {
   const effectiveFrom = from ? localDayRange(from).start : new Date();
   const effectiveTo = to ? localDayRange(to).end : null;
-  if (effectiveTo && effectiveTo <= effectiveFrom) throw new ValidationError("End date must be after the start date.", { effectiveTo: "Invalid" });
+  if (effectiveTo && effectiveTo <= effectiveFrom)
+    throw new ValidationError("End date must be after the start date.", { effectiveTo: "Invalid" });
   return { effectiveFrom, effectiveTo };
 }
 
-export async function createUser(ctx: AuthContext, input: z.output<typeof createUserSchema>, db: DbClient = prisma) {
+export async function createUser(
+  ctx: AuthContext,
+  input: z.output<typeof createUserSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "users.manage");
-  const roles = await db.role.findMany({ where: { id: { in: input.roles.map((r) => r.roleId) }, active: true } });
-  if (roles.length !== new Set(input.roles.map((r) => r.roleId)).size) throw new ValidationError("One of the roles is invalid.");
-  if (roles.some((r) => r.kind !== "STAFF")) throw new ValidationError("Portal roles cannot be given to staff accounts.");
+  const roles = await db.role.findMany({
+    where: { id: { in: input.roles.map((r) => r.roleId) }, active: true },
+  });
+  if (roles.length !== new Set(input.roles.map((r) => r.roleId)).size)
+    throw new ValidationError("One of the roles is invalid.");
+  if (roles.some((r) => r.kind !== "STAFF"))
+    throw new ValidationError("Portal roles cannot be given to staff accounts.");
   try {
     return await withTx(db, async (tx) => {
       const user = await tx.user.create({
@@ -132,14 +152,20 @@ export async function createUser(ctx: AuthContext, input: z.output<typeof create
       return { userId: user.id, setupToken: token, expiresAt };
     });
   } catch (e) {
-    if (isUniqueViolation(e)) throw new ConflictError("A user with that email or staff number already exists.");
+    if (isUniqueViolation(e))
+      throw new ConflictError("A user with that email or staff number already exists.");
     throw e;
   }
 }
 
-export async function assignRole(ctx: AuthContext, input: z.output<typeof assignRoleSchema>, db: DbClient = prisma) {
+export async function assignRole(
+  ctx: AuthContext,
+  input: z.output<typeof assignRoleSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "users.manage");
-  if (input.userId === ctx.userId) throw new ForbiddenError("You cannot change your own roles. Ask another administrator.");
+  if (input.userId === ctx.userId)
+    throw new ForbiddenError("You cannot change your own roles. Ask another administrator.");
   const [user, role] = await Promise.all([
     db.user.findUnique({ where: { id: input.userId } }),
     db.role.findUnique({ where: { id: input.roleId } }),
@@ -151,7 +177,9 @@ export async function assignRole(ctx: AuthContext, input: z.output<typeof assign
 
   if (input.isDelegation) {
     if (!effectiveTo || effectiveTo.getTime() - effectiveFrom.getTime() > MAX_DELEGATION_DAYS * 86_400_000) {
-      throw new ValidationError(`Temporary cover can last at most ${MAX_DELEGATION_DAYS} days.`, { effectiveTo: "Too long" });
+      throw new ValidationError(`Temporary cover can last at most ${MAX_DELEGATION_DAYS} days.`, {
+        effectiveTo: "Too long",
+      });
     }
     const coverFor = await db.userRole.findFirst({
       where: {
@@ -164,7 +192,9 @@ export async function assignRole(ctx: AuthContext, input: z.output<typeof assign
     });
     if (!coverFor) throw new ValidationError("The person being covered does not currently hold this role.");
     if (!coverFor.allBranches && coverFor.branchId !== (input.allBranches ? null : input.branchId)) {
-      throw new ValidationError("Temporary cover cannot be broader than the covered person's own branch scope.");
+      throw new ValidationError(
+        "Temporary cover cannot be broader than the covered person's own branch scope.",
+      );
     }
   }
 
@@ -203,11 +233,16 @@ export async function assignRole(ctx: AuthContext, input: z.output<typeof assign
   });
 }
 
-export async function revokeRole(ctx: AuthContext, input: z.output<typeof revokeRoleSchema>, db: DbClient = prisma) {
+export async function revokeRole(
+  ctx: AuthContext,
+  input: z.output<typeof revokeRoleSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "users.manage");
   const ur = await db.userRole.findUnique({ where: { id: input.userRoleId }, include: { role: true } });
   if (!ur || ur.revokedAt) throw new NotFoundError("Role assignment not found.");
-  if (ur.userId === ctx.userId) throw new ForbiddenError("You cannot change your own roles. Ask another administrator.");
+  if (ur.userId === ctx.userId)
+    throw new ForbiddenError("You cannot change your own roles. Ask another administrator.");
   await withTx(db, async (tx) => {
     await tx.userRole.update({
       where: { id: ur.id },
@@ -225,9 +260,14 @@ export async function revokeRole(ctx: AuthContext, input: z.output<typeof revoke
   });
 }
 
-export async function setUserStatus(ctx: AuthContext, input: z.output<typeof userStatusSchema>, db: DbClient = prisma) {
+export async function setUserStatus(
+  ctx: AuthContext,
+  input: z.output<typeof userStatusSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "users.manage");
-  if (input.userId === ctx.userId) throw new ForbiddenError("You cannot change the status of your own account.");
+  if (input.userId === ctx.userId)
+    throw new ForbiddenError("You cannot change the status of your own account.");
   const user = await db.user.findUnique({ where: { id: input.userId } });
   if (!user) throw new NotFoundError("User not found.");
   await withTx(db, async (tx) => {
@@ -235,7 +275,8 @@ export async function setUserStatus(ctx: AuthContext, input: z.output<typeof use
       where: { id: user.id },
       data: { status: input.status, statusReason: input.reason, version: { increment: 1 } },
     });
-    const revoked = input.status === "ACTIVE" ? 0 : await revokeAllSessions(tx, user.id, `STATUS_${input.status}`);
+    const revoked =
+      input.status === "ACTIVE" ? 0 : await revokeAllSessions(tx, user.id, `STATUS_${input.status}`);
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,
@@ -261,9 +302,13 @@ export async function adminIssuePasswordReset(ctx: AuthContext, userId: string, 
 
 export async function adminResetMfa(ctx: AuthContext, userId: string, reason: string, db: DbClient = prisma) {
   requirePermission(ctx, "users.credentials.reset");
-  if (userId === ctx.userId) throw new ForbiddenError("You cannot reset your own MFA. Ask another administrator.");
+  if (userId === ctx.userId)
+    throw new ForbiddenError("You cannot reset your own MFA. Ask another administrator.");
   await withTx(db, async (tx) => {
-    await tx.user.update({ where: { id: userId }, data: { mfaEnabled: false, mfaSecretEnc: null, mfaPendingSecretEnc: null } });
+    await tx.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: false, mfaSecretEnc: null, mfaPendingSecretEnc: null },
+    });
     const revoked = await revokeAllSessions(tx, userId, "MFA_RESET");
     await recordAudit(tx, {
       actorType: "USER",
@@ -276,7 +321,6 @@ export async function adminResetMfa(ctx: AuthContext, userId: string, reason: st
     });
   });
 }
-
 
 export async function listUserSessions(ctx: AuthContext, userId: string, db: DbClient = prisma) {
   requirePermission(ctx, "sessions.manage");

@@ -32,10 +32,18 @@ export async function queryAudit(ctx: AuthContext, q: AuditQuery, db: DbClient =
   if (q.outcome) where.outcome = q.outcome;
   const [total, rows] = await Promise.all([
     db.auditEvent.count({ where }),
-    db.auditEvent.findMany({ where, orderBy: { seq: "desc" }, skip: (q.page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
+    db.auditEvent.findMany({
+      where,
+      orderBy: { seq: "desc" },
+      skip: (q.page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
   ]);
   const actorIds = [...new Set(rows.map((r) => r.actorUserId).filter((x): x is string => !!x))];
-  const actors = await db.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, displayName: true } });
+  const actors = await db.user.findMany({
+    where: { id: { in: actorIds } },
+    select: { id: true, displayName: true },
+  });
   return {
     total,
     page: q.page,

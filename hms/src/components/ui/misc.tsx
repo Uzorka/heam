@@ -17,7 +17,11 @@ export function PageHeader({
   return (
     <header className="mb-6 space-y-2">
       {back && (
-        <Link prefetch={false} href={back.href} className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-foreground">
+        <Link
+          prefetch={false}
+          href={back.href}
+          className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-foreground"
+        >
           <ChevronLeft className="h-4 w-4" aria-hidden /> {back.label}
         </Link>
       )}
@@ -98,18 +102,29 @@ export function Pagination({
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (pages <= 1) return null;
   return (
-    <nav aria-label="Pagination" className="flex items-center justify-between gap-3 border-t border-border px-5 py-3 text-[13px]">
+    <nav
+      aria-label="Pagination"
+      className="flex items-center justify-between gap-3 border-t border-border px-5 py-3 text-[13px]"
+    >
       <span className="text-muted">
         Page {page} of {pages} · {total} records
       </span>
       <div className="flex gap-2">
         {page > 1 ? (
-          <Link prefetch={false} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border px-3 hover:bg-surface-2 sm:min-h-8" href={hrefFor(page - 1)}>
+          <Link
+            prefetch={false}
+            className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border px-3 hover:bg-surface-2 sm:min-h-8"
+            href={hrefFor(page - 1)}
+          >
             <ChevronLeft className="h-4 w-4" aria-hidden /> Previous
           </Link>
         ) : null}
         {page < pages ? (
-          <Link prefetch={false} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border px-3 hover:bg-surface-2 sm:min-h-8" href={hrefFor(page + 1)}>
+          <Link
+            prefetch={false}
+            className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border px-3 hover:bg-surface-2 sm:min-h-8"
+            href={hrefFor(page + 1)}
+          >
             Next <ChevronRight className="h-4 w-4" aria-hidden />
           </Link>
         ) : null}
@@ -118,13 +133,21 @@ export function Pagination({
   );
 }
 
-export function DescriptionList({ items, className }: { items: [string, React.ReactNode][]; className?: string }) {
+export function DescriptionList({
+  items,
+  className,
+}: {
+  items: [string, React.ReactNode][];
+  className?: string;
+}) {
   return (
     <dl className={cn("grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2", className)}>
       {items.map(([k, v]) => (
         <div key={k} className="min-w-0">
           <dt className="text-xs font-medium uppercase tracking-wide text-muted">{k}</dt>
-          <dd className="mt-0.5 break-words text-[14px]">{v ?? <span className="text-muted">Not recorded</span>}</dd>
+          <dd className="mt-0.5 break-words text-[14px]">
+            {v ?? <span className="text-muted">Not recorded</span>}
+          </dd>
         </div>
       ))}
     </dl>
@@ -149,7 +172,7 @@ export function StatTile({
       <p className="text-[13px] font-medium text-muted">{label}</p>
       <p
         className={cn(
-          "mt-1 text-[28px] font-semibold leading-8 tabular",
+          "tabular mt-1 text-[28px] font-semibold leading-8",
           tone === "warning" && "text-warning",
           tone === "danger" && "text-danger",
         )}

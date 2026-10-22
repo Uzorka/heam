@@ -13,7 +13,15 @@ import { VerifyChainButton } from "./verify-button";
 
 export const metadata: Metadata = { title: "Audit trail" };
 
-type SP = { from?: string; to?: string; action?: string; outcome?: string; patientId?: string; actor?: string; page?: string };
+type SP = {
+  from?: string;
+  to?: string;
+  action?: string;
+  outcome?: string;
+  patientId?: string;
+  actor?: string;
+  page?: string;
+};
 const uuidRe = /^[0-9a-f-]{36}$/i;
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -33,7 +41,9 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   if (!res.ok) return <Forbidden message={res.message} />;
   const { rows, total, page, pageSize } = res.data;
   const href = (p: number) => {
-    const u = new URLSearchParams(Object.entries({ ...sp, page: String(p) }).filter(([, v]) => !!v) as [string, string][]);
+    const u = new URLSearchParams(
+      Object.entries({ ...sp, page: String(p) }).filter(([, v]) => !!v) as [string, string][],
+    );
     return `/audit?${u.toString()}`;
   };
   return (
@@ -102,13 +112,26 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                       <TD className="font-mono text-[12px]">{r.action}</TD>
                       <TD className="text-[12px]">
                         {r.resourceType}
-                        {r.resourceId && <span className="block max-w-[180px] truncate font-mono text-muted">{r.resourceId}</span>}
-                        {r.patientId && <span className="block font-mono text-muted">patient {r.patientId.slice(0, 8)}…</span>}
+                        {r.resourceId && (
+                          <span className="block max-w-[180px] truncate font-mono text-muted">
+                            {r.resourceId}
+                          </span>
+                        )}
+                        {r.patientId && (
+                          <span className="block font-mono text-muted">
+                            patient {r.patientId.slice(0, 8)}…
+                          </span>
+                        )}
                       </TD>
                       <TD>
-                        <Badge tone={r.outcome === "SUCCESS" ? "neutral" : "danger"}>{r.outcome.toLowerCase()}</Badge>
+                        <Badge tone={r.outcome === "SUCCESS" ? "neutral" : "danger"}>
+                          {r.outcome.toLowerCase()}
+                        </Badge>
                       </TD>
-                      <TD className="max-w-[260px] truncate font-mono text-[11px] text-muted" title={r.details ? JSON.stringify(r.details) : undefined}>
+                      <TD
+                        className="max-w-[260px] truncate font-mono text-[11px] text-muted"
+                        title={r.details ? JSON.stringify(r.details) : undefined}
+                      >
                         {r.details ? JSON.stringify(r.details) : ""}
                       </TD>
                     </TR>

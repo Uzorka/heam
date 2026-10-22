@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { DUPLICATE_WARN_THRESHOLD, orderedPair, scoreDuplicate } from "@/server/domains/patients/duplicates";
 import { editDistance, normalizeName } from "@/server/domains/patients/normalize";
 
-const base = { givenName: "Oluwaseun", familyName: "Adebayo", dateOfBirth: new Date("1990-01-30"), phones: ["+2348090000107"], identifierIndexes: [] };
+const base = {
+  givenName: "Oluwaseun",
+  familyName: "Adebayo",
+  dateOfBirth: new Date("1990-01-30"),
+  phones: ["+2348090000107"],
+  identifierIndexes: [],
+};
 
 describe("duplicate scoring", () => {
   it("flags same phone + DOB + surname", () => {
@@ -11,15 +17,31 @@ describe("duplicate scoring", () => {
     expect(s.reasons).toContain("Same phone number");
   });
   it("does not flag unrelated people with the same common surname", () => {
-    const s = scoreDuplicate(base, { id: "y", givenName: "Kemi", familyName: "Adebayo", dateOfBirth: new Date("1970-02-02"), phones: [], identifierIndexes: [] });
+    const s = scoreDuplicate(base, {
+      id: "y",
+      givenName: "Kemi",
+      familyName: "Adebayo",
+      dateOfBirth: new Date("1970-02-02"),
+      phones: [],
+      identifierIndexes: [],
+    });
     expect(s.score).toBeLessThan(DUPLICATE_WARN_THRESHOLD);
   });
   it("detects swapped first name and surname", () => {
-    const s = scoreDuplicate(base, { ...base, id: "z", givenName: "Adebayo", familyName: "Oluwaseun", phones: [] });
+    const s = scoreDuplicate(base, {
+      ...base,
+      id: "z",
+      givenName: "Adebayo",
+      familyName: "Oluwaseun",
+      phones: [],
+    });
     expect(s.reasons).toContain("First name and surname swapped");
   });
   it("a matching identity document dominates", () => {
-    const s = scoreDuplicate({ ...base, identifierIndexes: ["abc"] }, { id: "q", givenName: "X", familyName: "Y", dateOfBirth: null, phones: [], identifierIndexes: ["abc"] });
+    const s = scoreDuplicate(
+      { ...base, identifierIndexes: ["abc"] },
+      { id: "q", givenName: "X", familyName: "Y", dateOfBirth: null, phones: [], identifierIndexes: ["abc"] },
+    );
     expect(s.score).toBeGreaterThanOrEqual(DUPLICATE_WARN_THRESHOLD);
   });
   it("orders pairs canonically", () => {

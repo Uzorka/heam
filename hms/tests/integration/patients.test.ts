@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/server/db";
 import { registerPatientSchema } from "@/lib/schemas/patient";
-import { registerPatient, revealIdentifier, updatePatient, getPatientDetail, searchPatients } from "@/server/domains/patients/service";
+import {
+  registerPatient,
+  revealIdentifier,
+  updatePatient,
+  getPatientDetail,
+  searchPatients,
+} from "@/server/domains/patients/service";
 import { approveMerge, requestMerge } from "@/server/domains/patients/merge";
 import { recordAllergy } from "@/server/domains/patients/records";
 import { ConflictError, ForbiddenError } from "@/server/errors";
@@ -14,7 +20,9 @@ describe("patient registry", () => {
     expect(r.mrn).toMatch(/^ADK\d{7}$/);
     const consents = await prisma.consentRecord.findMany({ where: { patientId: r.patientId } });
     expect(consents.map((c) => c.type).sort()).toEqual(["DATA_PROCESSING_NOTICE", "SMS_REMINDERS"]);
-    const audit = await prisma.auditEvent.findFirst({ where: { action: "patient.create", resourceId: r.patientId } });
+    const audit = await prisma.auditEvent.findFirst({
+      where: { action: "patient.create", resourceId: r.patientId },
+    });
     expect(audit?.actorUserId).toBe(ctx.userId);
     expect(JSON.stringify(audit?.details)).not.toContain("Given"); // no names in audit details
   });
@@ -30,7 +38,12 @@ describe("patient registry", () => {
     const phone = uniquePhone();
     const family = uniq("Okon");
     const given = uniq("Ime");
-    const first = await newPatient(ctx, { givenName: given, familyName: family, phone, dateOfBirth: "1985-02-02" });
+    const first = await newPatient(ctx, {
+      givenName: given,
+      familyName: family,
+      phone,
+      dateOfBirth: "1985-02-02",
+    });
     const input = registerPatientSchema.parse({
       givenName: `${given}h`,
       familyName: family,
@@ -53,7 +66,9 @@ describe("patient registry", () => {
       where: { OR: [{ patientAId: created.patientId }, { patientBId: created.patientId }] },
     });
     expect(review?.status).toBe("OPEN");
-    const both = await prisma.patient.findMany({ where: { id: { in: [first.patientId, created.patientId] } } });
+    const both = await prisma.patient.findMany({
+      where: { id: { in: [first.patientId, created.patientId] } },
+    });
     expect(both.every((p) => p.status === "ACTIVE")).toBe(true);
   });
 
@@ -65,17 +80,43 @@ describe("patient registry", () => {
     const family = uniq("Ade");
     const given = uniq("Bayo");
     const a = await newPatient(reception, { givenName: given, familyName: family, phone });
-    const input = registerPatientSchema.parse({ givenName: given, familyName: family, dateOfBirth: "1990-05-05", dobProvenance: "STATED", sexAtBirth: "FEMALE", phone, privacyNoticeGiven: true, acknowledgedDuplicateIds: [a.patientId] });
+    const input = registerPatientSchema.parse({
+      givenName: given,
+      familyName: family,
+      dateOfBirth: "1990-05-05",
+      dobProvenance: "STATED",
+      sexAtBirth: "FEMALE",
+      phone,
+      privacyNoticeGiven: true,
+      acknowledgedDuplicateIds: [a.patientId],
+    });
     const b = await registerPatient(reception, input);
     if (b.status !== "CREATED") throw new Error("expected create");
-    await recordAllergy(reception, { patientId: b.patientId, substance: "Aspirin", category: "DRUG", severity: "MODERATE", source: "PATIENT_REPORTED" });
-    const review = await prisma.duplicatePatientReview.findFirstOrThrow({ where: { OR: [{ patientAId: b.patientId }, { patientBId: b.patientId }] } });
+    await recordAllergy(reception, {
+      patientId: b.patientId,
+      substance: "Aspirin",
+      category: "DRUG",
+      severity: "MODERATE",
+      source: "PATIENT_REPORTED",
+    });
+    const review = await prisma.duplicatePatientReview.findFirstOrThrow({
+      where: { OR: [{ patientAId: b.patientId }, { patientBId: b.patientId }] },
+    });
 
-    await expect(requestMerge(reception, { reviewId: review.id, survivorId: a.patientId, notes: "same" })).resolves.toBeUndefined();
+    await expect(
+      requestMerge(reception, { reviewId: review.id, survivorId: a.patientId, notes: "same" }),
+    ).resolves.toBeUndefined();
     await expect(approveMerge(reception, review.id)).rejects.toBeInstanceOf(ForbiddenError); // reception cannot approve
     // reset to test the records officers' two-person rule
-    await prisma.duplicatePatientReview.update({ where: { id: review.id }, data: { status: "OPEN", mergeRequestedById: null } });
-    await requestMerge(records1, { reviewId: review.id, survivorId: a.patientId, notes: "Confirmed with patient" });
+    await prisma.duplicatePatientReview.update({
+      where: { id: review.id },
+      data: { status: "OPEN", mergeRequestedById: null },
+    });
+    await requestMerge(records1, {
+      reviewId: review.id,
+      survivorId: a.patientId,
+      notes: "Confirmed with patient",
+    });
     await expect(approveMerge(records1, review.id)).rejects.toThrow(/different person/);
     const res = await approveMerge(records2, review.id);
     expect(res.moved.allergies).toBe(1);
@@ -102,7 +143,9 @@ describe("patient registry", () => {
     };
     await updatePatient(ctx, { ...base, city: "Ikorodu" });
     await expect(updatePatient(ctx, { ...base, city: "Epe" })).rejects.toBeInstanceOf(ConflictError);
-    const audit = await prisma.auditEvent.findFirst({ where: { action: "patient.update", resourceId: p.patientId } });
+    const audit = await prisma.auditEvent.findFirst({
+      where: { action: "patient.update", resourceId: p.patientId },
+    });
     expect((audit?.details as { fields: string[] }).fields).toEqual(["city"]);
   });
 
@@ -117,7 +160,9 @@ describe("patient registry", () => {
     await expect(revealIdentifier(reception, row.id)).rejects.toBeInstanceOf(ForbiddenError);
     const { ctx: records } = await userCtx(["MEDICAL_RECORDS"]);
     expect((await revealIdentifier(records, row.id)).value).toBe(nin);
-    expect(await prisma.auditEvent.count({ where: { action: "patient.identifier.reveal", resourceId: row.id } })).toBe(1);
+    expect(
+      await prisma.auditEvent.count({ where: { action: "patient.identifier.reveal", resourceId: row.id } }),
+    ).toBe(1);
   });
 
   it("search finds by MRN, phone and name tokens with masked phones", async () => {
@@ -126,12 +171,30 @@ describe("patient registry", () => {
     const family = uniq("Searchable");
     const given = uniq("Adaobi");
     const p = await newPatient(ctx, { givenName: given, familyName: family, phone });
-    const byMrn = await searchPatients(ctx, { q: p.mrn, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
+    const byMrn = await searchPatients(ctx, {
+      q: p.mrn,
+      page: 1,
+      pageSize: 20,
+      includeInactive: false,
+      provisionalOnly: false,
+    });
     expect(byMrn.rows[0]!.id).toBe(p.patientId);
-    const byPhone = await searchPatients(ctx, { q: phone, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
+    const byPhone = await searchPatients(ctx, {
+      q: phone,
+      page: 1,
+      pageSize: 20,
+      includeInactive: false,
+      provisionalOnly: false,
+    });
     expect(byPhone.rows.map((r) => r.id)).toContain(p.patientId);
     expect(byPhone.rows[0]!.maskedPhone).toContain("***");
-    const byName = await searchPatients(ctx, { q: `${given.toLowerCase()} ${family.toLowerCase()}`, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
+    const byName = await searchPatients(ctx, {
+      q: `${given.toLowerCase()} ${family.toLowerCase()}`,
+      page: 1,
+      pageSize: 20,
+      includeInactive: false,
+      provisionalOnly: false,
+    });
     expect(byName.rows.map((r) => r.id)).toEqual([p.patientId]);
   });
 
@@ -139,14 +202,24 @@ describe("patient registry", () => {
     const { ctx } = await userCtx(["RECEPTION"]);
     const p = await newPatient(ctx);
     await getPatientDetail(ctx, p.patientId);
-    expect(await prisma.auditEvent.count({ where: { action: "patient.view", patientId: p.patientId, actorUserId: ctx.userId } })).toBe(1);
+    expect(
+      await prisma.auditEvent.count({
+        where: { action: "patient.view", patientId: p.patientId, actorUserId: ctx.userId },
+      }),
+    ).toBe(1);
   });
 
   it("only clinicians can record a clinician-verified allergy", async () => {
     const { ctx: reception } = await userCtx(["RECEPTION"]);
     const p = await newPatient(reception);
     await expect(
-      recordAllergy(reception, { patientId: p.patientId, substance: "Latex", category: "ENVIRONMENT", severity: "MILD", source: "CLINICIAN_VERIFIED" }),
+      recordAllergy(reception, {
+        patientId: p.patientId,
+        substance: "Latex",
+        category: "ENVIRONMENT",
+        severity: "MILD",
+        source: "CLINICIAN_VERIFIED",
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

@@ -32,7 +32,10 @@ export async function clearSessionCookie() {
   jar.delete(SESSION_COOKIE);
 }
 
-export async function startSession(userId: string, opts: { mfaVerified: boolean; activeBranchId: string | null }) {
+export async function startSession(
+  userId: string,
+  opts: { mfaVerified: boolean; activeBranchId: string | null },
+) {
   const meta = await getRequestMeta();
   const s = await createSession(prisma, userId, sessionConfig(), meta, opts);
   await setSessionCookie(s.token, s.expiresAt);

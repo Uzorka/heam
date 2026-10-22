@@ -36,7 +36,10 @@ const COMMON = new Set([
 ]);
 
 /** Returns a list of human-readable problems; empty means acceptable. */
-export function passwordProblems(password: string, context: { email?: string; name?: string } = {}): string[] {
+export function passwordProblems(
+  password: string,
+  context: { email?: string; name?: string } = {},
+): string[] {
   const problems: string[] = [];
   if (password.length < 12) problems.push("Use at least 12 characters.");
   if (password.length > 128) problems.push("Use at most 128 characters.");

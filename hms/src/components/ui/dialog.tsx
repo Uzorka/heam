@@ -21,10 +21,10 @@ export function DialogContent({
 }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-black/30 animate-fade-in" />
+      <D.Overlay className="fixed inset-0 z-50 animate-fade-in bg-black/30" />
       <D.Content
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-xl border border-border bg-background p-5 shadow-pop animate-fade-in sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl",
+          "fixed inset-x-0 bottom-0 z-50 max-h-[92vh] animate-fade-in overflow-y-auto rounded-t-xl border border-border bg-background p-5 shadow-pop sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl",
           className,
         )}
       >

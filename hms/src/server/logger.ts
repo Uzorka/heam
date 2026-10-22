@@ -26,7 +26,12 @@ export function redact(value: unknown, depth = 0): unknown {
 function emit(level: Level, msg: string, fields?: Record<string, unknown>) {
   const min = (process.env.LOG_LEVEL as Level) || "info";
   if (order[level] < order[min]) return;
-  const line = JSON.stringify({ ts: new Date().toISOString(), level, msg, ...(redact(fields ?? {}) as object) });
+  const line = JSON.stringify({
+    ts: new Date().toISOString(),
+    level,
+    msg,
+    ...(redact(fields ?? {}) as object),
+  });
   if (level === "error" || level === "warn") console.error(line);
   else process.stdout.write(line + "\n");
 }

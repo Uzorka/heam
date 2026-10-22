@@ -1,4 +1,11 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import { env } from "./env";
 
 /**
@@ -22,7 +29,8 @@ export function encryptField(plaintext: string): string {
 
 export function decryptField(payload: string): string {
   const [version, ivB64, tagB64, ctB64] = payload.split(":");
-  if (version !== KEY_VERSION || !ivB64 || !tagB64 || !ctB64) throw new Error("Unsupported ciphertext format");
+  if (version !== KEY_VERSION || !ivB64 || !tagB64 || !ctB64)
+    throw new Error("Unsupported ciphertext format");
   const decipher = createDecipheriv("aes-256-gcm", key(), Buffer.from(ivB64, "base64"));
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(ctB64, "base64")), decipher.final()]).toString("utf8");

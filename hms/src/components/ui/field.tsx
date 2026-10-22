@@ -50,7 +50,13 @@ export function Field({ label, htmlFor, error, hint, required, className, childr
 }
 
 /** Summary of all field errors at the top of a form (WCAG 3.3.1). */
-export function ErrorSummary({ errors, title = "Please fix the following:" }: { errors: Record<string, string | undefined>; title?: string }) {
+export function ErrorSummary({
+  errors,
+  title = "Please fix the following:",
+}: {
+  errors: Record<string, string | undefined>;
+  title?: string;
+}) {
   const entries = Object.entries(errors).filter((e): e is [string, string] => !!e[1]);
   if (!entries.length) return null;
   return (

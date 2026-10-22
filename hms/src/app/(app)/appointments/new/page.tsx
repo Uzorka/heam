@@ -16,7 +16,11 @@ import { BookForm } from "./book-form";
 
 export const metadata: Metadata = { title: "Book appointment" };
 
-export default async function NewAppointmentPage({ searchParams }: { searchParams: Promise<{ patientId?: string; q?: string; date?: string }> }) {
+export default async function NewAppointmentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ patientId?: string; q?: string; date?: string }>;
+}) {
   const ctx = await requireAuthContext();
   if (!(await allowed(ctx, "/appointments/new", ["appointment.manage"]))) return <Forbidden />;
   if (!ctx.activeBranchId) return <Alert tone="warning">Select a branch first.</Alert>;
@@ -24,11 +28,21 @@ export default async function NewAppointmentPage({ searchParams }: { searchParam
 
   if (!sp.patientId) {
     const results = sp.q
-      ? await searchPatients(ctx, { q: sp.q, page: 1, pageSize: 10, includeInactive: false, provisionalOnly: false })
+      ? await searchPatients(ctx, {
+          q: sp.q,
+          page: 1,
+          pageSize: 10,
+          includeInactive: false,
+          provisionalOnly: false,
+        })
       : null;
     return (
       <>
-        <PageHeader title="Book appointment" description="Find the patient first." back={{ href: "/appointments", label: "Appointments" }} />
+        <PageHeader
+          title="Book appointment"
+          description="Find the patient first."
+          back={{ href: "/appointments", label: "Appointments" }}
+        />
         <Card className="max-w-2xl">
           <CardBody>
             <form method="get" className="flex gap-2" role="search">
@@ -55,11 +69,14 @@ export default async function NewAppointmentPage({ searchParams }: { searchParam
                     <div>
                       <p className="font-medium">{r.name}</p>
                       <p className="text-[13px] text-muted">
-                        <span className="font-mono">{r.mrn}</span> · {r.age ?? "age unknown"} · {r.maskedPhone || "no phone"}
+                        <span className="font-mono">{r.mrn}</span> · {r.age ?? "age unknown"} ·{" "}
+                        {r.maskedPhone || "no phone"}
                       </p>
                     </div>
                     <Button asChild size="sm">
-                      <Link prefetch={false} href={`/appointments/new?patientId=${r.id}`}>Select</Link>
+                      <Link prefetch={false} href={`/appointments/new?patientId=${r.id}`}>
+                        Select
+                      </Link>
                     </Button>
                   </li>
                 ))}
@@ -70,10 +87,15 @@ export default async function NewAppointmentPage({ searchParams }: { searchParam
     );
   }
 
-  const res = await load(ctx, "/appointments/new", () => loadScopedPatient(ctx, sp.patientId!, "patient.search"));
+  const res = await load(ctx, "/appointments/new", () =>
+    loadScopedPatient(ctx, sp.patientId!, "patient.search"),
+  );
   if (!res.ok) return <Forbidden message={res.message} />;
   const p = res.data;
-  const [visitTypes, clinicians] = await Promise.all([listVisitTypes({ activeOnly: true }), listClinicians(ctx.activeBranchId)]);
+  const [visitTypes, clinicians] = await Promise.all([
+    listVisitTypes({ activeOnly: true }),
+    listClinicians(ctx.activeBranchId),
+  ]);
   return (
     <>
       <PageHeader
@@ -85,7 +107,10 @@ export default async function NewAppointmentPage({ searchParams }: { searchParam
         <Alert tone="warning">This record is {p.status.toLowerCase()} and cannot be booked.</Alert>
       ) : (
         <Card className="max-w-3xl">
-          <CardHeader title="Appointment details" description="A clinician cannot be double-booked. Overlaps need an authorised override." />
+          <CardHeader
+            title="Appointment details"
+            description="A clinician cannot be double-booked. Overlaps need an authorised override."
+          />
           <CardBody>
             <BookForm
               patientId={p.id}

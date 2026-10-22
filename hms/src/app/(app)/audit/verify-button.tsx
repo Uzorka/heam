@@ -18,7 +18,8 @@ export function VerifyChainButton() {
           <Alert tone="success">Hash chain intact: {result.checked} events verified.</Alert>
         ) : (
           <Alert tone="danger" title="Integrity check failed">
-            Chain broken at event #{result.brokenAtSeq}: {result.reason}. Escalate to the compliance officer and preserve database backups.
+            Chain broken at event #{result.brokenAtSeq}: {result.reason}. Escalate to the compliance officer
+            and preserve database backups.
           </Alert>
         ))}
     </div>

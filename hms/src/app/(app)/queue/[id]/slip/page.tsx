@@ -13,7 +13,13 @@ import { PrintButton } from "./print-button";
 
 export const metadata: Metadata = { title: "Visit slip" };
 
-export default async function SlipPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string }> }) {
+export default async function SlipPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ new?: string }>;
+}) {
   const ctx = await requireAuthContext();
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
@@ -32,7 +38,9 @@ export default async function SlipPage({ params, searchParams }: { params: Promi
       <div className="no-print flex gap-2">
         <PrintButton />
         <Button asChild variant="secondary">
-          <Link prefetch={false} href="/queue">Back to queue</Link>
+          <Link prefetch={false} href="/queue">
+            Back to queue
+          </Link>
         </Button>
       </div>
       <article className="rounded-lg border border-border bg-background p-6 text-[14px] print:border-0 print:p-0">
@@ -53,7 +61,8 @@ export default async function SlipPage({ params, searchParams }: { params: Promi
           <dd className="font-mono">{e.patient.mrn}</dd>
           <dt className="text-muted">Age / sex</dt>
           <dd>
-            {e.patient.dateOfBirth ? formatAge(e.patient.dateOfBirth) : "-"} · {e.patient.sexAtBirth.toLowerCase()}
+            {e.patient.dateOfBirth ? formatAge(e.patient.dateOfBirth) : "-"} ·{" "}
+            {e.patient.sexAtBirth.toLowerCase()}
           </dd>
           <dt className="text-muted">Visit</dt>
           <dd>{e.visitType.name}</dd>

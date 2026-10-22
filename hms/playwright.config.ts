@@ -19,7 +19,9 @@ export default defineConfig({
     baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
-    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : undefined,
+    launchOptions: process.env.PW_CHROMIUM_PATH
+      ? { executablePath: process.env.PW_CHROMIUM_PATH }
+      : undefined,
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] }, grepInvert: /@mobile/ },

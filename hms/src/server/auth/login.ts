@@ -9,7 +9,13 @@ export const IP_WINDOW_MINUTES = 15;
 export const IP_MAX_FAILURES = 30;
 
 export type LoginResult =
-  | { status: "OK"; userId: string; mfaRequired: boolean; mustChangePassword: boolean; defaultBranchId: string | null }
+  | {
+      status: "OK";
+      userId: string;
+      mfaRequired: boolean;
+      mustChangePassword: boolean;
+      defaultBranchId: string | null;
+    }
   | { status: "INVALID" }
   | { status: "LOCKED"; until: Date }
   | { status: "RATE_LIMITED" };
@@ -27,10 +33,16 @@ export async function authenticate(
 
   if (meta.ip) {
     const recentIpFailures = await db.loginAttempt.count({
-      where: { ip: meta.ip, success: false, createdAt: { gt: new Date(now.getTime() - IP_WINDOW_MINUTES * 60_000) } },
+      where: {
+        ip: meta.ip,
+        success: false,
+        createdAt: { gt: new Date(now.getTime() - IP_WINDOW_MINUTES * 60_000) },
+      },
     });
     if (recentIpFailures >= IP_MAX_FAILURES) {
-      await db.loginAttempt.create({ data: { identifier, ip: meta.ip, success: false, reason: "IP_RATE_LIMIT" } });
+      await db.loginAttempt.create({
+        data: { identifier, ip: meta.ip, success: false, reason: "IP_RATE_LIMIT" },
+      });
       return { status: "RATE_LIMITED" };
     }
   }
@@ -38,7 +50,9 @@ export async function authenticate(
   const user = await db.user.findUnique({ where: { email: identifier } });
   if (!user) {
     await dummyVerify(input.password);
-    await db.loginAttempt.create({ data: { identifier, ip: meta.ip, success: false, reason: "UNKNOWN_USER" } });
+    await db.loginAttempt.create({
+      data: { identifier, ip: meta.ip, success: false, reason: "UNKNOWN_USER" },
+    });
     return { status: "INVALID" };
   }
 
@@ -59,7 +73,12 @@ export async function authenticate(
       },
     });
     await db.loginAttempt.create({
-      data: { identifier, ip: meta.ip, success: false, reason: ok ? `STATUS_${user.status}` : "BAD_PASSWORD" },
+      data: {
+        identifier,
+        ip: meta.ip,
+        success: false,
+        reason: ok ? `STATUS_${user.status}` : "BAD_PASSWORD",
+      },
     });
     await recordAudit(db, {
       actorType: "USER",

@@ -50,24 +50,44 @@
     text-rendering: optimizeLegibility;
   }
   body {
-    @apply bg-background text-foreground font-sans text-[15px] leading-6;
+    @apply bg-background font-sans text-[15px] leading-6 text-foreground;
   }
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
-  h1, h2, h3 { @apply tracking-tight; }
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
 @layer utilities {
-  .tabular { font-variant-numeric: tabular-nums; }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @media print {
-  .no-print { display: none !important; }
-  body { background: white; color: black; }
-  .print-only { display: block !important; }
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  .print-only {
+    display: block !important;
+  }
 }
-.print-only { display: none; }
+.print-only {
+  display: none;
+}

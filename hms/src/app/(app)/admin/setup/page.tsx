@@ -13,16 +13,46 @@ import { decideSetupFactAction } from "../actions";
 
 export const metadata: Metadata = { title: "Setup checklist" };
 
-const TONE = { UNKNOWN: "neutral", AWAITING_APPROVAL: "warning", VERIFIED: "success", REJECTED: "danger" } as const;
-const LABEL = { UNKNOWN: "Unknown", AWAITING_APPROVAL: "Awaiting approval", VERIFIED: "Verified", REJECTED: "Rejected" } as const;
+const TONE = {
+  UNKNOWN: "neutral",
+  AWAITING_APPROVAL: "warning",
+  VERIFIED: "success",
+  REJECTED: "danger",
+} as const;
+const LABEL = {
+  UNKNOWN: "Unknown",
+  AWAITING_APPROVAL: "Awaiting approval",
+  VERIFIED: "Verified",
+  REJECTED: "Rejected",
+} as const;
 
 const ROADMAP: [string, string, "done" | "next" | "planned"][] = [
-  ["Phase 1", "Foundation: sign-in, MFA, roles & permissions, audit trail, configuration, patient registry, appointments, check-in, queue", "done"],
-  ["Phase 2", "Consultations, clinical notes & signatures, vitals/triage, diagnoses, orders, laboratory, imaging", "next"],
+  [
+    "Phase 1",
+    "Foundation: sign-in, MFA, roles & permissions, audit trail, configuration, patient registry, appointments, check-in, queue",
+    "done",
+  ],
+  [
+    "Phase 2",
+    "Consultations, clinical notes & signatures, vitals/triage, diagnoses, orders, laboratory, imaging",
+    "next",
+  ],
   ["Phase 3", "Prescriptions, pharmacy dispensing, lot-level stock, suppliers, procurement", "planned"],
-  ["Phase 4", "Service catalogue, billing, payments, HMO enrolment, coverage, pre-authorisation, claims, remittance", "planned"],
-  ["Phase 5", "Maternity (ANC, labour, delivery, newborn, postnatal), admissions, beds, discharge", "planned"],
-  ["Phase 6", "HR, rosters, payroll, patient portal, notifications, reports & exports, FHIR mapping, hardening", "planned"],
+  [
+    "Phase 4",
+    "Service catalogue, billing, payments, HMO enrolment, coverage, pre-authorisation, claims, remittance",
+    "planned",
+  ],
+  [
+    "Phase 5",
+    "Maternity (ANC, labour, delivery, newborn, postnatal), admissions, beds, discharge",
+    "planned",
+  ],
+  [
+    "Phase 6",
+    "HR, rosters, payroll, patient portal, notifications, reports & exports, FHIR mapping, hardening",
+    "planned",
+  ],
 ];
 
 export default async function SetupPage() {
@@ -43,16 +73,27 @@ export default async function SetupPage() {
         <Card className="lg:col-span-2">
           <CardBody>
             <p className="text-[13px] font-medium text-muted">Verification progress</p>
-            <p className="mt-1 text-2xl font-semibold tabular">
+            <p className="tabular mt-1 text-2xl font-semibold">
               {verified} / {facts.length} verified
             </p>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuemin={0} aria-valuemax={facts.length} aria-valuenow={verified} aria-label="Facts verified">
-              <div className="h-full bg-accent" style={{ width: `${facts.length ? (verified / facts.length) * 100 : 0}%` }} />
+            <div
+              className="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-2"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={facts.length}
+              aria-valuenow={verified}
+              aria-label="Facts verified"
+            >
+              <div
+                className="h-full bg-accent"
+                style={{ width: `${facts.length ? (verified / facts.length) * 100 : 0}%` }}
+              />
             </div>
           </CardBody>
         </Card>
         <Alert tone="info" title="Integrations are off">
-          HMO, payment, SMS/email and national exchange connections stay disabled until credentials, agreements and testing exist.
+          HMO, payment, SMS/email and national exchange connections stay disabled until credentials,
+          agreements and testing exist.
         </Alert>
       </div>
 
@@ -70,7 +111,9 @@ export default async function SetupPage() {
                       <p className="text-[14px]">{f.value}</p>
                       <p className="text-xs text-muted">
                         Source: {f.source ?? "-"}
-                        {f.verifiedBy && f.verifiedAt ? ` · decided by ${f.verifiedBy.displayName} on ${formatDate(f.verifiedAt)}` : ""}
+                        {f.verifiedBy && f.verifiedAt
+                          ? ` · decided by ${f.verifiedBy.displayName} on ${formatDate(f.verifiedAt)}`
+                          : ""}
                       </p>
                       {f.notes && <p className="mt-1 text-xs text-muted">Notes: {f.notes}</p>}
                     </div>
@@ -87,7 +130,13 @@ export default async function SetupPage() {
                           submitLabel="Save decision"
                           successMessage="Decision recorded."
                           fields={[
-                            { name: "value", label: "Value", type: "textarea", required: true, defaultValue: f.value },
+                            {
+                              name: "value",
+                              label: "Value",
+                              type: "textarea",
+                              required: true,
+                              defaultValue: f.value,
+                            },
                             {
                               name: "status",
                               label: "Status",
@@ -96,7 +145,12 @@ export default async function SetupPage() {
                               defaultValue: f.status,
                               options: Object.entries(LABEL).map(([value, label]) => ({ value, label })),
                             },
-                            { name: "notes", label: "Notes / evidence", type: "textarea", defaultValue: f.notes ?? undefined },
+                            {
+                              name: "notes",
+                              label: "Notes / evidence",
+                              type: "textarea",
+                              defaultValue: f.notes ?? undefined,
+                            },
                           ]}
                         />
                       )}
@@ -108,7 +162,10 @@ export default async function SetupPage() {
         ))}
 
         <Card>
-          <CardHeader title="Implementation roadmap" description="What this installation can and cannot do yet." />
+          <CardHeader
+            title="Implementation roadmap"
+            description="What this installation can and cannot do yet."
+          />
           <ul className="divide-y divide-border">
             {ROADMAP.map(([phase, desc, status]) => (
               <li key={phase} className="flex flex-wrap items-start justify-between gap-3 px-5 py-3">

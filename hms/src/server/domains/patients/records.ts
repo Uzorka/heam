@@ -8,7 +8,11 @@ import { loadScopedPatient } from "./service";
 
 // ───────────── Allergies ─────────────
 
-export async function recordAllergy(ctx: AuthContext, input: z.output<typeof allergySchema>, db: DbClient = prisma) {
+export async function recordAllergy(
+  ctx: AuthContext,
+  input: z.output<typeof allergySchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "patient.allergy.record");
   const patient = await loadScopedPatient(ctx, input.patientId, "patient.read", db);
   if (input.source === "CLINICIAN_VERIFIED" && !can(ctx, "patient.allergy.verify")) {
@@ -24,7 +28,9 @@ export async function recordAllergy(ctx: AuthContext, input: z.output<typeof all
         severity: input.severity,
         source: input.source,
         recordedById: ctx.userId,
-        ...(input.source === "CLINICIAN_VERIFIED" ? { verifiedById: ctx.userId, verifiedAt: new Date() } : {}),
+        ...(input.source === "CLINICIAN_VERIFIED"
+          ? { verifiedById: ctx.userId, verifiedAt: new Date() }
+          : {}),
       },
     });
     await tx.patient.update({ where: { id: patient.id }, data: { allergyReviewStatus: "HAS_ALLERGIES" } });
@@ -46,9 +52,15 @@ export async function setNoKnownAllergies(ctx: AuthContext, patientId: string, d
   requirePermission(ctx, "patient.allergy.record");
   const patient = await loadScopedPatient(ctx, patientId, "patient.read", db);
   const active = await db.patientAllergy.count({ where: { patientId, status: "ACTIVE" } });
-  if (active) throw new ConflictError("This patient has active allergy entries. Resolve them before recording 'no known allergies'.");
+  if (active)
+    throw new ConflictError(
+      "This patient has active allergy entries. Resolve them before recording 'no known allergies'.",
+    );
   await withTx(db, async (tx) => {
-    await tx.patient.update({ where: { id: patient.id }, data: { allergyReviewStatus: "NO_KNOWN_ALLERGIES" } });
+    await tx.patient.update({
+      where: { id: patient.id },
+      data: { allergyReviewStatus: "NO_KNOWN_ALLERGIES" },
+    });
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,
@@ -78,10 +90,19 @@ export async function changeAllergyStatus(
       data:
         input.action === "VERIFY"
           ? { source: "CLINICIAN_VERIFIED", verifiedById: ctx.userId, verifiedAt: new Date() }
-          : { status: input.action === "INACTIVATE" ? "INACTIVE" : "ENTERED_IN_ERROR", statusReason: input.reason },
+          : {
+              status: input.action === "INACTIVATE" ? "INACTIVE" : "ENTERED_IN_ERROR",
+              statusReason: input.reason,
+            },
     });
-    const remaining = await tx.patientAllergy.count({ where: { patientId: allergy.patientId, status: "ACTIVE" } });
-    if (!remaining) await tx.patient.update({ where: { id: allergy.patientId }, data: { allergyReviewStatus: "NOT_ASKED" } });
+    const remaining = await tx.patientAllergy.count({
+      where: { patientId: allergy.patientId, status: "ACTIVE" },
+    });
+    if (!remaining)
+      await tx.patient.update({
+        where: { id: allergy.patientId },
+        data: { allergyReviewStatus: "NOT_ASKED" },
+      });
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,
@@ -96,7 +117,11 @@ export async function changeAllergyStatus(
 
 // ───────────── Consents ─────────────
 
-export async function recordConsent(ctx: AuthContext, input: z.output<typeof consentSchema>, db: DbClient = prisma) {
+export async function recordConsent(
+  ctx: AuthContext,
+  input: z.output<typeof consentSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "patient.consent.manage");
   const patient = await loadScopedPatient(ctx, input.patientId, "patient.read", db);
   return withTx(db, async (tx) => {
@@ -109,7 +134,10 @@ export async function recordConsent(ctx: AuthContext, input: z.output<typeof con
         patientId: patient.id,
         type: input.type,
         status: input.status,
-        legalBasis: input.type === "DATA_PROCESSING_NOTICE" || input.type === "GENERAL_TREATMENT" ? "CONTRACT" : "CONSENT",
+        legalBasis:
+          input.type === "DATA_PROCESSING_NOTICE" || input.type === "GENERAL_TREATMENT"
+            ? "CONTRACT"
+            : "CONSENT",
         signatoryName: input.signatoryName,
         signatoryRelationship: input.signatoryRelationship,
         notes: input.notes,
@@ -131,7 +159,11 @@ export async function recordConsent(ctx: AuthContext, input: z.output<typeof con
 }
 
 /** Has the patient a current GRANTED consent of this type? Used by the notification layer. */
-export async function hasActiveConsent(db: DbClient, patientId: string, type: z.output<typeof consentSchema>["type"]) {
+export async function hasActiveConsent(
+  db: DbClient,
+  patientId: string,
+  type: z.output<typeof consentSchema>["type"],
+) {
   const c = await db.consentRecord.findFirst({
     where: { patientId, type, supersededAt: null },
     orderBy: { capturedAt: "desc" },
@@ -141,7 +173,11 @@ export async function hasActiveConsent(db: DbClient, patientId: string, type: z.
 
 // ───────────── Contacts ─────────────
 
-export async function addContact(ctx: AuthContext, input: z.output<typeof contactSchema>, db: DbClient = prisma) {
+export async function addContact(
+  ctx: AuthContext,
+  input: z.output<typeof contactSchema>,
+  db: DbClient = prisma,
+) {
   const patient = await loadScopedPatient(ctx, input.patientId, "patient.update", db);
   return withTx(db, async (tx) => {
     if (input.isPrimary) {
@@ -191,11 +227,16 @@ export async function deactivateContact(ctx: AuthContext, contactId: string, db:
 
 // ───────────── Guardians ─────────────
 
-export async function addGuardian(ctx: AuthContext, input: z.output<typeof guardianSchema>, db: DbClient = prisma) {
+export async function addGuardian(
+  ctx: AuthContext,
+  input: z.output<typeof guardianSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "patient.guardian.manage");
   const dependent = await loadScopedPatient(ctx, input.dependentPatientId, "patient.read", db);
   if (input.guardianPatientId) {
-    if (input.guardianPatientId === dependent.id) throw new ConflictError("A patient cannot be their own guardian.");
+    if (input.guardianPatientId === dependent.id)
+      throw new ConflictError("A patient cannot be their own guardian.");
     await loadScopedPatient(ctx, input.guardianPatientId, "patient.read", db);
   }
   return withTx(db, async (tx) => {
@@ -232,12 +273,19 @@ export async function verifyGuardian(
   if (!g || g.revokedAt) throw new NotFoundError();
   await loadScopedPatient(ctx, g.dependentPatientId, "patient.read", db);
   if (g.createdById === ctx.userId) {
-    throw new ForbiddenError("Verification must be done by someone other than the person who recorded the link.");
+    throw new ForbiddenError(
+      "Verification must be done by someone other than the person who recorded the link.",
+    );
   }
   await withTx(db, async (tx) => {
     await tx.guardianRelationship.update({
       where: { id: g.id },
-      data: { verified: true, verifiedById: ctx.userId, verifiedAt: new Date(), verificationEvidence: input.evidence },
+      data: {
+        verified: true,
+        verifiedById: ctx.userId,
+        verifiedAt: new Date(),
+        verificationEvidence: input.evidence,
+      },
     });
     await recordAudit(tx, {
       actorType: "USER",
@@ -251,7 +299,11 @@ export async function verifyGuardian(
   });
 }
 
-export async function revokeGuardian(ctx: AuthContext, input: { relationshipId: string; reason: string }, db: DbClient = prisma) {
+export async function revokeGuardian(
+  ctx: AuthContext,
+  input: { relationshipId: string; reason: string },
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "patient.guardian.manage");
   const g = await db.guardianRelationship.findUnique({ where: { id: input.relationshipId } });
   if (!g || g.revokedAt) throw new NotFoundError();

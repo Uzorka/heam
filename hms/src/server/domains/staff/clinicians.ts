@@ -27,7 +27,11 @@ export async function listClinicians(branchId: string, db: DbClient = prisma) {
   });
 }
 
-export async function isClinicianInBranch(userId: string, branchId: string, db: DbClient = prisma): Promise<boolean> {
+export async function isClinicianInBranch(
+  userId: string,
+  branchId: string,
+  db: DbClient = prisma,
+): Promise<boolean> {
   const list = await listClinicians(branchId, db);
   return list.some((u) => u.id === userId);
 }

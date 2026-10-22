@@ -6,7 +6,11 @@ import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = { title: "Register patient" };
 
-export default async function NewPatientPage({ searchParams }: { searchParams: Promise<{ emergency?: string }> }) {
+export default async function NewPatientPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ emergency?: string }>;
+}) {
   const ctx = await requireAuthContext();
   if (!(await allowed(ctx, "/patients/new", ["patient.create"]))) return <Forbidden />;
   const { emergency } = await searchParams;

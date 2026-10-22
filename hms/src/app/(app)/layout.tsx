@@ -9,6 +9,9 @@ import { TopBar } from "@/components/shell/topbar";
 import { Alert } from "@/components/ui/alert";
 import Link from "next/link";
 
+// No group-level loading.tsx here: with Next 15.5 a route-group Suspense boundary intermittently
+// stalled client navigations between sibling pages (reproduced 6/6, fixed 0/6). Use scoped
+// <Suspense> + <LoadingBlock> inside slow pages instead.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireAuthContext();
   const groups = buildNav(ctx);
@@ -31,8 +34,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           groups={groups}
-          user={{ displayName: ctx.displayName, jobTitle: ctx.jobTitle, roles: [...new Set(ctx.grants.map((g) => g.roleName.split(" /")[0]!))] }}
-          branches={branches.map((b) => ({ id: b.id, name: b.name, pending: b.verificationStatus !== "VERIFIED" }))}
+          user={{
+            displayName: ctx.displayName,
+            jobTitle: ctx.jobTitle,
+            roles: [...new Set(ctx.grants.map((g) => g.roleName.split(" /")[0]!))],
+          }}
+          branches={branches.map((b) => ({
+            id: b.id,
+            name: b.name,
+            pending: b.verificationStatus !== "VERIFIED",
+          }))}
           activeBranchId={ctx.activeBranchId}
           canSearchPatients={can(ctx, "patient.search")}
           unread={unread}
@@ -47,19 +58,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             )}
             {user?.mustChangePassword && (
               <Alert tone="warning" title="Set a new password">
-                Your account requires a password change. <Link prefetch={false} className="underline" href="/account/security">Change it now</Link>.
+                Your account requires a password change.{" "}
+                <Link prefetch={false} className="underline" href="/account/security">
+                  Change it now
+                </Link>
+                .
               </Alert>
             )}
             {ctx.suspendedGrants.length > 0 && (
               <Alert tone="warning" title="Two-step verification required">
                 Your {ctx.suspendedGrants.map((g) => g.roleName).join(", ")} access is paused until you{" "}
-                <Link prefetch={false} className="underline" href="/account/security">turn on two-step verification</Link>.
+                <Link prefetch={false} className="underline" href="/account/security">
+                  turn on two-step verification
+                </Link>
+                .
               </Alert>
             )}
             {activeBranch && activeBranch.verificationStatus !== "VERIFIED" && can(ctx, "settings.read") && (
               <Alert tone="info">
                 Details for <strong>{activeBranch.name}</strong> are awaiting verification in the{" "}
-                <Link prefetch={false} className="underline" href="/admin/setup">setup checklist</Link>.
+                <Link prefetch={false} className="underline" href="/admin/setup">
+                  setup checklist
+                </Link>
+                .
               </Alert>
             )}
           </div>

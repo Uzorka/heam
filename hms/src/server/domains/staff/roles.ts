@@ -26,7 +26,10 @@ export async function getRole(ctx: AuthContext, roleId: string, db: DbClient = p
       changeRequests: {
         orderBy: { requestedAt: "desc" },
         take: 20,
-        include: { requestedBy: { select: { displayName: true } }, decidedBy: { select: { displayName: true } } },
+        include: {
+          requestedBy: { select: { displayName: true } },
+          decidedBy: { select: { displayName: true } },
+        },
       },
     },
   });
@@ -47,12 +50,17 @@ export function assessRoleChange(currentCodes: string[], add: string[]): string[
     if (s === "HR" && (current.has("CLINICAL") || current.has("PHI"))) {
       warnings.push(`${code} mixes HR/payroll access into a role with patient access.`);
     }
-    if (s === "CLINICAL" && current.has("HR")) warnings.push(`${code} mixes clinical access into an HR role.`);
+    if (s === "CLINICAL" && current.has("HR"))
+      warnings.push(`${code} mixes clinical access into an HR role.`);
   }
   return warnings;
 }
 
-export async function requestRoleChange(ctx: AuthContext, input: z.output<typeof roleChangeRequestSchema>, db: DbClient = prisma) {
+export async function requestRoleChange(
+  ctx: AuthContext,
+  input: z.output<typeof roleChangeRequestSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "roles.request_change");
   const role = await db.role.findUnique({ where: { id: input.roleId }, include: { permissions: true } });
   if (!role) throw new NotFoundError("Role not found.");
@@ -61,7 +69,8 @@ export async function requestRoleChange(ctx: AuthContext, input: z.output<typeof
   const current = new Set(role.permissions.map((p) => p.permissionCode));
   const add = [...new Set(input.add)].filter((c) => !current.has(c));
   const remove = [...new Set(input.remove)].filter((c) => current.has(c));
-  if (!add.length && !remove.length) throw new ValidationError("The proposed change does not alter the role.");
+  if (!add.length && !remove.length)
+    throw new ValidationError("The proposed change does not alter the role.");
   const pending = await db.roleChangeRequest.count({ where: { roleId: role.id, status: "PENDING" } });
   if (pending) throw new ConflictError("This role already has a pending change. Decide or cancel it first.");
   return withTx(db, async (tx) => {
@@ -88,21 +97,32 @@ export async function requestRoleChange(ctx: AuthContext, input: z.output<typeof
   });
 }
 
-export async function decideRoleChange(ctx: AuthContext, input: z.output<typeof roleChangeDecisionSchema>, db: DbClient = prisma) {
+export async function decideRoleChange(
+  ctx: AuthContext,
+  input: z.output<typeof roleChangeDecisionSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "roles.approve_change");
-  const req = await db.roleChangeRequest.findUnique({ where: { id: input.requestId }, include: { role: true } });
+  const req = await db.roleChangeRequest.findUnique({
+    where: { id: input.requestId },
+    include: { role: true },
+  });
   if (!req) throw new NotFoundError();
   if (req.status !== "PENDING") throw new ConflictError("This request has already been decided.");
-  if (req.requestedById === ctx.userId) throw new ForbiddenError("A role change must be approved by someone other than the requester.");
+  if (req.requestedById === ctx.userId)
+    throw new ForbiddenError("A role change must be approved by someone other than the requester.");
   await withTx(db, async (tx) => {
     if (input.approve) {
       const bumped = await tx.role.updateMany({
         where: { id: req.roleId, version: req.roleVersion },
         data: { version: { increment: 1 } },
       });
-      if (bumped.count !== 1) throw new ConflictError("The role changed after this request was made. Ask for a fresh request.");
+      if (bumped.count !== 1)
+        throw new ConflictError("The role changed after this request was made. Ask for a fresh request.");
       if (req.removePermissions.length) {
-        await tx.rolePermission.deleteMany({ where: { roleId: req.roleId, permissionCode: { in: req.removePermissions } } });
+        await tx.rolePermission.deleteMany({
+          where: { roleId: req.roleId, permissionCode: { in: req.removePermissions } },
+        });
       }
       if (req.addPermissions.length) {
         await tx.rolePermission.createMany({
@@ -126,7 +146,12 @@ export async function decideRoleChange(ctx: AuthContext, input: z.output<typeof 
       action: input.approve ? "roles.change_approved" : "roles.change_rejected",
       resourceType: "Role",
       resourceId: req.roleId,
-      details: { requestId: req.id, role: req.role.code, add: req.addPermissions, remove: req.removePermissions },
+      details: {
+        requestId: req.id,
+        role: req.role.code,
+        add: req.addPermissions,
+        remove: req.removePermissions,
+      },
       meta: ctx.meta,
     });
   });
@@ -135,9 +160,13 @@ export async function decideRoleChange(ctx: AuthContext, input: z.output<typeof 
 export async function cancelRoleChange(ctx: AuthContext, requestId: string, db: DbClient = prisma) {
   const req = await db.roleChangeRequest.findUnique({ where: { id: requestId } });
   if (!req || req.status !== "PENDING") throw new NotFoundError();
-  if (req.requestedById !== ctx.userId) throw new ForbiddenError("Only the requester can cancel this request.");
+  if (req.requestedById !== ctx.userId)
+    throw new ForbiddenError("Only the requester can cancel this request.");
   await withTx(db, async (tx) => {
-    await tx.roleChangeRequest.update({ where: { id: req.id }, data: { status: "CANCELLED", decidedAt: new Date() } });
+    await tx.roleChangeRequest.update({
+      where: { id: req.id },
+      data: { status: "CANCELLED", decidedAt: new Date() },
+    });
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,

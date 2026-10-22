@@ -5,7 +5,13 @@ import type { QueueStage } from "@prisma/client";
 import { requireAuthContext } from "@/server/auth/session";
 import { can } from "@/server/authz/context";
 import { listQueue } from "@/server/domains/queue/service";
-import { ACTIVE_STAGES, QUEUE_TRANSITIONS, STAGE_LABELS, STAGES_REQUIRING_NOTE, transitionPermission } from "@/server/domains/queue/state-machine";
+import {
+  ACTIVE_STAGES,
+  QUEUE_TRANSITIONS,
+  STAGE_LABELS,
+  STAGES_REQUIRING_NOTE,
+  transitionPermission,
+} from "@/server/domains/queue/state-machine";
 import { listClinicians } from "@/server/domains/staff/clinicians";
 import { formatAge, formatTime } from "@/lib/time";
 import { Card } from "@/components/ui/card";
@@ -28,7 +34,11 @@ function waited(since: Date) {
   return mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h ${mins % 60} min`;
 }
 
-export default async function QueuePage({ searchParams }: { searchParams: Promise<{ stage?: string; mine?: string }> }) {
+export default async function QueuePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stage?: string; mine?: string }>;
+}) {
   const ctx = await requireAuthContext();
   const sp = await searchParams;
   if (!ctx.activeBranchId) return <Alert tone="warning">Select a branch to view the queue.</Alert>;
@@ -62,15 +72,17 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
       />
       <LinkTabs
         label="Filter queue"
-        current={mine ? "mine" : stage ?? "all"}
+        current={mine ? "mine" : (stage ?? "all")}
         tabs={[
           { key: "all", label: "All waiting", href: "/queue", count: stage || mine ? undefined : all.length },
-          ...(can(ctx, "clinical.note.write") ? [{ key: "mine", label: "My patients", href: "/queue?mine=1" }] : []),
+          ...(can(ctx, "clinical.note.write")
+            ? [{ key: "mine", label: "My patients", href: "/queue?mine=1" }]
+            : []),
           ...ACTIVE_STAGES.filter((s) => s !== "REGISTERED").map((s) => ({
             key: s,
             label: STAGE_LABELS[s],
             href: `/queue?stage=${s}`,
-            count: !stage && !mine ? counts.get(s) ?? 0 : undefined,
+            count: !stage && !mine ? (counts.get(s) ?? 0) : undefined,
           })),
         ]}
       />
@@ -92,17 +104,32 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
               }));
             return (
               <li key={r.id}>
-                <Card className={r.priority === "EMERGENCY" ? "border-danger/50" : r.priority === "URGENT" ? "border-warning/50" : undefined}>
+                <Card
+                  className={
+                    r.priority === "EMERGENCY"
+                      ? "border-danger/50"
+                      : r.priority === "URGENT"
+                        ? "border-warning/50"
+                        : undefined
+                  }
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3 p-4">
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         {r.priority !== "ROUTINE" && (
-                          <Badge tone={r.priority === "EMERGENCY" ? "danger" : "warning"} icon={<Siren className="h-3.5 w-3.5" aria-hidden />}>
+                          <Badge
+                            tone={r.priority === "EMERGENCY" ? "danger" : "warning"}
+                            icon={<Siren className="h-3.5 w-3.5" aria-hidden />}
+                          >
                             {r.priority.toLowerCase()}
                           </Badge>
                         )}
                         {can(ctx, "patient.read") ? (
-                          <Link prefetch={false} href={`/patients/${r.patient.id}`} className="text-[15px] font-semibold hover:text-accent hover:underline">
+                          <Link
+                            prefetch={false}
+                            href={`/patients/${r.patient.id}`}
+                            className="text-[15px] font-semibold hover:text-accent hover:underline"
+                          >
                             {r.patient.name}
                           </Link>
                         ) : (
@@ -110,7 +137,8 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
                         )}
                         <span className="font-mono text-[13px] text-muted">{r.patient.mrn}</span>
                         <span className="text-[13px] text-muted">
-                          {r.patient.dateOfBirth ? formatAge(r.patient.dateOfBirth) : "age ?"} · {r.patient.sexAtBirth.slice(0, 1)}
+                          {r.patient.dateOfBirth ? formatAge(r.patient.dateOfBirth) : "age ?"} ·{" "}
+                          {r.patient.sexAtBirth.slice(0, 1)}
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
@@ -119,11 +147,18 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
                         <span>· arrived {formatTime(r.arrivedAt)}</span>
                         <span>· {r.visitType}</span>
                         <span>· {r.attending ? r.attending.displayName : "no clinician assigned"}</span>
-                        <span>· {r.payerClass === "UNDETERMINED" ? "payer not set" : r.payerClass.toLowerCase().replace("_", " ")}</span>
+                        <span>
+                          ·{" "}
+                          {r.payerClass === "UNDETERMINED"
+                            ? "payer not set"
+                            : r.payerClass.toLowerCase().replace("_", " ")}
+                        </span>
                       </div>
                       <div className="flex flex-wrap gap-1.5 pt-0.5">
                         <AllergyBadge status={r.patient.allergyReviewStatus} activeCount={0} />
-                        {r.patient.registrationStatus === "PROVISIONAL" && <Badge tone="warning">Provisional registration</Badge>}
+                        {r.patient.registrationStatus === "PROVISIONAL" && (
+                          <Badge tone="warning">Provisional registration</Badge>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -152,7 +187,11 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
                           />
                         )}
                         <Button asChild variant="ghost" size="sm">
-                          <Link prefetch={false} href={`/queue/${r.id}/slip`} aria-label={`Print slip for ${r.patient.name}`}>
+                          <Link
+                            prefetch={false}
+                            href={`/queue/${r.id}/slip`}
+                            aria-label={`Print slip for ${r.patient.name}`}
+                          >
                             <Printer className="h-4 w-4" aria-hidden /> Slip
                           </Link>
                         </Button>

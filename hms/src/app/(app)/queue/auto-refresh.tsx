@@ -23,7 +23,14 @@ export function AutoRefresh({ seconds = 30 }: { seconds?: number }) {
   }, [router, seconds]);
   return (
     <p className="text-xs text-muted" aria-live="off">
-      Updates every {seconds}s · last {last.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Africa/Lagos" })}
+      Updates every {seconds}s · last{" "}
+      {last.toLocaleTimeString("en-NG", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZone: "Africa/Lagos",
+      })}
     </p>
   );
 }

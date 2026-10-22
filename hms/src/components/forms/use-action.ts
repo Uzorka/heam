@@ -7,7 +7,10 @@ import type { ActionResult } from "@/server/action";
  * Call a typed server action from a client component. Success messages are only shown when the
  * server confirmed the change - never optimistically.
  */
-export function useServerAction<I, O>(action: (input: I) => Promise<ActionResult<O>>, opts: { refresh?: boolean } = {}) {
+export function useServerAction<I, O>(
+  action: (input: I) => Promise<ActionResult<O>>,
+  opts: { refresh?: boolean } = {},
+) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);

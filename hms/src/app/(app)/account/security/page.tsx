@@ -13,16 +13,26 @@ import { MfaEnroll } from "./mfa-enroll";
 
 export const metadata: Metadata = { title: "Security & sessions" };
 
-export default async function SecurityPage({ searchParams }: { searchParams: Promise<{ required?: string }> }) {
+export default async function SecurityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ required?: string }>;
+}) {
   const ctx = await requireAuthContext();
   const { required } = await searchParams;
   const [user, sessions] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { mfaEnabled: true, mustChangePassword: true, passwordChangedAt: true } }),
+    prisma.user.findUniqueOrThrow({
+      where: { id: ctx.userId },
+      select: { mfaEnabled: true, mustChangePassword: true, passwordChangedAt: true },
+    }),
     listMySessions(ctx),
   ]);
   return (
     <>
-      <PageHeader title="Security & sessions" description="Your password, two-step verification and signed-in devices." />
+      <PageHeader
+        title="Security & sessions"
+        description="Your password, two-step verification and signed-in devices."
+      />
       {(required === "password" || user.mustChangePassword) && (
         <Alert tone="warning" className="mb-5" title="Please set a new password">
           Your account requires a new password before you continue working.
@@ -30,7 +40,12 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
       )}
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Password" description={user.passwordChangedAt ? `Last changed ${formatDateTime(user.passwordChangedAt)}` : undefined} />
+          <CardHeader
+            title="Password"
+            description={
+              user.passwordChangedAt ? `Last changed ${formatDateTime(user.passwordChangedAt)}` : undefined
+            }
+          />
           <CardBody>
             <ActionForm
               action={changePasswordAction}
@@ -39,7 +54,13 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
               resetOnSuccess
               fields={[
                 { name: "currentPassword", label: "Current password", type: "password", required: true },
-                { name: "newPassword", label: "New password", type: "password", required: true, hint: "12+ characters; mix three of lowercase, uppercase, numbers, symbols." },
+                {
+                  name: "newPassword",
+                  label: "New password",
+                  type: "password",
+                  required: true,
+                  hint: "12+ characters; mix three of lowercase, uppercase, numbers, symbols.",
+                },
                 { name: "confirmPassword", label: "Confirm new password", type: "password", required: true },
               ]}
             />
@@ -53,7 +74,10 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
           />
           <CardBody className="space-y-3">
             {ctx.suspendedGrants.length > 0 && (
-              <Alert tone="warning">Your {ctx.suspendedGrants.map((g) => g.roleName).join(", ")} access is paused until this is on.</Alert>
+              <Alert tone="warning">
+                Your {ctx.suspendedGrants.map((g) => g.roleName).join(", ")} access is paused until this is
+                on.
+              </Alert>
             )}
             {user.mfaEnabled ? (
               <ActionDialog
@@ -75,16 +99,24 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
           </CardBody>
         </Card>
         <Card className="lg:col-span-2">
-          <CardHeader title="Signed-in sessions" description="Sessions end after inactivity and at a maximum length. End any session you don't recognise." />
+          <CardHeader
+            title="Signed-in sessions"
+            description="Sessions end after inactivity and at a maximum length. End any session you don't recognise."
+          />
           <ul className="divide-y divide-border">
             {sessions.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-[13px]">
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-[13px]"
+              >
                 <div className="min-w-0">
                   <p className="font-medium">
-                    {s.id === ctx.sessionId ? <Badge tone="accent">This device</Badge> : null} Signed in {formatDateTime(s.createdAt)}
+                    {s.id === ctx.sessionId ? <Badge tone="accent">This device</Badge> : null} Signed in{" "}
+                    {formatDateTime(s.createdAt)}
                   </p>
                   <p className="truncate text-muted">
-                    Last active {formatDateTime(s.lastSeenAt)} · {s.ip ?? "unknown IP"} · {s.userAgent ?? "unknown device"}
+                    Last active {formatDateTime(s.lastSeenAt)} · {s.ip ?? "unknown IP"} ·{" "}
+                    {s.userAgent ?? "unknown device"}
                   </p>
                 </div>
                 {s.id !== ctx.sessionId && (

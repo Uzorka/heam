@@ -14,7 +14,10 @@ export const metadata: Metadata = { title: "Notifications" };
 
 /** Templates map to generic, non-clinical messages. Payloads contain ids only. */
 const TEMPLATES: Record<string, { text: string; href?: (p: Record<string, unknown>) => string }> = {
-  "breakglass.review_needed": { text: "An emergency access event needs compliance review.", href: () => "/audit/break-glass" },
+  "breakglass.review_needed": {
+    text: "An emergency access event needs compliance review.",
+    href: () => "/audit/break-glass",
+  },
 };
 
 export default async function NotificationsPage() {
@@ -32,7 +35,14 @@ export default async function NotificationsPage() {
         description="Work alerts. Notifications never contain diagnoses, results or other clinical details."
         actions={
           unread > 0 && (
-            <ConfirmAction action={markAllReadAction} trigger="Mark all read" title="Mark all as read?" description={`${unread} unread`} submitLabel="Mark read" successMessage="Marked as read." />
+            <ConfirmAction
+              action={markAllReadAction}
+              trigger="Mark all read"
+              title="Mark all as read?"
+              description={`${unread} unread`}
+              submitLabel="Mark read"
+              successMessage="Marked as read."
+            />
           )
         }
       />
@@ -48,13 +58,21 @@ export default async function NotificationsPage() {
                 <li key={n.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
                   <div>
                     <p className={n.readAt ? "text-muted" : "font-medium"}>
-                      {!n.readAt && <Badge tone="accent" className="mr-2">New</Badge>}
+                      {!n.readAt && (
+                        <Badge tone="accent" className="mr-2">
+                          New
+                        </Badge>
+                      )}
                       {t?.text ?? n.template}
                     </p>
                     <p className="text-xs text-muted">{formatDateTime(n.createdAt)}</p>
                   </div>
                   {t?.href && (
-                    <Link prefetch={false} href={t.href(payload)} className="text-[13px] text-accent hover:underline">
+                    <Link
+                      prefetch={false}
+                      href={t.href(payload)}
+                      className="text-[13px] text-accent hover:underline"
+                    >
                       Open
                     </Link>
                   )}

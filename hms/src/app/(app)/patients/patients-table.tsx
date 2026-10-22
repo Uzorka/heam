@@ -1,7 +1,14 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type SortingState } from "@tanstack/react-table";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableWrap, TD, TH, THead, TR } from "@/components/ui/table";
@@ -30,7 +37,11 @@ export function PatientsTable({ rows, canOpen }: { rows: PatientRow[]; canOpen: 
         cell: ({ row }) => (
           <div className="min-w-[180px]">
             {canOpen ? (
-              <Link prefetch={false} href={`/patients/${row.original.id}`} className="font-medium text-foreground hover:text-accent hover:underline">
+              <Link
+                prefetch={false}
+                href={`/patients/${row.original.id}`}
+                className="font-medium text-foreground hover:text-accent hover:underline"
+              >
                 {row.original.name}
               </Link>
             ) : (
@@ -44,7 +55,11 @@ export function PatientsTable({ rows, canOpen }: { rows: PatientRow[]; canOpen: 
           </div>
         ),
       },
-      { accessorKey: "mrn", header: "MRN", cell: (c) => <span className="font-mono text-[13px]">{c.getValue<string>()}</span> },
+      {
+        accessorKey: "mrn",
+        header: "MRN",
+        cell: (c) => <span className="font-mono text-[13px]">{c.getValue<string>()}</span>,
+      },
       {
         id: "agesex",
         header: "Age / sex",
@@ -55,8 +70,17 @@ export function PatientsTable({ rows, canOpen }: { rows: PatientRow[]; canOpen: 
           </span>
         ),
       },
-      { accessorKey: "maskedPhone", header: "Phone", enableSorting: false, cell: (c) => <span className="tabular text-muted">{c.getValue<string>() || "-"}</span> },
-      { accessorKey: "lastVisit", header: "Last visit", cell: (c) => <span className="text-muted">{c.getValue<string | null>() ?? "No visits"}</span> },
+      {
+        accessorKey: "maskedPhone",
+        header: "Phone",
+        enableSorting: false,
+        cell: (c) => <span className="tabular text-muted">{c.getValue<string>() || "-"}</span>,
+      },
+      {
+        accessorKey: "lastVisit",
+        header: "Last visit",
+        cell: (c) => <span className="text-muted">{c.getValue<string | null>() ?? "No visits"}</span>,
+      },
     ],
     [canOpen],
   );
@@ -75,9 +99,22 @@ export function PatientsTable({ rows, canOpen }: { rows: PatientRow[]; canOpen: 
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((h) => (
-                <TH key={h.id} aria-sort={h.column.getIsSorted() ? (h.column.getIsSorted() === "asc" ? "ascending" : "descending") : undefined}>
+                <TH
+                  key={h.id}
+                  aria-sort={
+                    h.column.getIsSorted()
+                      ? h.column.getIsSorted() === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : undefined
+                  }
+                >
                   {h.column.getCanSort() ? (
-                    <button type="button" onClick={h.column.getToggleSortingHandler()} className="inline-flex items-center gap-1 uppercase">
+                    <button
+                      type="button"
+                      onClick={h.column.getToggleSortingHandler()}
+                      className="inline-flex items-center gap-1 uppercase"
+                    >
                       {flexRender(h.column.columnDef.header, h.getContext())}
                       <ArrowUpDown className="h-3 w-3" aria-hidden />
                     </button>

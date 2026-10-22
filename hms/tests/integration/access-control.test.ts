@@ -21,7 +21,9 @@ describe("RBAC and record-level access", () => {
     const { ctx: reception } = await userCtx(["RECEPTION"]);
     const p = await newPatient(reception);
     const { ctx: hr } = await userCtx(["HR_PAYROLL"]);
-    await expect(searchPatients(hr, { q: "", page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      searchPatients(hr, { q: "", page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     await expect(getPatientDetail(hr, p.patientId)).rejects.toBeInstanceOf(ForbiddenError);
     const { ctx: doctor } = await userCtx(["PHYSICIAN"]);
     expect(can(doctor, "payroll.read")).toBe(false);
@@ -56,7 +58,13 @@ describe("RBAC and record-level access", () => {
     const main = await branch();
     const role = await prisma.role.findUniqueOrThrow({ where: { code: "RECEPTION" } });
     await prisma.userRole.create({
-      data: { userId: staff.id, roleId: role.id, branchId: main.id, effectiveTo: new Date(Date.now() - 1000), isDelegation: true },
+      data: {
+        userId: staff.id,
+        roleId: role.id,
+        branchId: main.id,
+        effectiveTo: new Date(Date.now() - 1000),
+        isDelegation: true,
+      },
     });
     expect(can(await ctxFor(staff.id), "appointment.manage")).toBe(false);
   });
@@ -65,7 +73,13 @@ describe("RBAC and record-level access", () => {
     const { user, ctx: admin } = await userCtx(["HOSPITAL_ADMIN"], { allBranches: true });
     const md = await prisma.role.findUniqueOrThrow({ where: { code: "MEDICAL_DIRECTOR" } });
     await expect(
-      assignRole(admin, { userId: user.id, roleId: md.id, allBranches: true, reason: "self", isDelegation: false }),
+      assignRole(admin, {
+        userId: user.id,
+        roleId: md.id,
+        allBranches: true,
+        reason: "self",
+        isDelegation: false,
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -74,7 +88,13 @@ describe("RBAC and record-level access", () => {
     const other = await newPatient(otherReception);
     const { ctx: mainReception } = await userCtx(["RECEPTION"], { branch: "T-MAIN" });
     await expect(getPatientDetail(mainReception, other.patientId)).rejects.toBeInstanceOf(NotFoundError);
-    const res = await searchPatients(mainReception, { q: other.mrn, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
+    const res = await searchPatients(mainReception, {
+      q: other.mrn,
+      page: 1,
+      pageSize: 20,
+      includeInactive: false,
+      provisionalOnly: false,
+    });
     expect(res.total).toBe(0);
     const { ctx: allBranch } = await userCtx(["MEDICAL_RECORDS"], { allBranches: true });
     expect((await getPatientDetail(allBranch, other.patientId)).patient.id).toBe(other.patientId);
@@ -98,9 +118,16 @@ describe("RBAC and record-level access", () => {
     const { ctx: requester } = await userCtx(["HOSPITAL_ADMIN"], { allBranches: true });
     const { ctx: approver } = await userCtx(["OWNER"], { allBranches: true });
     const role = await prisma.role.create({ data: { code: `TMP${Date.now()}`, name: "Temp role" } });
-    const req = await requestRoleChange(requester, { roleId: role.id, add: ["queue.read"], remove: [], reason: "Needed for triage cover" });
+    const req = await requestRoleChange(requester, {
+      roleId: role.id,
+      add: ["queue.read"],
+      remove: [],
+      reason: "Needed for triage cover",
+    });
     // requester lacks approve permission; an approver who is also the requester is refused
-    await expect(decideRoleChange(requester, { requestId: req.id, approve: true })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(decideRoleChange(requester, { requestId: req.id, approve: true })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
     await decideRoleChange(approver, { requestId: req.id, approve: true });
     const perms = await prisma.rolePermission.findMany({ where: { roleId: role.id } });
     expect(perms.map((p) => p.permissionCode)).toEqual(["queue.read"]);

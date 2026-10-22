@@ -28,7 +28,11 @@ const STAGE_LABEL: Record<string, string> = {
  * Permission-aware, attributed timeline. Phase 1 includes administrative events only; clinical events
  * are added by their modules and only when the viewer holds clinical access.
  */
-export async function getPatientTimeline(ctx: AuthContext, patientId: string, db: DbClient = prisma): Promise<TimelineEvent[]> {
+export async function getPatientTimeline(
+  ctx: AuthContext,
+  patientId: string,
+  db: DbClient = prisma,
+): Promise<TimelineEvent[]> {
   const patient = await loadScopedPatient(ctx, patientId, "patient.read", db);
   const [appointments, encounters, allergies, consents] = await Promise.all([
     can(ctx, "appointment.read")
@@ -56,11 +60,20 @@ export async function getPatientTimeline(ctx: AuthContext, patientId: string, db
   consents.forEach((c) => userIds.add(c.capturedById));
   appointments.forEach((a) => userIds.add(a.createdById));
   if (patient.createdById) userIds.add(patient.createdById);
-  const users = await db.user.findMany({ where: { id: { in: [...userIds] } }, select: { id: true, displayName: true } });
-  const nameOf = (id: string | null | undefined) => (id ? users.find((u) => u.id === id)?.displayName ?? "Unknown user" : null);
+  const users = await db.user.findMany({
+    where: { id: { in: [...userIds] } },
+    select: { id: true, displayName: true },
+  });
+  const nameOf = (id: string | null | undefined) =>
+    id ? (users.find((u) => u.id === id)?.displayName ?? "Unknown user") : null;
 
   const events: TimelineEvent[] = [
-    { at: patient.createdAt, kind: "registration", title: `Registered (${patient.mrn})`, by: nameOf(patient.createdById) },
+    {
+      at: patient.createdAt,
+      kind: "registration",
+      title: `Registered (${patient.mrn})`,
+      by: nameOf(patient.createdById),
+    },
   ];
   for (const a of appointments) {
     events.push({
@@ -76,7 +89,7 @@ export async function getPatientTimeline(ctx: AuthContext, patientId: string, db
       events.push({
         at: q.changedAt,
         kind: q.fromStage ? "queue" : "visit",
-        title: q.fromStage ? STAGE_LABEL[q.toStage] ?? q.toStage : `Checked in - ${e.visitType.name}`,
+        title: q.fromStage ? (STAGE_LABEL[q.toStage] ?? q.toStage) : `Checked in - ${e.visitType.name}`,
         detail: e.ref,
         by: nameOf(q.changedById),
       });

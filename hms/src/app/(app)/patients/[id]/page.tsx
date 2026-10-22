@@ -6,6 +6,8 @@ import { requireAuthContext } from "@/server/auth/session";
 import { can } from "@/server/authz/context";
 import { getPatientDetail } from "@/server/domains/patients/service";
 import { getPatientTimeline } from "@/server/domains/patients/timeline";
+import { getClinicalHistory } from "@/server/domains/clinical/workspace";
+import { ClinicalHistory } from "./clinical-history";
 import { listPatientAppointments } from "@/server/domains/appointments/service";
 import { listPatientEncounters } from "@/server/domains/queue/service";
 import { STAGE_LABELS } from "@/server/domains/queue/state-machine";
@@ -35,11 +37,12 @@ import {
   setPatientStatusAction,
   verifyGuardianAction,
 } from "../actions";
+import { breakGlassAction } from "../../encounters/actions";
 import { RevealIdentifier } from "./reveal";
 
 export const metadata: Metadata = { title: "Patient record" };
 
-const TABS = ["overview", "allergies", "appointments", "visits", "consents", "timeline"] as const;
+const TABS = ["overview", "clinical", "allergies", "appointments", "visits", "consents", "timeline"] as const;
 type Tab = (typeof TABS)[number];
 
 const CONSENT_LABEL: Record<string, string> = {
@@ -94,6 +97,10 @@ export default async function PatientPage({
     tab === "visits" && can(ctx, "queue.read") ? listPatientEncounters(ctx, id) : null,
     tab === "timeline" ? getPatientTimeline(ctx, id) : null,
   ]);
+  const clinical =
+    tab === "clinical" && can(ctx, "clinical.read")
+      ? await load(ctx, `/patients/${id}?tab=clinical`, () => getClinicalHistory(ctx, id))
+      : null;
 
   return (
     <>
@@ -170,6 +177,9 @@ export default async function PatientPage({
         current={tab}
         tabs={[
           { key: "overview", label: "Overview", href: href("overview") },
+          ...(can(ctx, "clinical.read")
+            ? [{ key: "clinical", label: "Clinical", href: href("clinical") }]
+            : []),
           { key: "allergies", label: "Allergies", href: href("allergies"), count: active.length },
           ...(can(ctx, "appointment.read")
             ? [{ key: "appointments", label: "Appointments", href: href("appointments") }]
@@ -819,6 +829,59 @@ export default async function PatientPage({
           </p>
         </Card>
       )}
+
+      {tab === "clinical" &&
+        clinical &&
+        (clinical.ok ? (
+          <ClinicalHistory data={clinical.data} />
+        ) : (
+          <Card>
+            <CardHeader
+              title="Clinical record restricted"
+              description="You have no care relationship with this patient."
+            />
+            <CardBody className="space-y-3 text-[14px]">
+              <p>
+                Clinical history opens to clinicians caring for the patient (taking them into consultation or
+                being assigned to their visit). In an emergency, clinicians may use logged emergency access,
+                which is time-limited and reviewed by compliance.
+              </p>
+              {can(ctx, "clinical.breakglass") && (
+                <ActionDialog
+                  action={breakGlassAction}
+                  fixed={{ patientId: id }}
+                  trigger="Emergency access"
+                  triggerVariant="danger"
+                  title="Emergency (break-glass) access"
+                  description="Use only when this patient needs care now and you cannot wait for assignment. Your access is logged, time-limited and reviewed."
+                  submitLabel="Open record"
+                  tone="danger"
+                  successMessage="Emergency access granted. It is being logged."
+                  fields={[
+                    {
+                      name: "reason",
+                      label: "Reason",
+                      type: "select",
+                      required: true,
+                      options: [
+                        { value: "EMERGENCY_TREATMENT", label: "Emergency treatment" },
+                        { value: "UNCONSCIOUS_PATIENT", label: "Patient unable to communicate" },
+                        { value: "URGENT_CONSULT_COVER", label: "Urgent cover for a colleague" },
+                        { value: "OTHER_URGENT", label: "Other urgent clinical need" },
+                      ],
+                    },
+                    {
+                      name: "justification",
+                      label: "Clinical justification",
+                      type: "textarea",
+                      required: true,
+                    },
+                  ]}
+                />
+              )}
+            </CardBody>
+          </Card>
+        ))}
 
       {tab === "timeline" && timeline && (
         <Card>

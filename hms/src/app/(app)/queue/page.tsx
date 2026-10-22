@@ -186,6 +186,13 @@ export default async function QueuePage({
                             ]}
                           />
                         )}
+                        {can(ctx, "encounter.read", { branchId }) && (
+                          <Button asChild variant="secondary" size="sm">
+                            <Link prefetch={false} href={`/encounters/${r.id}`}>
+                              Open visit
+                            </Link>
+                          </Button>
+                        )}
                         <Button asChild variant="ghost" size="sm">
                           <Link
                             prefetch={false}

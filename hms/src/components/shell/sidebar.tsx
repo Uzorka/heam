@@ -9,6 +9,7 @@ import type { NavGroup } from "@/server/nav";
 import { NAV_ICONS } from "./icons";
 
 function isActive(pathname: string, href: string) {
+  if (href.includes("?")) return false;
   if (href === "/patients") return pathname === "/patients" || /^\/patients\/(?!duplicates)/.test(pathname);
   return pathname === href || pathname.startsWith(`${href}/`);
 }

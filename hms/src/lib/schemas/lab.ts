@@ -3,19 +3,23 @@ import { optionalText, requiredText, uuid } from "./common";
 
 export const collectSpecimenSchema = z.object({ orderId: uuid, version: z.number().int().min(0) });
 export const receiveSpecimenSchema = z.object({ specimenId: uuid });
-export const rejectSpecimenSchema = z.object({ specimenId: uuid, reason: requiredText("Rejection reason", 300) });
+export const rejectSpecimenSchema = z.object({
+  specimenId: uuid,
+  reason: requiredText("Rejection reason", 300),
+});
 
 export const enterResultsSchema = z.object({
   orderId: uuid,
-  results: z
-    .array(z.object({ componentId: uuid, value: z.string().trim().max(500) }))
-    .min(1),
+  results: z.array(z.object({ componentId: uuid, value: z.string().trim().max(500) })).min(1),
   submit: z.boolean().default(false),
 });
 
 export const returnResultsSchema = z.object({ orderId: uuid, reason: requiredText("Reason", 300) });
 
-export const verifyResultsSchema = z.object({ orderId: uuid, password: z.string().min(1, "Enter your password to verify") });
+export const verifyResultsSchema = z.object({
+  orderId: uuid,
+  password: z.string().min(1, "Enter your password to verify"),
+});
 
 export const amendResultSchema = z.object({
   resultId: uuid,
@@ -32,14 +36,22 @@ export const acknowledgeCriticalSchema = z.object({
 });
 
 export const labTestSchema = z.object({
-  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,20}$/, "Use 2-20 letters, numbers, - or _"),
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9_-]{2,20}$/, "Use 2-20 letters, numbers, - or _"),
   name: requiredText("Name", 120),
   specimenType: requiredText("Specimen", 60),
   turnaroundHours: z.coerce.number().int().min(1).max(720).optional(),
   components: z
     .array(
       z.object({
-        code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,20}$/),
+        code: z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z0-9_-]{1,20}$/),
         name: requiredText("Component name", 120),
         unit: optionalText(30),
         resultType: z.enum(["NUMERIC", "TEXT", "CODED"]),
@@ -50,14 +62,20 @@ export const labTestSchema = z.object({
     .min(1),
 });
 
-const optDec = z.preprocess((v) => (v === "" || v === undefined || v === null ? undefined : Number(v)), z.number().optional());
+const optDec = z.preprocess(
+  (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
+  z.number().optional(),
+);
 
 export const referenceRangeSchema = z
   .object({
     componentId: uuid,
     sex: z.enum(["ANY", "FEMALE", "MALE"]).default("ANY"),
     ageMinDays: z.coerce.number().int().min(0).default(0),
-    ageMaxDays: z.preprocess((v) => (v === "" || v === undefined ? undefined : Number(v)), z.number().int().min(1).optional()),
+    ageMaxDays: z.preprocess(
+      (v) => (v === "" || v === undefined ? undefined : Number(v)),
+      z.number().int().min(1).optional(),
+    ),
     low: optDec,
     high: optDec,
     criticalLow: optDec,
@@ -66,10 +84,14 @@ export const referenceRangeSchema = z
     source: requiredText("Source / reference", 200),
   })
   .superRefine((v, ctx) => {
-    if (v.low !== undefined && v.high !== undefined && v.low > v.high) ctx.addIssue({ code: "custom", path: ["high"], message: "High must be ≥ low" });
-    if (v.criticalLow !== undefined && v.low !== undefined && v.criticalLow > v.low) ctx.addIssue({ code: "custom", path: ["criticalLow"], message: "Critical low must be ≤ low" });
-    if (v.criticalHigh !== undefined && v.high !== undefined && v.criticalHigh < v.high) ctx.addIssue({ code: "custom", path: ["criticalHigh"], message: "Critical high must be ≥ high" });
-    if (v.ageMaxDays !== undefined && v.ageMaxDays <= v.ageMinDays) ctx.addIssue({ code: "custom", path: ["ageMaxDays"], message: "Must exceed minimum age" });
+    if (v.low !== undefined && v.high !== undefined && v.low > v.high)
+      ctx.addIssue({ code: "custom", path: ["high"], message: "High must be ≥ low" });
+    if (v.criticalLow !== undefined && v.low !== undefined && v.criticalLow > v.low)
+      ctx.addIssue({ code: "custom", path: ["criticalLow"], message: "Critical low must be ≤ low" });
+    if (v.criticalHigh !== undefined && v.high !== undefined && v.criticalHigh < v.high)
+      ctx.addIssue({ code: "custom", path: ["criticalHigh"], message: "Critical high must be ≥ high" });
+    if (v.ageMaxDays !== undefined && v.ageMaxDays <= v.ageMinDays)
+      ctx.addIssue({ code: "custom", path: ["ageMaxDays"], message: "Must exceed minimum age" });
   });
 
 export const approveRuleSchema = z.object({ id: uuid, decision: z.enum(["APPROVE", "RETIRE"]) });

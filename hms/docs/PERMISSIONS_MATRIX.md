@@ -86,6 +86,8 @@
 | `clinical.prescribe` | CLINICAL |  |  | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `clinical.care_team.manage` | CLINICAL |  |  | ✓ | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `clinical.breakglass` | CLINICAL |  |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `clinical.rules.approve` | CLINICAL |  |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `clinical.results.review` | CLINICAL |  |  | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `nursing.mar.record` | CLINICAL |  |  |  |  |  | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `nursing.notes.write` | CLINICAL |  |  |  |  |  | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `maternity.read` | CLINICAL |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
@@ -199,6 +201,8 @@
 - `clinical.prescribe` (CLINICAL): Sign prescriptions
 - `clinical.care_team.manage` (CLINICAL): Assign clinicians and nurses to a patient's care team
 - `clinical.breakglass` (CLINICAL): Invoke logged emergency access to a patient record
+- `clinical.rules.approve` (CLINICAL): Approve clinical content: reference ranges, vital thresholds, templates
+- `clinical.results.review` (CLINICAL): Acknowledge review of verified results for patients under your care
 - `nursing.mar.record` (CLINICAL): Record medication administration
 - `nursing.notes.write` (CLINICAL): Write nursing notes and handovers
 - `maternity.read` (CLINICAL): View maternity episodes

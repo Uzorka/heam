@@ -6,11 +6,18 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from ".
 import type { diagnosisSchema, updateDiagnosisSchema } from "@/lib/schemas/clinical";
 import { careRoleFor, getEncounterAccess, joinCareTeam, loadEncounterFor } from "./access";
 
-export async function addDiagnosis(ctx: AuthContext, input: z.output<typeof diagnosisSchema>, db: DbClient = prisma) {
+export async function addDiagnosis(
+  ctx: AuthContext,
+  input: z.output<typeof diagnosisSchema>,
+  db: DbClient = prisma,
+) {
   const { enc } = await loadEncounterFor(ctx, input.encounterId, "clinical.diagnosis.write", {}, db);
   return withTx(db, async (tx) => {
     if (input.isPrimary) {
-      await tx.diagnosis.updateMany({ where: { encounterId: enc.id, isPrimary: true }, data: { isPrimary: false, version: { increment: 1 } } });
+      await tx.diagnosis.updateMany({
+        where: { encounterId: enc.id, isPrimary: true },
+        data: { isPrimary: false, version: { increment: 1 } },
+      });
     }
     const d = await tx.diagnosis.create({
       data: {
@@ -40,7 +47,11 @@ export async function addDiagnosis(ctx: AuthContext, input: z.output<typeof diag
   });
 }
 
-export async function updateDiagnosis(ctx: AuthContext, input: z.output<typeof updateDiagnosisSchema>, db: DbClient = prisma) {
+export async function updateDiagnosis(
+  ctx: AuthContext,
+  input: z.output<typeof updateDiagnosisSchema>,
+  db: DbClient = prisma,
+) {
   const d = await db.diagnosis.findUnique({ where: { id: input.id }, include: { encounter: true } });
   if (!d) throw new NotFoundError();
   await loadEncounterFor(ctx, d.encounterId, "clinical.diagnosis.write", {}, db);
@@ -69,7 +80,10 @@ export async function updateDiagnosis(ctx: AuthContext, input: z.output<typeof u
       resourceType: "Diagnosis",
       resourceId: d.id,
       patientId: d.patientId,
-      details: { from: { certainty: d.certainty, status: d.status }, to: { certainty: input.certainty ?? d.certainty, status: input.status ?? d.status } },
+      details: {
+        from: { certainty: d.certainty, status: d.status },
+        to: { certainty: input.certainty ?? d.certainty, status: input.status ?? d.status },
+      },
       meta: ctx.meta,
     });
   });

@@ -4,7 +4,9 @@
 
 - Node.js 22 app container(s) behind an HTTPS reverse proxy / load balancer (TLS 1.2+, HSTS).
 - Managed PostgreSQL 16 with encryption at rest, automated backups and PITR, private networking.
-- S3-compatible object storage with server-side encryption (documents, Phase 2+).
+- S3-compatible object storage with server-side encryption for documents. Set `STORAGE_DRIVER=s3`, `S3_BUCKET`,
+  `S3_REGION`, optional `S3_ENDPOINT` (MinIO etc.) and credentials. Block all public access on the bucket; the app
+  streams files through an authorised route and never issues public URLs.
 - Secrets from a secrets manager - never in images or the repository.
 
 ## Environment
@@ -18,6 +20,8 @@ See `.env.example`. Production requires: `DATABASE_URL` (least-privilege app use
 1. CI green (format, lint, typecheck, schema validate, unit, integration, build, E2E smoke).
 2. Backup / snapshot the database.
 3. `npx prisma migrate deploy` (migrations are forward-only; write a corrective migration rather than editing applied ones).
+   Then `npm run db:sync-permissions` to add any new permissions (granted only to template roles that include them;
+   every grant is audited).
 4. Deploy the new build; check `/api/health`.
 5. Smoke test sign-in, patient search, queue.
 6. Roll back by redeploying the previous build; schema changes must be backwards compatible for one release (expand → migrate → contract).

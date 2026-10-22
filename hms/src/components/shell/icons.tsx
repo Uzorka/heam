@@ -1,4 +1,9 @@
 import {
+  BookOpenCheck,
+  CalendarCog,
+  FileCheck2,
+  FlaskConical,
+  ScanLine,
   BedDouble,
   Building2,
   CalendarDays,
@@ -18,6 +23,11 @@ import {
 } from "lucide-react";
 
 export const NAV_ICONS: Record<string, LucideIcon> = {
+  BookOpenCheck,
+  CalendarCog,
+  FileCheck2,
+  FlaskConical,
+  ScanLine,
   BedDouble,
   Building2,
   CalendarDays,

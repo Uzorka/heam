@@ -37,6 +37,20 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Clinical",
+    items: [
+      {
+        href: "/queue?mine=1",
+        label: "My patients",
+        icon: "Stethoscope",
+        any: ["clinical.note.write", "nursing.notes.write"],
+      },
+      { href: "/results", label: "Results to review", icon: "FileCheck2", any: ["clinical.results.review"] },
+      { href: "/lab", label: "Laboratory", icon: "FlaskConical", any: ["lab.worklist"] },
+      { href: "/imaging", label: "Imaging", icon: "ScanLine", any: ["imaging.worklist"] },
+    ],
+  },
+  {
     label: "Administration",
     items: [
       {
@@ -52,7 +66,13 @@ const NAV: NavGroup[] = [
         any: ["settings.read"],
       },
       { href: "/admin/facilities", label: "Departments & beds", icon: "BedDouble", any: ["settings.read"] },
-      { href: "/admin/visit-types", label: "Visit types", icon: "Stethoscope", any: ["settings.read"] },
+      { href: "/admin/visit-types", label: "Visit types", icon: "CalendarCog", any: ["settings.read"] },
+      {
+        href: "/admin/clinical-catalogue",
+        label: "Clinical catalogue",
+        icon: "BookOpenCheck",
+        any: ["lab.catalogue.manage", "clinical.rules.approve"],
+      },
       {
         href: "/admin/settings",
         label: "System settings",

@@ -16,10 +16,21 @@ export const SECTION_LABELS: Record<NoteSection, string> = {
   body: "Note",
 };
 
-export const NOTE_TEMPLATES: Record<Exclude<ClinicalNoteType, "ADDENDUM">, { label: string; sections: NoteSection[] }> = {
+export const NOTE_TEMPLATES: Record<
+  Exclude<ClinicalNoteType, "ADDENDUM">,
+  { label: string; sections: NoteSection[] }
+> = {
   CONSULTATION: {
     label: "Consultation (SOAP)",
-    sections: ["chiefComplaint", "history", "reviewOfSystems", "examination", "assessment", "plan", "returnPrecautions"],
+    sections: [
+      "chiefComplaint",
+      "history",
+      "reviewOfSystems",
+      "examination",
+      "assessment",
+      "plan",
+      "returnPrecautions",
+    ],
   },
   PROGRESS: { label: "Progress note", sections: ["assessment", "plan"] },
   NURSING: { label: "Nursing note", sections: ["body"] },

@@ -19,11 +19,30 @@
 
 ## Nurse
 
-_Visit queue_ → _Awaiting vitals_ → after vitals (recorded in Phase 2) move to **Ready for doctor**. Nurses cannot take patients into consultation.
+_Visit queue_ → **Open visit** → _Vitals & triage_: record vitals (units shown; leave blank anything not measured) and the presenting complaint with your acuity judgement → **Ready for doctor**. A wrong entry is marked _entered in error_ and re-recorded - values are never edited. Nursing notes are signed with your password. Nurses cannot take patients into consultation.
 
 ## Doctor
 
-_Visit queue_ → _Ready for doctor_ (or _My patients_) → **In consultation** (adds you to the care team) → **Awaiting services / review** or **Ready to discharge**. The front desk closes the visit.
+_Visit queue_ → _Ready for doctor_ → **In consultation** (adds you to the care team) → **Open visit**:
+
+- _Notes_: start a Consultation (SOAP) draft, **Save draft** as you go, **Sign note** with your password. Corrections after signing: **Add addendum**.
+- _Diagnoses_: provisional or confirmed, optional ICD-10 code, optionally on the long-term problem list.
+- _Orders & results_: tick tests/studies, give the clinical indication, **Place orders** (a double click cannot duplicate them). Cancel only before the lab/imaging starts work.
+- Results arrive in **Results to review**: open the visit and **Mark reviewed**. Critical results show a red banner that must be **acknowledged** (who was informed, how).
+
+Then move to **Awaiting services / review** or **Ready to discharge**; the front desk closes the visit.
+
+## Laboratory
+
+_Laboratory_ worklist (STAT/urgent first) → open the request → **Record collection** (check two identifiers; print the label) → **Receive in lab** (or **Reject specimen** with a reason - the doctor is notified) → enter results → **Submit for verification**. A **different** scientist opens _To verify_ → **Verify & release** (password). After release, values change only through **Amend** (reason + password); the original stays on record and the doctor must review again. Attach analyser printouts or referral-lab reports and record their origin.
+
+## Imaging
+
+_Imaging_ worklist → **Schedule** / **Start examination** → findings and impression → **Sign report** (password). Corrections: **Issue amended report**. Attach exported images/reports; PACS is not connected.
+
+## Clinical content approval
+
+_Clinical catalogue_: propose reference ranges and vital-sign thresholds with their source; a **different** clinician with approval rights approves them. Only approved rules produce flags. Seeded values are placeholders and say so.
 
 ## Medical records
 

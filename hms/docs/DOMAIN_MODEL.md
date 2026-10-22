@@ -25,11 +25,26 @@ no hard deletes.
 - **Role change**: PENDING → APPROVED / REJECTED / CANCELLED (approver ≠ requester; stale role version rejected).
 - **Appointment**: BOOKED → CHECKED_IN → COMPLETED; BOOKED → CANCELLED / NO_SHOW (only after start) / RESCHEDULED (links to new booking).
 
-## Planned (Phases 2–6)
+## Implemented (Phase 2)
+
+| Area          | Entities                                                                                            | Notes                                                                                                                                               |
+| ------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Documentation | ClinicalNote, ClinicalNoteVersion                                                                   | Drafts versioned on save; SIGNED rows immutable (trigger); corrections are ADDENDUM notes; DISCARDED drafts kept                                    |
+| Observations  | VitalSign, TriageRecord, VitalThreshold                                                             | Units in column names; plausibility CHECKs; corrections only by entered-in-error marker (trigger); thresholds DRAFT → APPROVED by another clinician |
+| Diagnoses     | Diagnosis                                                                                           | Provisional / confirmed / refuted; active / resolved / entered-in-error; optional ICD-10; problem-list flag                                         |
+| Orders        | ServiceOrder, OrderStatusEvent                                                                      | One orderable item per row; `(requestGroupId, itemIndex)` unique = idempotency; per-kind state machine; no cancellation after work starts           |
+| Laboratory    | LabTestDefinition, LabTestComponent, LabReferenceRange, LabSpecimen, LabResult, CriticalResultAlert | Accession numbers; FINAL results immutable except supersession; one current FINAL per component; amendments link to the original                    |
+| Imaging       | ImagingStudyDefinition, ImagingReport                                                               | Signed reports immutable; amended reports reference the original                                                                                    |
+| Documents     | Document                                                                                            | Bytes in object storage under random keys; type by signature; voided, never deleted                                                                 |
+
+Order states: LAB `ORDERED → SPECIMEN_COLLECTED → IN_PROGRESS → RESULTED → VERIFIED` (rejection returns to ORDERED; a verifier
+can return RESULTED → IN_PROGRESS); IMAGING `ORDERED → (SCHEDULED) → IN_PROGRESS → RESULTED → VERIFIED`; PROCEDURE/REFERRAL
+`ORDERED → COMPLETED`; any kind → CANCELLED only before work starts.
+
+## Planned (Phases 3–6)
 
 | Phase | Entities                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2     | TriageRecord, VitalSign (with units), ClinicalNote, ClinicalNoteVersion (append-only, signed addenda), Diagnosis, CarePlan, ServiceOrder, LabTestDefinition, LabOrder, LabSpecimen, LabResult, LabResultVerification, ImagingOrder, ImagingReport, Document (S3 adapter)                                                                                                                                                                     |
 | 3     | MedicationCatalogueItem, Prescription, MedicationOrder, DispenseEvent, MedicationAdministration, InventoryProduct, InventoryLot, StockLocation, StockMovement (ledger), StockTransfer, StockCount, Supplier, PurchaseRequisition, PurchaseOrder, GoodsReceipt                                                                                                                                                                                |
 | 4     | ServiceCatalogueItem (effective-dated prices), InsurancePartner, InsurancePlan, InsuranceTariff, PatientCoverage, EligibilityCheck, CoverageDecision, Preauthorization(+Event), Claim, ClaimItem, ClaimStatusEvent, ClaimAttachment, Remittance, ClaimReconciliation, Invoice, InvoiceItem, Payment, PaymentAllocation, Refund, CreditNote, CashierShift, FinancialPosting, LedgerAccount, JournalEntry, JournalLine, IdempotencyKey, Outbox |
 | 5     | PregnancyEpisode, AntenatalVisit, PregnancyDatingEvent, LabourEpisode, DeliveryRecord, NewbornRelationship, PostnatalVisit, Admission, BedAssignment (exclusion constraint), BedStatusEvent, WardObservation, DischargeRecord                                                                                                                                                                                                                |

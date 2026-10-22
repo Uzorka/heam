@@ -12,7 +12,9 @@ import { ROLE_TEMPLATES } from "./role-templates";
  * - Existing role grants are never removed or overwritten: changes to running roles go through the
  *   two-person role-change workflow.
  */
-export async function syncPermissionCatalog(db: DbClient): Promise<{ created: string[]; granted: { role: string; permission: string }[] }> {
+export async function syncPermissionCatalog(
+  db: DbClient,
+): Promise<{ created: string[]; granted: { role: string; permission: string }[] }> {
   const existing = new Set((await db.permission.findMany({ select: { code: true } })).map((p) => p.code));
   const created: string[] = [];
   for (const p of PERMISSIONS) {
@@ -35,7 +37,10 @@ export async function syncPermissionCatalog(db: DbClient): Promise<{ created: st
       const role = await db.role.findUnique({ where: { code: t.code } });
       if (!role || !role.isSystemTemplate) continue;
       for (const code of created.filter((c) => (t.permissions as string[]).includes(c))) {
-        await db.rolePermission.createMany({ data: [{ roleId: role.id, permissionCode: code }], skipDuplicates: true });
+        await db.rolePermission.createMany({
+          data: [{ roleId: role.id, permissionCode: code }],
+          skipDuplicates: true,
+        });
         granted.push({ role: t.code, permission: code });
       }
     }

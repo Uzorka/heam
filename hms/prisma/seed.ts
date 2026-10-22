@@ -10,6 +10,7 @@
 import "dotenv/config";
 import { PrismaClient, type QueueStage, type SexAtBirth } from "@prisma/client";
 import { syncPermissionCatalog } from "../src/server/authz/catalog-sync";
+import { seedClinicalActivity, seedClinicalCatalogue } from "./seed-clinical";
 import { ROLE_TEMPLATES } from "../src/server/authz/role-templates";
 import { hashPassword } from "../src/server/auth/password";
 import { encryptField } from "../src/server/crypto";
@@ -43,7 +44,8 @@ function addDays(local: string, days: number) {
 
 async function seedAccessControl() {
   const sync = await syncPermissionCatalog(prisma);
-  if (sync.granted.length) console.warn(`Granted ${sync.granted.length} new release permission(s) to template roles.`);
+  if (sync.granted.length)
+    console.warn(`Granted ${sync.granted.length} new release permission(s) to template roles.`);
   const roles: Record<string, string> = {};
   for (const t of ROLE_TEMPLATES) {
     const existing = await prisma.role.findUnique({ where: { code: t.code } });
@@ -410,6 +412,13 @@ const DEMO_USERS: DemoUser[] = [
     email: "lab",
     given: "Yusuf",
     family: "Abdullahi",
+    title: "Medical Laboratory Scientist",
+    roles: ["LAB_SCIENTIST"],
+  },
+  {
+    email: "lab2",
+    given: "Ifeoma",
+    family: "Nwachukwu",
     title: "Medical Laboratory Scientist",
     roles: ["LAB_SCIENTIST"],
   },
@@ -1025,6 +1034,9 @@ async function main() {
   const { main } = await seedOrganisation();
   const users = await seedUsers(roles, main.id);
   const patients = await seedPatients(main.id, users);
+  await seedClinicalCatalogue(prisma, users.lab!);
+  const clinical = await seedClinicalActivity(prisma, users);
+  if (clinical) console.warn("Seeded demo clinical activity (orders, notes, results).");
   await recordAudit(prisma, {
     actorType: "SYSTEM",
     action: "seed.loaded",

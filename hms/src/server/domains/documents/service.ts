@@ -20,30 +20,53 @@ export interface UploadInput {
   sourceDescription?: string;
 }
 
-async function authorizeAttach(ctx: AuthContext, input: Pick<UploadInput, "orderId" | "encounterId">, db: DbClient) {
+async function authorizeAttach(
+  ctx: AuthContext,
+  input: Pick<UploadInput, "orderId" | "encounterId">,
+  db: DbClient,
+) {
   if (input.orderId) {
-    const order = await db.serviceOrder.findUnique({ where: { id: input.orderId }, include: { encounter: true } });
+    const order = await db.serviceOrder.findUnique({
+      where: { id: input.orderId },
+      include: { encounter: true },
+    });
     if (!order) throw new NotFoundError("Order not found.");
-    const perm = order.kind === "LAB" ? "lab.result.enter" : order.kind === "IMAGING" ? "imaging.report.write" : "clinical.note.write";
+    const perm =
+      order.kind === "LAB"
+        ? "lab.result.enter"
+        : order.kind === "IMAGING"
+          ? "imaging.report.write"
+          : "clinical.note.write";
     if (!can(ctx, perm, { branchId: order.branchId })) throw new ForbiddenError(undefined, perm);
-    if (perm === "clinical.note.write" && !(await getEncounterAccess(ctx, order.encounter, db))) throw new ForbiddenError();
+    if (perm === "clinical.note.write" && !(await getEncounterAccess(ctx, order.encounter, db)))
+      throw new ForbiddenError();
     return { patientId: order.patientId, encounterId: order.encounterId, orderId: order.id };
   }
   if (input.encounterId) {
     const enc = await db.encounter.findUnique({ where: { id: input.encounterId } });
     if (!enc) throw new NotFoundError("Visit not found.");
-    if (!can(ctx, "clinical.note.write", { branchId: enc.branchId }) || !(await getEncounterAccess(ctx, enc, db))) throw new ForbiddenError();
+    if (
+      !can(ctx, "clinical.note.write", { branchId: enc.branchId }) ||
+      !(await getEncounterAccess(ctx, enc, db))
+    )
+      throw new ForbiddenError();
     return { patientId: enc.patientId, encounterId: enc.id, orderId: null };
   }
   throw new ValidationError("Attach the document to an order or a visit.");
 }
 
-export async function uploadDocument(ctx: AuthContext, input: UploadInput, store: StorageDriver, db: DbClient = prisma) {
+export async function uploadDocument(
+  ctx: AuthContext,
+  input: UploadInput,
+  store: StorageDriver,
+  db: DbClient = prisma,
+) {
   if (input.bytes.length === 0) throw new ValidationError("The file is empty.");
   if (input.bytes.length > MAX_UPLOAD_BYTES) throw new ValidationError("Files must be 10 MB or smaller.");
   const type = sniffType(input.bytes);
   if (!type) throw new ValidationError("Only PDF, PNG and JPEG files are accepted.");
-  if (input.source === "EXTERNAL" && !input.sourceDescription) throw new ValidationError("Say where an external document came from.", { sourceDescription: "Required" });
+  if (input.source === "EXTERNAL" && !input.sourceDescription)
+    throw new ValidationError("Say where an external document came from.", { sourceDescription: "Required" });
   const links = await authorizeAttach(ctx, input, db);
   const scan = await scanUpload(input.bytes);
   if (scan === "INFECTED") throw new ValidationError("The file failed the security scan and was not stored.");
@@ -83,13 +106,23 @@ export async function uploadDocument(ctx: AuthContext, input: UploadInput, store
 }
 
 /** Per-request authorisation for a download. Every attempt (allowed or denied) is audited. */
-export async function authorizeDownload(ctx: AuthContext, documentId: string, db: DbClient = prisma): Promise<Document> {
-  const doc = await db.document.findUnique({ where: { id: documentId }, include: { order: { include: { encounter: true } }, encounter: true } });
+export async function authorizeDownload(
+  ctx: AuthContext,
+  documentId: string,
+  db: DbClient = prisma,
+): Promise<Document> {
+  const doc = await db.document.findUnique({
+    where: { id: documentId },
+    include: { order: { include: { encounter: true } }, encounter: true },
+  });
   if (!doc || doc.voidedAt) throw new NotFoundError("Document not found.");
   let allowed = false;
   if (doc.order) {
-    const worklist = doc.order.kind === "LAB" ? "lab.worklist" : doc.order.kind === "IMAGING" ? "imaging.worklist" : null;
-    allowed = (!!worklist && can(ctx, worklist, { branchId: doc.order.branchId })) || !!(await getEncounterAccess(ctx, doc.order.encounter, db));
+    const worklist =
+      doc.order.kind === "LAB" ? "lab.worklist" : doc.order.kind === "IMAGING" ? "imaging.worklist" : null;
+    allowed =
+      (!!worklist && can(ctx, worklist, { branchId: doc.order.branchId })) ||
+      !!(await getEncounterAccess(ctx, doc.order.encounter, db));
   } else if (doc.encounter) {
     allowed = !!(await getEncounterAccess(ctx, doc.encounter, db));
   } else if (doc.patientId) {
@@ -109,13 +142,29 @@ export async function authorizeDownload(ctx: AuthContext, documentId: string, db
   return doc;
 }
 
-export async function voidDocument(ctx: AuthContext, input: { documentId: string; reason: string }, db: DbClient = prisma) {
+export async function voidDocument(
+  ctx: AuthContext,
+  input: { documentId: string; reason: string },
+  db: DbClient = prisma,
+) {
   const doc = await db.document.findUnique({ where: { id: input.documentId } });
   if (!doc || doc.voidedAt) throw new NotFoundError();
-  if (doc.uploadedById !== ctx.userId && !can(ctx, "clinical.read.branch_wide")) throw new ForbiddenError("Only the uploader or a clinical supervisor can void a document.");
+  if (doc.uploadedById !== ctx.userId && !can(ctx, "clinical.read.branch_wide"))
+    throw new ForbiddenError("Only the uploader or a clinical supervisor can void a document.");
   if (input.reason.trim().length < 5) throw new ConflictError("Give a reason.");
   await withTx(db, async (tx) => {
-    await tx.document.update({ where: { id: doc.id }, data: { voidedAt: new Date(), voidedById: ctx.userId, voidReason: input.reason } });
-    await recordAudit(tx, { actorType: "USER", actorUserId: ctx.userId, action: "document.void", resourceType: "Document", resourceId: doc.id, patientId: doc.patientId, meta: ctx.meta });
+    await tx.document.update({
+      where: { id: doc.id },
+      data: { voidedAt: new Date(), voidedById: ctx.userId, voidReason: input.reason },
+    });
+    await recordAudit(tx, {
+      actorType: "USER",
+      actorUserId: ctx.userId,
+      action: "document.void",
+      resourceType: "Document",
+      resourceId: doc.id,
+      patientId: doc.patientId,
+      meta: ctx.meta,
+    });
   });
 }

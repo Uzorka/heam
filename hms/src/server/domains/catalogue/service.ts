@@ -12,7 +12,12 @@ export async function listLabCatalogue(db: DbClient = prisma) {
     include: {
       components: {
         orderBy: { sortOrder: "asc" },
-        include: { ranges: { where: { status: { not: "RETIRED" } }, orderBy: [{ status: "asc" }, { sex: "asc" }, { ageMinDays: "asc" }] } },
+        include: {
+          ranges: {
+            where: { status: { not: "RETIRED" } },
+            orderBy: [{ status: "asc" }, { sex: "asc" }, { ageMinDays: "asc" }],
+          },
+        },
       },
     },
   });
@@ -22,7 +27,11 @@ export async function listImagingCatalogue(db: DbClient = prisma) {
   return db.imagingStudyDefinition.findMany({ orderBy: [{ modality: "asc" }, { name: "asc" }] });
 }
 
-export async function createLabTest(ctx: AuthContext, input: z.output<typeof labTestSchema>, db: DbClient = prisma) {
+export async function createLabTest(
+  ctx: AuthContext,
+  input: z.output<typeof labTestSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "lab.catalogue.manage");
   try {
     return await withTx(db, async (tx) => {
@@ -45,7 +54,15 @@ export async function createLabTest(ctx: AuthContext, input: z.output<typeof lab
           },
         },
       });
-      await recordAudit(tx, { actorType: "USER", actorUserId: ctx.userId, action: "lab.catalogue.test_create", resourceType: "LabTestDefinition", resourceId: t.id, details: { code: t.code }, meta: ctx.meta });
+      await recordAudit(tx, {
+        actorType: "USER",
+        actorUserId: ctx.userId,
+        action: "lab.catalogue.test_create",
+        resourceType: "LabTestDefinition",
+        resourceId: t.id,
+        details: { code: t.code },
+        meta: ctx.meta,
+      });
       return t;
     });
   } catch (e) {
@@ -54,15 +71,32 @@ export async function createLabTest(ctx: AuthContext, input: z.output<typeof lab
   }
 }
 
-export async function setLabTestActive(ctx: AuthContext, testId: string, active: boolean, db: DbClient = prisma) {
+export async function setLabTestActive(
+  ctx: AuthContext,
+  testId: string,
+  active: boolean,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "lab.catalogue.manage");
   await withTx(db, async (tx) => {
     await tx.labTestDefinition.update({ where: { id: testId }, data: { active } });
-    await recordAudit(tx, { actorType: "USER", actorUserId: ctx.userId, action: "lab.catalogue.test_active", resourceType: "LabTestDefinition", resourceId: testId, details: { active }, meta: ctx.meta });
+    await recordAudit(tx, {
+      actorType: "USER",
+      actorUserId: ctx.userId,
+      action: "lab.catalogue.test_active",
+      resourceType: "LabTestDefinition",
+      resourceId: testId,
+      details: { active },
+      meta: ctx.meta,
+    });
   });
 }
 
-export async function proposeReferenceRange(ctx: AuthContext, input: z.output<typeof referenceRangeSchema>, db: DbClient = prisma) {
+export async function proposeReferenceRange(
+  ctx: AuthContext,
+  input: z.output<typeof referenceRangeSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "lab.catalogue.manage");
   const comp = await db.labTestComponent.findUnique({ where: { id: input.componentId } });
   if (!comp) throw new NotFoundError();
@@ -82,28 +116,50 @@ export async function proposeReferenceRange(ctx: AuthContext, input: z.output<ty
         createdById: ctx.userId,
       },
     });
-    await recordAudit(tx, { actorType: "USER", actorUserId: ctx.userId, action: "lab.range.propose", resourceType: "LabReferenceRange", resourceId: r.id, details: { componentId: comp.id }, meta: ctx.meta });
+    await recordAudit(tx, {
+      actorType: "USER",
+      actorUserId: ctx.userId,
+      action: "lab.range.propose",
+      resourceType: "LabReferenceRange",
+      resourceId: r.id,
+      details: { componentId: comp.id },
+      meta: ctx.meta,
+    });
     return r;
   });
 }
 
 /** Approving clinical content: a different person, holding clinical.rules.approve. */
-export async function decideReferenceRange(ctx: AuthContext, input: z.output<typeof approveRuleSchema>, db: DbClient = prisma) {
+export async function decideReferenceRange(
+  ctx: AuthContext,
+  input: z.output<typeof approveRuleSchema>,
+  db: DbClient = prisma,
+) {
   requirePermission(ctx, "clinical.rules.approve");
   const r = await db.labReferenceRange.findUnique({ where: { id: input.id } });
   if (!r) throw new NotFoundError();
   if (input.decision === "APPROVE") {
     if (r.status !== "DRAFT") throw new ConflictError("Only drafts can be approved.");
-    if (r.createdById === ctx.userId) throw new ForbiddenError("Clinical content must be approved by someone other than its author.");
+    if (r.createdById === ctx.userId)
+      throw new ForbiddenError("Clinical content must be approved by someone other than its author.");
   }
   await withTx(db, async (tx) => {
     if (input.decision === "APPROVE") {
       // Retire an overlapping approved range for the same component/sex/age band.
       await tx.labReferenceRange.updateMany({
-        where: { componentId: r.componentId, sex: r.sex, ageMinDays: r.ageMinDays, ageMaxDays: r.ageMaxDays, status: "APPROVED" },
+        where: {
+          componentId: r.componentId,
+          sex: r.sex,
+          ageMinDays: r.ageMinDays,
+          ageMaxDays: r.ageMaxDays,
+          status: "APPROVED",
+        },
         data: { status: "RETIRED" },
       });
-      await tx.labReferenceRange.update({ where: { id: r.id }, data: { status: "APPROVED", approvedById: ctx.userId, approvedAt: new Date() } });
+      await tx.labReferenceRange.update({
+        where: { id: r.id },
+        data: { status: "APPROVED", approvedById: ctx.userId, approvedAt: new Date() },
+      });
     } else {
       await tx.labReferenceRange.update({ where: { id: r.id }, data: { status: "RETIRED" } });
     }
@@ -116,4 +172,34 @@ export async function decideReferenceRange(ctx: AuthContext, input: z.output<typ
       meta: ctx.meta,
     });
   });
+}
+
+export async function createImagingStudy(
+  ctx: AuthContext,
+  input: {
+    code: string;
+    name: string;
+    modality: "XRAY" | "ULTRASOUND" | "CT" | "MRI" | "ECG" | "OTHER";
+    bodyPart?: string;
+  },
+  db: DbClient = prisma,
+) {
+  requirePermission(ctx, "lab.catalogue.manage");
+  try {
+    return await withTx(db, async (tx) => {
+      const s = await tx.imagingStudyDefinition.create({ data: input });
+      await recordAudit(tx, {
+        actorType: "USER",
+        actorUserId: ctx.userId,
+        action: "imaging.catalogue.create",
+        resourceType: "ImagingStudyDefinition",
+        resourceId: s.id,
+        meta: ctx.meta,
+      });
+      return s;
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new ConflictError("A study with that code already exists.");
+    throw e;
+  }
 }

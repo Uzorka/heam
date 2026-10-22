@@ -164,25 +164,92 @@ export async function frontDeskSummary(ctx: AuthContext, db: DbClient = prisma) 
   };
 }
 
+export async function labSummary(ctx: AuthContext, db: DbClient = prisma) {
+  const branchId = requireActingBranch(ctx, "lab.worklist");
+  const grouped = await db.serviceOrder.groupBy({
+    by: ["status", "priority"],
+    where: {
+      branchId,
+      kind: "LAB",
+      status: { in: ["ORDERED", "SPECIMEN_COLLECTED", "IN_PROGRESS", "RESULTED"] },
+    },
+    _count: { _all: true },
+  });
+  const sum = (status: string) =>
+    grouped.filter((g) => g.status === status).reduce((n, g) => n + g._count._all, 0);
+  const verified = await db.serviceOrder.findMany({
+    where: {
+      branchId,
+      kind: "LAB",
+      status: "VERIFIED",
+      verifiedAt: { gt: new Date(Date.now() - 7 * 86_400_000) },
+    },
+    select: { orderedAt: true, verifiedAt: true },
+    take: 2000,
+  });
+  const tat = verified.map((v) => Math.round((v.verifiedAt!.getTime() - v.orderedAt.getTime()) / 60_000));
+  return {
+    toCollect: sum("ORDERED"),
+    toReceive: sum("SPECIMEN_COLLECTED"),
+    inProgress: sum("IN_PROGRESS"),
+    toVerify: sum("RESULTED"),
+    statOpen: grouped.filter((g) => g.priority === "STAT").reduce((n, g) => n + g._count._all, 0),
+    medianTatMinutes: median(tat),
+    tatSample: tat.length,
+  };
+}
+
 export async function clinicianSummary(ctx: AuthContext, db: DbClient = prisma) {
   const branchId = requireActingBranch(ctx, "queue.read");
   const { start, end } = localDayRange(todayLocal());
-  const [myOpen, readyForDoctor, myAppointments, awaitingVitals] = await Promise.all([
-    db.encounter.count({
-      where: { branchId, status: "OPEN", careTeam: { some: { userId: ctx.userId, endedAt: null } } },
-    }),
-    db.encounter.count({ where: { branchId, status: "OPEN", queueStage: "READY_FOR_DOCTOR" } }),
-    db.appointment.count({
-      where: {
-        branchId,
-        clinicianId: ctx.userId,
-        startAt: { gte: start, lt: end },
-        status: { in: ["BOOKED", "CHECKED_IN"] },
-      },
-    }),
-    db.encounter.count({ where: { branchId, status: "OPEN", queueStage: "AWAITING_VITALS" } }),
-  ]);
-  return { generatedAt: new Date(), myOpen, readyForDoctor, myAppointments, awaitingVitals };
+  const [myOpen, readyForDoctor, myAppointments, awaitingVitals, resultsToReview, criticalOpen] =
+    await Promise.all([
+      db.encounter.count({
+        where: { branchId, status: "OPEN", careTeam: { some: { userId: ctx.userId, endedAt: null } } },
+      }),
+      db.encounter.count({ where: { branchId, status: "OPEN", queueStage: "READY_FOR_DOCTOR" } }),
+      db.appointment.count({
+        where: {
+          branchId,
+          clinicianId: ctx.userId,
+          startAt: { gte: start, lt: end },
+          status: { in: ["BOOKED", "CHECKED_IN"] },
+        },
+      }),
+      db.encounter.count({ where: { branchId, status: "OPEN", queueStage: "AWAITING_VITALS" } }),
+      db.serviceOrder.count({
+        where: {
+          branchId,
+          status: "VERIFIED",
+          reviewedAt: null,
+          OR: [
+            { orderedById: ctx.userId },
+            { encounter: { careTeam: { some: { userId: ctx.userId, endedAt: null } } } },
+          ],
+        },
+      }),
+      db.criticalResultAlert.count({
+        where: {
+          acknowledgedAt: null,
+          order: {
+            branchId,
+            OR: [
+              { orderedById: ctx.userId },
+              { encounter: { careTeam: { some: { userId: ctx.userId, endedAt: null } } } },
+            ],
+          },
+        },
+      }),
+    ]);
+  return {
+    generatedAt: new Date(),
+    myOpen,
+    readyForDoctor,
+    myAppointments,
+    awaitingVitals,
+    resultsToReview,
+    criticalOpen,
+  };
 }
 
 /** Visits per hospital-local day in range (for the trend chart and its table alternative). */
@@ -216,7 +283,7 @@ export async function visitsByDay(ctx: AuthContext, from: string, to: string, db
 }
 
 export async function pendingApprovals(ctx: AuthContext, db: DbClient = prisma) {
-  const [roleChanges, breakGlass, merges] = await Promise.all([
+  const [roleChanges, breakGlass, merges, clinicalRules] = await Promise.all([
     can(ctx, "roles.approve_change")
       ? db.roleChangeRequest.count({ where: { status: "PENDING", NOT: { requestedById: ctx.userId } } })
       : null,
@@ -228,6 +295,12 @@ export async function pendingApprovals(ctx: AuthContext, db: DbClient = prisma) 
           where: { status: "MERGE_REQUESTED", NOT: { mergeRequestedById: ctx.userId } },
         })
       : null,
+    can(ctx, "clinical.rules.approve")
+      ? Promise.all([
+          db.labReferenceRange.count({ where: { status: "DRAFT", NOT: { createdById: ctx.userId } } }),
+          db.vitalThreshold.count({ where: { status: "DRAFT", NOT: { createdById: ctx.userId } } }),
+        ]).then(([a, b]) => a + b)
+      : null,
   ]);
-  return { roleChanges, breakGlass, merges };
+  return { roleChanges, breakGlass, merges, clinicalRules };
 }

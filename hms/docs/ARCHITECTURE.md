@@ -38,20 +38,22 @@ built from permissions, but hiding a link is never relied on.
 
 ## Domains (current and planned)
 
-| Domain                                           | Folder                                  | Phase                                   |
-| ------------------------------------------------ | --------------------------------------- | --------------------------------------- |
-| auth, sessions, MFA                              | `server/auth`, `domains/security`       | 1 ✅                                    |
-| authorisation, roles                             | `server/authz`, `domains/staff`         | 1 ✅                                    |
-| audit                                            | `server/audit.ts`, `domains/audit`      | 1 ✅                                    |
-| settings / setup                                 | `domains/settings`                      | 1 ✅                                    |
-| patients                                         | `domains/patients`                      | 1 ✅                                    |
-| appointments, queue                              | `domains/appointments`, `domains/queue` | 1 ✅                                    |
-| dashboards                                       | `domains/dashboard`                     | 1 ✅ (only metrics backed by real data) |
-| encounters/EMR, nursing, lab, imaging            | `domains/clinical`, `lab`, `imaging`    | 2                                       |
-| pharmacy, inventory, procurement                 | `domains/pharmacy`, `inventory`         | 3                                       |
-| billing, payments, HMO, finance                  | `domains/billing`, `hmo`, `finance`     | 4                                       |
-| maternity, admissions                            | `domains/maternity`, `admissions`       | 5                                       |
-| HR/payroll, portal, reports, notifications, FHIR | …                                       | 6                                       |
+| Domain                                                   | Folder                                  | Phase                                   |
+| -------------------------------------------------------- | --------------------------------------- | --------------------------------------- |
+| auth, sessions, MFA                                      | `server/auth`, `domains/security`       | 1 ✅                                    |
+| authorisation, roles                                     | `server/authz`, `domains/staff`         | 1 ✅                                    |
+| audit                                                    | `server/audit.ts`, `domains/audit`      | 1 ✅                                    |
+| settings / setup                                         | `domains/settings`                      | 1 ✅                                    |
+| patients                                                 | `domains/patients`                      | 1 ✅                                    |
+| appointments, queue                                      | `domains/appointments`, `domains/queue` | 1 ✅                                    |
+| dashboards                                               | `domains/dashboard`                     | 1 ✅ (only metrics backed by real data) |
+| encounters/EMR, vitals, triage, notes, diagnoses, orders | `domains/clinical`                      | 2 ✅                                    |
+| laboratory, imaging, clinical catalogue                  | `domains/lab`, `imaging`, `catalogue`   | 2 ✅                                    |
+| documents (storage adapter, audited downloads)           | `domains/documents`                     | 2 ✅                                    |
+| pharmacy, inventory, procurement                         | `domains/pharmacy`, `inventory`         | 3                                       |
+| billing, payments, HMO, finance                          | `domains/billing`, `hmo`, `finance`     | 4                                       |
+| maternity, admissions                                    | `domains/maternity`, `admissions`       | 5                                       |
+| HR/payroll, portal, reports, notifications, FHIR         | …                                       | 6                                       |
 
 ## Key decisions
 
@@ -66,6 +68,9 @@ built from permissions, but hiding a link is never relied on.
 | Encrypted identifiers + blind index                                                  | AES-256-GCM with versioned key prefix; HMAC blind index for exact matching (duplicate detection) without decrypting.                                                                                                                                                       |
 | No group-level `loading.tsx`                                                         | Reproducible client-navigation stalls with Next 15.5; use scoped Suspense.                                                                                                                                                                                                 |
 | Link prefetch disabled                                                               | Avoids speculative loading of patient pages (privacy) and keeps audit "view" events meaningful.                                                                                                                                                                            |
+| Two clinical access levels                                                           | _Current visit_ (open encounter in the user's branch) vs _full history_ (care relationship, branch-wide permission or break-glass). Documenting care adds the author to the care team.                                                                                     |
+| Electronic signature = password re-entry                                             | Notes, result verification and imaging reports require the signer to re-enter their password; 5 failures block signing for 15 minutes. Signed content is hashed and immutable at DB level.                                                                                 |
+| Clinical content needs approval                                                      | Reference ranges and vital thresholds flag values only once APPROVED by a clinician other than the author.                                                                                                                                                                 |
 
 ## Interoperability
 

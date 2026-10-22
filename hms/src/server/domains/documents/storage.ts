@@ -43,7 +43,13 @@ class S3Driver implements StorageDriver {
   }
   async put(key: string, bytes: Buffer, contentType: string) {
     await this.client.send(
-      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: bytes, ContentType: contentType, ServerSideEncryption: "AES256" }),
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: bytes,
+        ContentType: contentType,
+        ServerSideEncryption: "AES256",
+      }),
     );
   }
   async get(key: string) {

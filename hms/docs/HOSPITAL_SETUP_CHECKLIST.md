@@ -23,6 +23,10 @@ audited).
 - Staff list, role assignments, who approves role changes, merges and break-glass reviews.
 - Privacy notice wording and version; lawful bases per processing purpose (NDPA 2023, legal review).
 - Retention schedule (record types, periods, destruction approval) - retention workflows stay disabled until approved.
-- Clinical content (Phase 2+): templates, reference ranges, medication frequency dictionaries - each with a named clinical approver.
+- Clinical content: the seeded lab reference ranges and vital-sign thresholds are **placeholders** (DRAFT). The laboratory director / medical director must validate them against the hospital's analysers and population and approve them in _Clinical catalogue_ (approver ≠ author). Until then results and vitals are shown without flags.
+- Triage acuity categories (Immediate … Non-urgent) are a placeholder scale; confirm or replace with the hospital's approved triage system.
+- SOAP note headings need medical director sign-off before customisation.
+- Decide whether nurses may collect specimens (currently a laboratory permission) and whether lab results always need a second verifier (setting, default on).
+- Imaging: confirm modalities actually offered on site; PACS/DICOM integration needs vendor details.
 - Prices, tariffs, HMO contracts and rules (Phase 4) - entered and approved by finance/HMO officers.
 - Payroll policies (Phase 6) - reviewed by a payroll specialist against current Nigerian law.

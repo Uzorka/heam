@@ -27,13 +27,32 @@ export const vitalsSchema = z
     notes: optionalText(300),
   })
   .superRefine((v, ctx) => {
-    const keys = ["temperatureC", "pulseBpm", "respRatePerMin", "systolicMmHg", "diastolicMmHg", "spo2Pct", "weightKg", "heightCm", "painScore"] as const;
-    if (!keys.some((k) => v[k] !== undefined)) ctx.addIssue({ code: "custom", path: ["_form"], message: "Enter at least one measurement" });
+    const keys = [
+      "temperatureC",
+      "pulseBpm",
+      "respRatePerMin",
+      "systolicMmHg",
+      "diastolicMmHg",
+      "spo2Pct",
+      "weightKg",
+      "heightCm",
+      "painScore",
+    ] as const;
+    if (!keys.some((k) => v[k] !== undefined))
+      ctx.addIssue({ code: "custom", path: ["_form"], message: "Enter at least one measurement" });
     if ((v.systolicMmHg === undefined) !== (v.diastolicMmHg === undefined)) {
-      ctx.addIssue({ code: "custom", path: ["diastolicMmHg"], message: "Enter both systolic and diastolic pressure" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["diastolicMmHg"],
+        message: "Enter both systolic and diastolic pressure",
+      });
     }
     if (v.systolicMmHg !== undefined && v.diastolicMmHg !== undefined && v.diastolicMmHg >= v.systolicMmHg) {
-      ctx.addIssue({ code: "custom", path: ["diastolicMmHg"], message: "Diastolic must be lower than systolic" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["diastolicMmHg"],
+        message: "Diastolic must be lower than systolic",
+      });
     }
   });
 
@@ -59,7 +78,10 @@ export const NOTE_SECTIONS = [
 export type NoteSection = (typeof NOTE_SECTIONS)[number];
 
 export const noteContentSchema = z.object(
-  Object.fromEntries(NOTE_SECTIONS.map((s) => [s, z.string().max(20000).optional()])) as Record<NoteSection, z.ZodOptional<z.ZodString>>,
+  Object.fromEntries(NOTE_SECTIONS.map((s) => [s, z.string().max(20000).optional()])) as Record<
+    NoteSection,
+    z.ZodOptional<z.ZodString>
+  >,
 );
 
 export const createNoteSchema = z.object({
@@ -121,4 +143,8 @@ export const placeOrdersSchema = z.object({
   items: z.array(orderItemSchema).min(1, "Choose at least one item").max(30),
 });
 
-export const cancelOrderSchema = z.object({ orderId: uuid, version: z.number().int().min(0), reason: requiredText("Reason", 300) });
+export const cancelOrderSchema = z.object({
+  orderId: uuid,
+  version: z.number().int().min(0),
+  reason: requiredText("Reason", 300),
+});

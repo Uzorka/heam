@@ -20,7 +20,9 @@ export function selectRange<T extends RangeLike>(ranges: T[], sex: string, ageDa
   const candidates = ranges.filter(
     (r) =>
       (r.sex === "ANY" || r.sex === sex) &&
-      (ageDays === null ? r.ageMinDays === 0 && r.ageMaxDays === null : ageDays >= r.ageMinDays && (r.ageMaxDays === null || ageDays < r.ageMaxDays)),
+      (ageDays === null
+        ? r.ageMinDays === 0 && r.ageMaxDays === null
+        : ageDays >= r.ageMinDays && (r.ageMaxDays === null || ageDays < r.ageMaxDays)),
   );
   candidates.sort((a, b) => {
     if ((a.sex === "ANY") !== (b.sex === "ANY")) return a.sex === "ANY" ? 1 : -1;

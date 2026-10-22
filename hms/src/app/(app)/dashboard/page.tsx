@@ -7,6 +7,7 @@ import {
   clinicianSummary,
   executiveSummary,
   frontDeskSummary,
+  labSummary,
   pendingApprovals,
   visitsByDay,
 } from "@/server/domains/dashboard/metrics";
@@ -57,13 +58,16 @@ export default async function DashboardPage({
 
   const showExec = can(ctx, "report.executive");
   const showDesk = can(ctx, "queue.read") && !!ctx.activeBranchId;
-  const showClinician = can(ctx, "clinical.note.write") && !!ctx.activeBranchId;
-  const [exec, trend, desk, clin, approvals] = await Promise.all([
+  const showClinician =
+    (can(ctx, "clinical.note.write") || can(ctx, "nursing.notes.write")) && !!ctx.activeBranchId;
+  const showLab = can(ctx, "lab.worklist") && !!ctx.activeBranchId;
+  const [exec, trend, desk, clin, approvals, lab] = await Promise.all([
     showExec ? executiveSummary(ctx, from, to) : null,
     showExec ? visitsByDay(ctx, from, to) : null,
     showDesk ? frontDeskSummary(ctx) : null,
     showClinician ? clinicianSummary(ctx) : null,
     pendingApprovals(ctx),
+    showLab ? labSummary(ctx) : null,
   ]);
   const hasApprovals =
     (approvals.roleChanges ?? 0) + (approvals.breakGlass ?? 0) + (approvals.merges ?? 0) > 0;
@@ -90,6 +94,13 @@ export default async function DashboardPage({
               <Button asChild variant="secondary" size="sm">
                 <Link prefetch={false} href="/patients/duplicates?status=MERGE_REQUESTED">
                   {approvals.merges} patient merge(s) to approve
+                </Link>
+              </Button>
+            )}
+            {!!approvals.clinicalRules && (
+              <Button asChild variant="secondary" size="sm">
+                <Link prefetch={false} href="/admin/clinical-catalogue">
+                  {approvals.clinicalRules} clinical rule(s) to approve
                 </Link>
               </Button>
             )}
@@ -127,7 +138,45 @@ export default async function DashboardPage({
               value={clin.awaitingVitals}
               href="/queue?stage=AWAITING_VITALS"
             />
+            {can(ctx, "clinical.results.review") && (
+              <StatTile
+                label="Results to review"
+                value={clin.resultsToReview}
+                href="/results"
+                hint="Verified, not yet marked reviewed"
+              />
+            )}
+            {clin.criticalOpen > 0 && (
+              <StatTile
+                label="Critical results - acknowledge"
+                value={clin.criticalOpen}
+                href="/results"
+                tone="danger"
+              />
+            )}
           </div>
+        </section>
+      )}
+
+      {lab && (
+        <section aria-labelledby="lab-h" className="mb-8">
+          <h2 id="lab-h" className="mb-3 text-[15px] font-semibold">
+            Laboratory
+          </h2>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <StatTile label="To collect" value={lab.toCollect} href="/lab?tab=TO_COLLECT" />
+            <StatTile label="To receive" value={lab.toReceive} href="/lab?tab=TO_RECEIVE" />
+            <StatTile label="In progress" value={lab.inProgress} href="/lab?tab=IN_PROGRESS" />
+            <StatTile label="To verify" value={lab.toVerify} href="/lab?tab=TO_VERIFY" />
+            <StatTile
+              label="Median turnaround (7 days)"
+              value={lab.medianTatMinutes === null ? "-" : `${Math.round(lab.medianTatMinutes / 6) / 10} h`}
+              hint={`Order to verification, n=${lab.tatSample}`}
+            />
+          </div>
+          {lab.statOpen > 0 && (
+            <p className="mt-2 text-[13px] font-medium text-danger">{lab.statOpen} STAT request(s) open</p>
+          )}
         </section>
       )}
 
@@ -268,9 +317,9 @@ export default async function DashboardPage({
             </Card>
           </div>
           <Alert tone="info" title="Not yet measured">
-            Lab turnaround, dispensing, revenue, receivables, HMO claims, deliveries, stock and staff on duty
-            appear here once those modules are implemented (Phases 2-6). They are deliberately not shown as
-            placeholder numbers.
+            Dispensing, revenue, receivables, HMO claims, deliveries, stock and staff on duty appear here once
+            those modules are implemented (Phases 2-6). They are deliberately not shown as placeholder
+            numbers.
           </Alert>
         </section>
       )}

@@ -17,7 +17,8 @@ function permissionFor(type: ClinicalNoteType) {
 }
 
 function canSign(ctx: AuthContext, type: ClinicalNoteType, branchId: string) {
-  if (type === "NURSING") return can(ctx, "nursing.notes.write", { branchId }) || can(ctx, "clinical.note.sign", { branchId });
+  if (type === "NURSING")
+    return can(ctx, "nursing.notes.write", { branchId }) || can(ctx, "clinical.note.sign", { branchId });
   return can(ctx, "clinical.note.sign", { branchId });
 }
 
@@ -25,15 +26,40 @@ function emptyContent(type: ClinicalNoteType): Content {
   return Object.fromEntries(sectionsFor(type).map((s) => [s, ""]));
 }
 
-export function noteSignatureHash(note: { id: string; encounterId: string; authorId: string; type: string; content: unknown; parentNoteId: string | null }, signedAt: Date) {
-  return sha256(JSON.stringify([note.id, note.encounterId, note.authorId, note.type, note.parentNoteId, note.content, signedAt.toISOString()]));
+export function noteSignatureHash(
+  note: {
+    id: string;
+    encounterId: string;
+    authorId: string;
+    type: string;
+    content: unknown;
+    parentNoteId: string | null;
+  },
+  signedAt: Date,
+) {
+  return sha256(
+    JSON.stringify([
+      note.id,
+      note.encounterId,
+      note.authorId,
+      note.type,
+      note.parentNoteId,
+      note.content,
+      signedAt.toISOString(),
+    ]),
+  );
 }
 
-export async function createNote(ctx: AuthContext, input: z.output<typeof createNoteSchema>, db: DbClient = prisma) {
+export async function createNote(
+  ctx: AuthContext,
+  input: z.output<typeof createNoteSchema>,
+  db: DbClient = prisma,
+) {
   const { enc } = await loadEncounterFor(ctx, input.encounterId, permissionFor(input.type), {}, db);
   if (enc.status !== "OPEN") {
     const access = await getEncounterAccess(ctx, enc, db);
-    if (access?.level !== "FULL") throw new ForbiddenError("Late entries on a closed visit need a care relationship.");
+    if (access?.level !== "FULL")
+      throw new ForbiddenError("Late entries on a closed visit need a care relationship.");
   }
   const content = emptyContent(input.type);
   return withTx(db, async (tx) => {
@@ -47,7 +73,9 @@ export async function createNote(ctx: AuthContext, input: z.output<typeof create
         authorId: ctx.userId,
       },
     });
-    await tx.clinicalNoteVersion.create({ data: { noteId: note.id, version: 1, content, savedById: ctx.userId } });
+    await tx.clinicalNoteVersion.create({
+      data: { noteId: note.id, version: 1, content, savedById: ctx.userId },
+    });
     await joinCareTeam(tx, enc, ctx.userId, careRoleFor(ctx));
     await recordAudit(tx, {
       actorType: "USER",
@@ -68,13 +96,22 @@ async function loadOwnDraft(ctx: AuthContext, noteId: string, db: DbClient) {
   const note = await db.clinicalNote.findUnique({ where: { id: noteId }, include: { encounter: true } });
   if (!note) throw new NotFoundError("Note not found.");
   if (note.authorId !== ctx.userId) throw new ForbiddenError("Only the author can change a draft note.");
-  if (note.status !== "DRAFT") throw new ConflictError(note.status === "SIGNED" ? "This note is signed. Add an addendum instead." : "This draft was discarded.");
+  if (note.status !== "DRAFT")
+    throw new ConflictError(
+      note.status === "SIGNED"
+        ? "This note is signed. Add an addendum instead."
+        : "This draft was discarded.",
+    );
   const access = await getEncounterAccess(ctx, note.encounter, db);
   if (!access) throw new ForbiddenError("You no longer have access to this patient's record.");
   return note;
 }
 
-export async function saveNote(ctx: AuthContext, input: z.output<typeof saveNoteSchema>, db: DbClient = prisma) {
+export async function saveNote(
+  ctx: AuthContext,
+  input: z.output<typeof saveNoteSchema>,
+  db: DbClient = prisma,
+) {
   const note = await loadOwnDraft(ctx, input.noteId, db);
   const allowed = new Set(sectionsFor(note.type));
   const content: Content = {};
@@ -89,8 +126,16 @@ export async function saveNote(ctx: AuthContext, input: z.output<typeof saveNote
       where: { id: note.id, version: input.version, status: "DRAFT" },
       data: { content: content as Prisma.InputJsonValue, version: next },
     });
-    if (r.count !== 1) throw new ConflictError("This draft was saved elsewhere (another tab?). Reload to continue.", "STALE");
-    await tx.clinicalNoteVersion.create({ data: { noteId: note.id, version: next, content: content as Prisma.InputJsonValue, savedById: ctx.userId } });
+    if (r.count !== 1)
+      throw new ConflictError("This draft was saved elsewhere (another tab?). Reload to continue.", "STALE");
+    await tx.clinicalNoteVersion.create({
+      data: {
+        noteId: note.id,
+        version: next,
+        content: content as Prisma.InputJsonValue,
+        savedById: ctx.userId,
+      },
+    });
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,
@@ -123,9 +168,11 @@ export async function discardNote(ctx: AuthContext, noteId: string, db: DbClient
 
 export async function signNote(ctx: AuthContext, input: z.output<typeof signSchema>, db: DbClient = prisma) {
   const note = await loadOwnDraft(ctx, input.id, db);
-  if (!canSign(ctx, note.type, note.encounter.branchId)) throw new ForbiddenError("Your role cannot sign this type of note.");
+  if (!canSign(ctx, note.type, note.encounter.branchId))
+    throw new ForbiddenError("Your role cannot sign this type of note.");
   const content = (note.content ?? {}) as Content;
-  if (!Object.values(content).some((v) => v && v.trim().length > 0)) throw new ValidationError("A blank note cannot be signed.");
+  if (!Object.values(content).some((v) => v && v.trim().length > 0))
+    throw new ValidationError("A blank note cannot be signed.");
   await confirmSignature(db, ctx, input.password);
   return withTx(db, async (tx) => {
     const signedAt = new Date();
@@ -134,7 +181,8 @@ export async function signNote(ctx: AuthContext, input: z.output<typeof signSche
       where: { id: note.id, status: "DRAFT", version: note.version },
       data: { status: "SIGNED", signedAt, signedById: ctx.userId, contentHash: hash },
     });
-    if (r.count !== 1) throw new ConflictError("The note changed while signing. Review it and sign again.", "STALE");
+    if (r.count !== 1)
+      throw new ConflictError("The note changed while signing. Review it and sign again.", "STALE");
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,
@@ -152,14 +200,30 @@ export async function signNote(ctx: AuthContext, input: z.output<typeof signSche
 export async function createAddendum(ctx: AuthContext, parentNoteId: string, db: DbClient = prisma) {
   const parent = await db.clinicalNote.findUnique({ where: { id: parentNoteId } });
   if (!parent) throw new NotFoundError("Note not found.");
-  if (parent.status !== "SIGNED") throw new ConflictError("Only signed notes take addenda; edit the draft instead.");
-  const { enc } = await loadEncounterFor(ctx, parent.encounterId, parent.type === "NURSING" ? "nursing.notes.write" : "clinical.note.write", {}, db);
+  if (parent.status !== "SIGNED")
+    throw new ConflictError("Only signed notes take addenda; edit the draft instead.");
+  const { enc } = await loadEncounterFor(
+    ctx,
+    parent.encounterId,
+    parent.type === "NURSING" ? "nursing.notes.write" : "clinical.note.write",
+    {},
+    db,
+  );
   return withTx(db, async (tx) => {
     const content = { body: "" };
     const note = await tx.clinicalNote.create({
-      data: { encounterId: enc.id, patientId: enc.patientId, type: "ADDENDUM", parentNoteId: parent.id, content, authorId: ctx.userId },
+      data: {
+        encounterId: enc.id,
+        patientId: enc.patientId,
+        type: "ADDENDUM",
+        parentNoteId: parent.id,
+        content,
+        authorId: ctx.userId,
+      },
     });
-    await tx.clinicalNoteVersion.create({ data: { noteId: note.id, version: 1, content, savedById: ctx.userId } });
+    await tx.clinicalNoteVersion.create({
+      data: { noteId: note.id, version: 1, content, savedById: ctx.userId },
+    });
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,
@@ -179,7 +243,10 @@ export async function listEncounterNotes(ctx: AuthContext, encounterId: string, 
   const notes = await db.clinicalNote.findMany({
     where: { encounterId, status: { not: "DISCARDED" } },
     orderBy: { createdAt: "asc" },
-    include: { author: { select: { displayName: true, jobTitle: true } }, signedBy: { select: { displayName: true } } },
+    include: {
+      author: { select: { displayName: true, jobTitle: true } },
+      signedBy: { select: { displayName: true } },
+    },
   });
   return notes.map((n) =>
     n.status === "DRAFT" && n.authorId !== ctx.userId

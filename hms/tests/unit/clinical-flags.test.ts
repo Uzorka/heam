@@ -1,8 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { flagCoded, flagNumeric, parseNumericResult, referenceText, selectRange, type RangeLike } from "@/server/domains/lab/flags";
+import {
+  flagCoded,
+  flagNumeric,
+  parseNumericResult,
+  referenceText,
+  selectRange,
+  type RangeLike,
+} from "@/server/domains/lab/flags";
 import { bmi, flagVitals } from "@/server/domains/clinical/vital-flags";
 
-const r = (o: Partial<RangeLike>): RangeLike => ({ sex: "ANY", ageMinDays: 0, ageMaxDays: null, low: null, high: null, criticalLow: null, criticalHigh: null, normalText: null, ...o });
+const r = (o: Partial<RangeLike>): RangeLike => ({
+  sex: "ANY",
+  ageMinDays: 0,
+  ageMaxDays: null,
+  low: null,
+  high: null,
+  criticalLow: null,
+  criticalHigh: null,
+  normalText: null,
+  ...o,
+});
 
 describe("lab flags", () => {
   it("picks sex-specific then narrowest age range", () => {
@@ -43,7 +60,9 @@ describe("lab flags", () => {
 
 describe("vital flags", () => {
   it("only flags parameters with approved thresholds", () => {
-    const flags = flagVitals({ temperatureC: 39.2, pulseBpm: 130 }, [{ parameter: "TEMPERATURE_C", low: 36, high: 37.5, criticalLow: 35, criticalHigh: 40 }]);
+    const flags = flagVitals({ temperatureC: 39.2, pulseBpm: 130 }, [
+      { parameter: "TEMPERATURE_C", low: 36, high: 37.5, criticalLow: 35, criticalHigh: 40 },
+    ]);
     expect(flags.temperatureC).toBe("HIGH");
     expect(flags.pulseBpm).toBeUndefined();
   });

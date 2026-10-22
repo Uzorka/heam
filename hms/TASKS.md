@@ -1,6 +1,6 @@
 # Aduraking HMS - task tracker
 
-Last updated: 22 Oct 2026 (end of Phase 1 session).
+Last updated: 22 Oct 2026 (end of Phase 2).
 
 ## Phase 1 - Foundation ✅
 
@@ -59,22 +59,54 @@ Last updated: 22 Oct 2026 (end of Phase 1 session).
 | 24    | Core screens on phone/tablet                                    | Partial: front desk/queue verified; extend each phase                         |
 | 25    | Production fails safely without secrets                         | ✅ unit + observed                                                            |
 
-## Phase 2 - next
+## Phase 2 - Clinical, laboratory, imaging, documents ✅
 
-- [ ] Document storage adapter (local dev / S3) with signed short-lived URLs, type/size limits, scan hook; logo upload
-- [ ] Encounter workspace; SOAP notes (templates, drafts, signature, addenda, version history, DB append-only)
-- [ ] Vitals & triage with units, configured thresholds (clinician-approved), trends
-- [ ] Diagnoses (provisional/confirmed), problem list, care plans
-- [ ] Orders (lab, imaging, procedure, referral) with state machine and cancellation rules
-- [ ] Lab: catalogue, reference ranges, specimens + labels, results, verification, release, critical acknowledgement, amendments
-- [ ] Imaging: worklist, reports, sign-off, attachments
-- [ ] Clinician/nurse/lab/imaging worklists and dashboard tiles; extend patient timeline with permission-aware clinical events
-- [ ] Tests: criteria 1, 10, 11, 17, 18 + E2E visit → lab → verified result → review
+- [x] Migration `phase2_clinical` with DB immutability triggers (signed notes, verified results, signed reports, vitals, triage), append-only history tables, plausibility CHECKs, one approved threshold per vital, one current verified result per component, order/catalogue consistency checks
+- [x] Clinical access model: current-visit access for staff on duty in the branch; full history with care relationship / branch-wide / break-glass; documenting care joins the care team; chart and visit views audited
+- [x] Encounter workspace (`/encounters/[id]`): summary, vitals & triage, notes, diagnoses, orders & results; queue stage moves from the workspace
+- [x] Clinical notes: SOAP / progress / nursing / procedure templates, versioned drafts with conflict detection, unsaved-change warning, password-confirmed signing with content hash, addenda, discard (kept), others' drafts hidden
+- [x] Vitals with units, BMI only from valid inputs, entered-in-error corrections; triage with staff-assigned acuity
+- [x] Diagnoses: provisional / confirmed / refuted, resolved / entered-in-error, optional ICD-10, problem list
+- [x] Orders: lab, imaging, procedure, referral; idempotent placement; duplicate-open-order guard; cancellation only before work starts; clinician result review
+- [x] Laboratory: worklists, accession numbers, QR specimen labels, receive/reject (orderer notified), typed result entry, flags only from approved ranges (sex/age aware), independent password-confirmed verification (setting), return for correction, critical-result alerts with attributed acknowledgement, signed amendments that supersede (clinician must re-review), turnaround metric
+- [x] Imaging: worklist, scheduling, report drafts, signed reports, amended reports
+- [x] Documents: local/S3 storage adapter, signature-based type check, 10 MB limit, scan hook, authorised + audited downloads, void instead of delete
+- [x] Clinical catalogue admin: lab tests & components, imaging studies, reference ranges and vital thresholds with draft → approval by a different clinician
+- [x] Results inbox, critical alerts, dashboard tiles (results to review, lab queues, lab TAT), notification texts without clinical content
+- [x] Patient record "Clinical" tab (history) with restricted state and break-glass entry point
+- [x] Release-time permission sync (`npm run db:sync-permissions`) - new permissions `clinical.rules.approve`, `clinical.results.review`
+- [x] Seed: 8 lab tests, 6 imaging studies, DRAFT placeholder ranges/thresholds, demo clinical activity, second lab scientist
+
+### Phase 2 test status
+
+- Unit: +8 (range selection, numeric/coded flags, strict parsing, vital flags, BMI)
+- Integration: +16 (clinical access, note immutability/addenda, drafts privacy, vitals correction & DB guards, approval of thresholds, diagnoses, order idempotency, cancellation rules, full lab journey, unflagged without ranges, result immutability & amendment, critical acknowledgement, specimen rejection, imaging report immutability & amendment, document permissions/audit/type checks)
+- E2E: +1 (nurse vitals → doctor signed note → lab order → collection/receipt/result → same-person verification refused → second scientist verifies → doctor reviews → reception blocked)
+- Totals at end of Phase 2: 105 unit + integration, 10 E2E - all passing
+
+### Known limitations after Phase 2
+
+- No PACS/DICOM, no analyser interfaces (manual entry / file attachment).
+- Malware scanner not bundled (`scanUpload` hook); files are labelled "not virus-scanned".
+- Note templates and the triage acuity scale are code-defined placeholders pending medical director approval; no template editor yet.
+- No medication orders yet (Phase 3 prescribing); allergies are displayed but no interaction engine exists (by design until a validated knowledge base is configured).
+- Results are not yet released to the patient portal (Phase 6).
+- Specimen collection is a lab permission; nurse collection requires a role change if the hospital wants it.
+
+## Phase 3 - next (pharmacy, inventory, procurement)
+
+- [ ] Medication catalogue (generic/brand, strength, form, route, NAFDAC number when verified, pack conversions, controlled flag)
+- [ ] Prescribing from the encounter workspace with password signature; allergy display; no fabricated interaction checks
+- [ ] Pharmacist verification queue; dispensing with FEFO lot selection, partial fills, authorised substitutions, returns
+- [ ] Lot-level stock ledger (append-only), expiry/quarantine blocking, low-stock and near-expiry alerts
+- [ ] Suppliers, requisitions → approval → PO → goods received (quarantine) → stock; transfers; cycle counts; adjustments with approval
+- [ ] MAR foundations (administration records) for inpatient use in Phase 5
+- [ ] Tests: acceptance criteria 8 and 9 (dispense once updates the correct lot; expired lots blocked), concurrency on stock
 
 ## Continuation prompt for the next session
 
 > Continue the Aduraking HMS in `hms/` on branch `claude/aduraking-hms`. Read `TASKS.md`, `docs/ARCHITECTURE.md`
-> and `docs/DOMAIN_MODEL.md` first. Phase 1 is complete and green (unit, integration, E2E). Start Phase 2 exactly as
+> and `docs/DOMAIN_MODEL.md` first. Phases 1-2 are complete and green (unit, integration, E2E). Start Phase 3 exactly as
 > listed in TASKS.md: add a new Prisma migration (never edit applied ones), put all rules in `src/server/domains/*`
 > services with `requirePermission`/`getClinicalAccess` checks and same-transaction `recordAudit`, expose them via
 > `defineAction`, and build pages using the existing UI kit (`components/ui`, `components/forms/action-form`).

@@ -55,7 +55,18 @@ async function main() {
       code: "T-HB",
       name: "Haemoglobin (test)",
       specimenType: "EDTA blood",
-      components: { create: [{ code: "HB", name: "Haemoglobin", unit: "g/dL", resultType: "NUMERIC", decimals: 1, allowedValues: [] }] },
+      components: {
+        create: [
+          {
+            code: "HB",
+            name: "Haemoglobin",
+            unit: "g/dL",
+            resultType: "NUMERIC",
+            decimals: 1,
+            allowedValues: [],
+          },
+        ],
+      },
     },
   });
   await prisma.labTestDefinition.upsert({
@@ -65,7 +76,16 @@ async function main() {
       code: "T-MP",
       name: "Malaria parasite (test)",
       specimenType: "EDTA blood",
-      components: { create: [{ code: "MP", name: "Malaria parasites", resultType: "CODED", allowedValues: ["Not seen", "Seen (+)", "Seen (++)", "Seen (+++)"] }] },
+      components: {
+        create: [
+          {
+            code: "MP",
+            name: "Malaria parasites",
+            resultType: "CODED",
+            allowedValues: ["Not seen", "Seen (+)", "Seen (++)", "Seen (+++)"],
+          },
+        ],
+      },
     },
   });
   await prisma.imagingStudyDefinition.upsert({

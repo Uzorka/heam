@@ -52,6 +52,13 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Wards & maternity",
+    items: [
+      { href: "/wards", label: "Ward board", icon: "BedDouble", any: ["admission.read"] },
+      { href: "/maternity", label: "Maternity", icon: "Baby", any: ["maternity.read"] },
+    ],
+  },
+  {
     label: "Stores",
     items: [
       { href: "/inventory", label: "Stock", icon: "Package", any: ["inventory.read"] },

@@ -50,6 +50,9 @@ no hard deletes.
 | HMO workflow | Preauthorization(+Item, Event), Claim, ClaimLine, ClaimEvent, ClaimBatch, Remittance(+Line) | One live claim line per charge; PAID only via remittance; paid ≤ claimed (CHECK) |
 | Ledger | LedgerAccount, JournalEntry, JournalLine | Balanced at commit; append-only; unique per (source, kind) for exactly-once posting |
 
+| Maternity | PregnancyEpisode, PregnancyDatingEvent, AntenatalVisit, DeliveryRecord, NewbornRecord, PostnatalVisit | Mother, pregnancy, delivery and each baby are distinct records; babies are Patients linked by NewbornRecord and a verified GuardianRelationship |
+| Inpatient | Admission, BedAssignment, MedicationAdministration | Admission continues the visit; bed assignments cannot overlap (exclusion constraint); discharge = authorisation → clearance → completion |
+
 Prescription item states: `PENDING → (QUERIED) → VERIFIED → PARTIALLY_DISPENSED → DISPENSED`; `CANCELLED` before dispensing (prescriber) or for the
 undispensed balance (pharmacy). A same-day reversal returns stock to the original lot and reopens the item.
 
@@ -57,11 +60,10 @@ Order states: LAB `ORDERED → SPECIMEN_COLLECTED → IN_PROGRESS → RESULTED �
 can return RESULTED → IN_PROGRESS); IMAGING `ORDERED → (SCHEDULED) → IN_PROGRESS → RESULTED → VERIFIED`; PROCEDURE/REFERRAL
 `ORDERED → COMPLETED`; any kind → CANCELLED only before work starts.
 
-## Planned (Phases 5–6)
+## Planned (Phase 6)
 
-| Phase | Entities                                                                                                                                                                                                                                                      |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 5     | MedicationAdministration (MAR), PregnancyEpisode, AntenatalVisit, PregnancyDatingEvent, LabourEpisode, DeliveryRecord, NewbornRelationship, PostnatalVisit, Admission, BedAssignment (exclusion constraint), BedStatusEvent, WardObservation, DischargeRecord |
-| 6     | Employment, ProfessionalCredential, Shift, Attendance, LeaveRequest, PayrollRun, Payslip, PortalAccount links, IntegrationCredentialReference, export logs                                                                                                    |
+| Phase | Entities                                                                                                                                                   |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6     | Employment, ProfessionalCredential, Shift, Attendance, LeaveRequest, PayrollRun, Payslip, PortalAccount links, IntegrationCredentialReference, export logs |
 
 `docs/DATA_DICTIONARY.md` and an ERD will be generated from the schema once Phase 2 entities land.

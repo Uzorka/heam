@@ -4,10 +4,11 @@ Hospital management system for **Aduraking Hospital and Maternity**, Ikorodu, La
 A secure, role-aware modular monolith: Next.js 15 (App Router) · React 19 · TypeScript (strict) ·
 PostgreSQL 16 · Prisma 6 · Tailwind CSS · Radix UI · Zod · Vitest · Playwright.
 
-> **Status: Phases 1–4 of 6 complete** (foundation, access control, audit, configuration, patient
+> **Status: Phases 1–5 of 6 complete** (foundation, access control, audit, configuration, patient
 > registry, scheduling, check-in and queue; consultations, clinical notes, vitals/triage, diagnoses,
 > orders, laboratory, imaging and documents; prescribing, pharmacy dispensing, stock ledger and
-> procurement; billing, payments, HMO cover, pre-authorisation, claims and remittances). See [`TASKS.md`](TASKS.md) for exactly what is and is
+> procurement; billing, payments, HMO cover, pre-authorisation, claims and remittances; maternity,
+> admissions, ward moves, medication administration and discharge). See [`TASKS.md`](TASKS.md) for exactly what is and is
 > not implemented. **Only fictional data may be used** until the go-live checklist is signed off.
 
 ## Quick start (local development)

@@ -35,6 +35,7 @@ import { pharmacyAvailability } from "@/server/domains/pharmacy/service";
 import { load } from "../../_lib/guard";
 import { StageButtons } from "../../queue/stage-buttons";
 import { PayerPanel } from "./payer-panel";
+import { AdmissionStrip, MarPanel } from "./inpatient-panels";
 import { QUEUE_TRANSITIONS, transitionPermission } from "@/server/domains/queue/state-machine";
 import {
   acknowledgeCriticalAction,
@@ -128,9 +129,12 @@ export default async function EncounterPage({
         <Link prefetch={false} href="/queue" className="text-[13px] text-muted hover:text-foreground">
           ← Visit queue
         </Link>
-        {stageOptions.length > 0 && (
-          <StageButtons encounterId={enc.id} version={enc.version} options={stageOptions} />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {stageOptions.length > 0 && enc.queueStage !== "ADMITTED" && (
+            <StageButtons encounterId={enc.id} version={enc.version} options={stageOptions} />
+          )}
+          <AdmissionStrip ctx={ctx} enc={enc} />
+        </div>
       </div>
       <PatientBanner
         p={enc.patient}
@@ -823,6 +827,7 @@ export default async function EncounterPage({
 
       {tab === "medications" && (
         <div className="space-y-5">
+          <MarPanel ctx={ctx} enc={enc} />
           {canPrescribe && (
             <Card>
               <CardHeader

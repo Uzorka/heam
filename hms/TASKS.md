@@ -44,11 +44,11 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 | 4     | Branch / direct URL restriction                                 | ✅                                                                            |
 | 5     | Duplicates never silently merged                                | ✅                                                                            |
 | 6     | Idempotent payment callback                                     | ✅ integration (concurrent duplicate delivery posts once)                     |
-| 7     | Concurrent bed assignment                                       | Phase 5 (same DB technique proven for appointments)                           |
+| 7     | Concurrent bed assignment                                       | ✅ integration (concurrent moves: one wins; DB exclusion constraint)          |
 | 8–9   | Dispensing lot accuracy; expired lots blocked                   | ✅ integration (idempotent + concurrent) + E2E                                |
 | 10–11 | Verified results / signed notes immutable with amendments       | Phase 2                                                                       |
 | 12–15 | HMO patient-pay, claim vs preauth, remittance, effective tariff | ✅ integration + E2E (HMO flow to reconciled remittance)                      |
-| 16    | Pregnancy & newborn (twins) linked records                      | Phase 5                                                                       |
+| 16    | Pregnancy & newborn (twins) linked records                      | ✅ integration + E2E (twins: two baby records linked to mother)               |
 | 17    | Cancelled orders not chargeable                                 | ✅ integration (charge voided in same transaction; finalised bills protected) |
 | 18    | Critical result acknowledgement                                 | Phase 2                                                                       |
 | 19    | Lagos time & kobo money                                         | ✅ unit                                                                       |
@@ -154,17 +154,45 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 - Claim attachments and appeal letters are not generated; denial reasons and resubmissions are recorded.
 - No live payer or payment integration exists (by design until agreements and credentials).
 
-## Phase 5 - next (maternity and inpatient wards)
+## Phase 5 - Maternity and inpatient wards ✅
 
-- [ ] Pregnancy episode, antenatal visits and trends, clinician-reviewed dating, risk flags only from approved rules
-- [ ] Labour, delivery and newborn records (distinct, linked records; twins), postnatal follow-up
-- [ ] Admissions, bed assignment with concurrency protection, transfers, ward lists, nursing observations, MAR, discharge with clinical authorisation and financial clearance (bed-day charges)
-- [ ] Tests: acceptance criteria 7 and 16; E2E ANC → delivery → mother/newborn discharge, ward move
+- [x] Migration `phase5_maternity_inpatient`: one active pregnancy per mother (G/P plausibility), permanent dating events with one adopted EDD, ANC visits and MAR entries correctable only by entered-in-error markers, signed delivery and newborn records immutable, stillbirths carry no patient record, one current admission per patient, bed assignments with an exclusion constraint (no overlap) that can only be closed once, `ADMITTED` queue stage, `BED` charge source and ward-linked bed-day services
+- [x] Pregnancy record: booking (gravida/para), dating by LMP / ultrasound / other with the calculated EDD shown as a proposal and adopted explicitly by a clinician, ANC visits with gestation from the adopted EDD and BP flags only from approved thresholds, close record without delivery
+- [x] Delivery: password-signed record with mode, blood loss, placenta, perineum, complications; one newborn record per baby (birth order, outcome, sex, time, weight, Apgar); each live-born baby gets its own hospital number linked to the mother as verified guardian (twins: "Twin 1", "Twin 2"); optional rooming-in admission for babies when the mother is an inpatient
+- [x] Postnatal checks for mother or a named baby
+- [x] Admissions from an open visit (documentation continues on the same visit), bed assignment and ward moves with row locks and the exclusion constraint, beds to cleaning then ready, ward board, admission page
+- [x] Discharge in three steps: clinician authorisation with signed summary → finance clearance (bed-day charges posted first; balance must be settled or an override recorded with reason) → completion (bed released, visit closed)
+- [x] Medication administration record on the visit's Medications tab (given / held / refused / not available, reason required when not given), controlled drugs need a second nurse's credentials as witness
+- [x] Patient record: Maternity tab with pregnancies and mother/baby links; visit workspace shows admission status or an Admit button
+- [x] Seed: DEMO bed-day prices for the DEMO wards; demo patient Aisha Bello has a dated pregnancy at 28 weeks with three ANC visits
+- [x] Role template changes (review before go-live): midwives may sign deliveries; finance can view admissions to clear them. Existing deployments apply these through the role-change approval workflow.
+
+### Phase 5 test status
+
+- Unit: +4 (EDD from LMP and ultrasound, gestation, bed nights)
+- Integration: +8 (dating proposal vs adoption and immutability, implausible counts, AC16 twins with distinct linked records and rooming-in, stillbirth, signing rights, AC7 concurrent bed assignment, ward move and three-step discharge with bed-day charges, controlled-drug MAR witness)
+- E2E: +1 (antenatal booking and dating → ANC visit → admission → bed assignment and ward move → twin delivery → mother and both babies discharged → beds cleaned)
+- Totals at end of Phase 5: 59 unit + 96 integration, 15 E2E - all passing (E2E suite run twice back to back)
+
+### Known limitations after Phase 5
+
+- Partograph, labour observations chart and neonatal unit (NICU) workflows are not built; labour is documented in notes and the delivery record.
+- No scheduled MAR (dose times are not generated from frequencies); administrations are recorded as given.
+- Bed-day charges are posted at financial clearance per bed segment (nights to that day); a stay extended after clearance needs a manual charge.
+- Babies' visits start as "payer not determined"; HMO enrolment of newborns is done by the HMO desk.
+
+## Phase 6 - next (HR, portal, reporting, interoperability, hardening)
+
+- [ ] Staff directory, rosters, attendance, leave with approval, payroll runs prepared and approved by different people (no payroll rules invented - configurable, reviewed)
+- [ ] Patient / guardian portal: own and verified dependants' released records only (AC20), appointment requests
+- [ ] Notification adapters (SMS/email) disabled until configured; reports and exports with permission checks, watermarking and audit (AC21)
+- [ ] FHIR mapping foundation (Patient, Encounter, Observation, MedicationRequest) as export only
+- [ ] Hardening: accessibility pass, mobile checks on core screens (AC24), threat model, DPIA preparation notes, backup/restore dry run, dependency audit
 
 ## Continuation prompt for the next session
 
 > Continue the Aduraking HMS in `hms/` on branch `claude/aduraking-hms`. Read `TASKS.md`, `docs/ARCHITECTURE.md`
-> and `docs/DOMAIN_MODEL.md` first. Phases 1-4 are complete and green (unit, integration, E2E). Start Phase 5 exactly as
+> and `docs/DOMAIN_MODEL.md` first. Phases 1-5 are complete and green (unit, integration, E2E). Start Phase 6 exactly as
 > listed in TASKS.md: add a new Prisma migration (never edit applied ones), put all rules in `src/server/domains/*`
 > services with `requirePermission`/`getClinicalAccess` checks and same-transaction `recordAudit`, expose them via
 > `defineAction`, and build pages using the existing UI kit (`components/ui`, `components/forms/action-form`).

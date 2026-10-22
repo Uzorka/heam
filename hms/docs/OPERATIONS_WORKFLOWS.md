@@ -58,6 +58,14 @@ _Pharmacy_ worklist → open a prescription. Check the allergy banner, then **Ve
 - _Procurement_: raise a **requisition** → someone else **approves** → **Create order** (supplier and unit costs from the quotation) → **Issue** → when goods arrive, open the order and **Record goods received** with lot numbers and expiry dates (quarantine anything doubtful).
 - _Stock approvals_: approve or reject adjustments; **Start a count** for a location, enter counted quantities, **Submit**; a different person **Approves** and the variances post to the ledger.
 
+## Maternity
+
+Patient record → _Maternity_ → **Open pregnancy record** (gravida includes this pregnancy). On the pregnancy page **Add dating** (LMP, ultrasound or other); the EDD is used only after a clinician ticks _adopt_ (or presses **Adopt** later). **Record ANC visit** at each contact; corrections are made with _Error_, never by editing. At delivery fill the delivery section - one block per baby (**Add another baby** for twins) - and sign with your password. Each live-born baby gets a hospital number linked to the mother; if the mother is admitted the babies are admitted with her (rooming-in). Postnatal checks are recorded for the mother or a named baby.
+
+## Wards
+
+From an open visit **Admit** (ward, optional bed, reason). _Ward board_ shows beds and inpatients; open a stay to **Assign bed** or **Move bed / ward** (the previous bed goes to cleaning; **Mark ready** when cleaned). Medicines are given from the visit's _Medications_ tab (**Record dose**; controlled drugs need a second nurse to enter their credentials). Discharge: the clinician **Authorise discharge** (signed summary) → finance **Financial clearance** (bed-days are charged; an outstanding balance needs an override with a reason) → the ward **Complete discharge**.
+
 ## Cashier
 
 _Cashier desk_ → **Open shift** (count the float). Bills with a balance are listed; or search the patient → _Account_. Open the invoice: each line shows its price source and the payer / patient split. **Take payment** (cash needs an open shift; POS and transfers need the slip or bank reference). Overpayments stay as patient credit; deposits can be recorded on the account and **Apply credit** later. Discounts and credit notes are requested here and approved by finance. Lines marked _needs resolution_ must be priced or confirmed as patient pay before **Finalise**. At the end of the day **Close shift** with the counted cash; finance approves the close.

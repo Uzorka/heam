@@ -13,6 +13,7 @@ import { syncPermissionCatalog } from "../src/server/authz/catalog-sync";
 import { seedClinicalActivity, seedClinicalCatalogue } from "./seed-clinical";
 import { seedPharmacy } from "./seed-pharmacy";
 import { seedBilling } from "./seed-billing";
+import { seedMaternity } from "./seed-maternity";
 import { ROLE_TEMPLATES } from "../src/server/authz/role-templates";
 import { hashPassword } from "../src/server/auth/password";
 import { encryptField } from "../src/server/crypto";
@@ -554,7 +555,7 @@ const DEMO_PATIENTS: DemoPatient[] = [
     nok: ["Musa Bello", "Spouse", "08090000106"],
     nka: true,
     daysAgo: 60,
-    note: "Scenario C: antenatal (maternity in Phase 5)",
+    note: "Scenario C: antenatal (DEMO pregnancy at 28 weeks)",
   },
   {
     key: "D",
@@ -1045,6 +1046,8 @@ async function main() {
     );
   if (await seedBilling(prisma, users))
     console.warn("Seeded DEMO price list, pending directory-listed HMOs and one fictional active payer.");
+  if (await seedMaternity(prisma, users))
+    console.warn("Seeded DEMO bed-day prices and an antenatal pregnancy.");
   await recordAudit(prisma, {
     actorType: "SYSTEM",
     action: "seed.loaded",

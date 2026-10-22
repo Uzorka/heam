@@ -20,6 +20,7 @@ import { Alert } from "@/components/ui/alert";
 import { DescriptionList, EmptyState, Forbidden } from "@/components/ui/misc";
 import { LinkTabs } from "@/components/ui/tabs";
 import { CoverageTab } from "./coverage-tab";
+import { MaternityTab } from "./maternity-tab";
 import { Table, TableWrap, TD, TH, THead, TR } from "@/components/ui/table";
 import { ActionDialog, ConfirmAction } from "@/components/forms/action-form";
 import { PatientBanner } from "@/components/patient/banner";
@@ -49,6 +50,7 @@ const TABS = [
   "allergies",
   "appointments",
   "visits",
+  "maternity",
   "coverage",
   "consents",
   "timeline",
@@ -195,6 +197,9 @@ export default async function PatientPage({
             ? [{ key: "appointments", label: "Appointments", href: href("appointments") }]
             : []),
           ...(can(ctx, "queue.read") ? [{ key: "visits", label: "Visits", href: href("visits") }] : []),
+          ...(can(ctx, "maternity.read")
+            ? [{ key: "maternity", label: "Maternity", href: href("maternity") }]
+            : []),
           ...(can(ctx, "hmo.read") ? [{ key: "coverage", label: "Coverage", href: href("coverage") }] : []),
           { key: "consents", label: "Consents", href: href("consents") },
           { key: "timeline", label: "Timeline", href: href("timeline") },
@@ -761,6 +766,9 @@ export default async function PatientPage({
       )}
 
       {tab === "coverage" && can(ctx, "hmo.read") && <CoverageTab ctx={ctx} patientId={id} />}
+      {tab === "maternity" && can(ctx, "maternity.read") && (
+        <MaternityTab ctx={ctx} patientId={id} sex={p.sexAtBirth} />
+      )}
 
       {tab === "consents" && (
         <Card>

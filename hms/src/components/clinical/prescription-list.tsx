@@ -65,7 +65,7 @@ export function medicationLabel(m: ItemLike["medication"]) {
   return `${m.genericName} ${m.strength} ${m.form.toLowerCase()}${m.brandName ? ` (${m.brandName})` : ""}`;
 }
 
-export function sigLine(i: ItemLike) {
+export function sigLine(i: Pick<ItemLike, "dose" | "route" | "frequency" | "durationDays" | "prn">) {
   return `${i.dose} ${i.route} ${i.frequency.code}${i.durationDays ? ` for ${i.durationDays} day${i.durationDays === 1 ? "" : "s"}` : ""}${i.prn ? " as needed" : ""}`;
 }
 

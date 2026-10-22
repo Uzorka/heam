@@ -1,6 +1,7 @@
 import {
   BookOpenCheck,
   CalendarCog,
+  Baby,
   Banknote,
   FileClock,
   FileStack,
@@ -36,6 +37,7 @@ import {
 export const NAV_ICONS: Record<string, LucideIcon> = {
   BookOpenCheck,
   CalendarCog,
+  Baby,
   Banknote,
   FileClock,
   FileStack,

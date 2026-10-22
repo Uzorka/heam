@@ -92,7 +92,7 @@
 | `nursing.notes.write` | CLINICAL |  |  |  |  |  | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `maternity.read` | CLINICAL |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `maternity.write` | CLINICAL |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `maternity.delivery.sign` | CLINICAL |  |  | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `maternity.delivery.sign` | CLINICAL |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `lab.worklist` | CLINICAL |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |  |  |  |  |  |  |
 | `lab.specimen.collect` | CLINICAL |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |  |  |  |  |  |  |
 | `lab.result.enter` | CLINICAL |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |  |  |  |  |  |  |
@@ -137,7 +137,7 @@
 | `finance.read` | FINANCIAL | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
 | `finance.expense.manage` | FINANCIAL |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
 | `finance.close.approve` | FINANCIAL | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
-| `admission.read` | CLINICAL |  |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `admission.read` | CLINICAL |  |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
 | `admission.manage` | CLINICAL |  |  | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `discharge.authorize` | CLINICAL |  |  | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `discharge.clear_finance` | FINANCIAL |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |

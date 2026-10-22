@@ -32,6 +32,8 @@ audited).
 - Dose frequencies: the seeded list carries a DEMO approval for local testing only. Pharmacy and the medical director must review the list and approve it under their own names before go-live.
 - Stock: real stores, pharmacies and quarantine locations per branch; reorder levels; near-expiry window (setting, default 90 days); whether pharmacists may verify their own prescriptions (setting, default no); opening stock entered via goods receipts or approved adjustments, not edited directly.
 - Suppliers and approval chain for requisitions, stock adjustments and counts.
+- Wards and beds: replace the DEMO wards/beds; map each ward to its bed-day service and price (the seeded bed-day prices are DEMO figures). Decide who may admit, move, authorise discharge and clear discharges financially, and whether midwives sign deliveries (template default: yes).
+- Maternity: ANC schedule, labour documentation and newborn naming conventions; blood pressure thresholds used for ANC flags come from the approved vital-sign thresholds.
 - Price list: the seeded prices are DEMO figures. Finance enters the hospital's real prices with their source; the owner approves them. Decide which services are charged automatically (link to lab tests, studies, visit types, medicines).
 - Payers: Hygeia, Reliance Health and Fountain Healthcare are seeded as _pending verification_ because they list the hospital publicly. For each real contract record dates, provider code, plans, co-pays, exclusions and tariffs, then have finance activate it with the contract reference. Remove the DEMO payer before go-live.
 - Who approves discounts, refunds, credit notes, shift closes and claim write-offs; cash-handling policy and opening float.

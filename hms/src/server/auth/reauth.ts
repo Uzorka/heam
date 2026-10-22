@@ -1,6 +1,7 @@
 import type { DbClient } from "../db";
 import { ForbiddenError, ValidationError } from "../errors";
-import type { AuthContext } from "../authz/context";
+import { can, loadAuthContext, type AuthContext } from "../authz/context";
+import type { PermissionCode } from "../authz/permissions";
 import { verifyPassword } from "./password";
 
 const MAX_FAILURES = 5;
@@ -23,4 +24,41 @@ export async function confirmSignature(db: DbClient, ctx: AuthContext, password:
     data: { identifier, ip: ctx.meta.ip, success: ok, reason: ok ? null : "BAD_SIGNATURE_PASSWORD" },
   });
   if (!ok) throw new ValidationError("Password incorrect - not signed.", { password: "Incorrect password" });
+}
+
+/**
+ * A second member of staff co-signs (e.g. controlled-drug administration) by entering their own
+ * credentials on the same screen. They must be active, different from the signer and hold the
+ * named permission in the branch. Failures count towards the same signing lockout.
+ */
+export async function confirmWitness(
+  db: DbClient,
+  ctx: AuthContext,
+  email: string,
+  password: string,
+  permission: PermissionCode,
+  branchId: string,
+): Promise<string> {
+  const witness = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  if (!witness || witness.status !== "ACTIVE")
+    throw new ValidationError("Witness not recognised.", { witnessEmail: "Unknown or inactive account" });
+  if (witness.id === ctx.userId)
+    throw new ValidationError("The witness must be a different person.", {
+      witnessEmail: "Must be someone else",
+    });
+  const identifier = `sign:${witness.id}`;
+  const failures = await db.loginAttempt.count({
+    where: { identifier, success: false, createdAt: { gt: new Date(Date.now() - WINDOW_MS) } },
+  });
+  if (failures >= MAX_FAILURES) throw new ForbiddenError("The witness's signing is temporarily blocked.");
+  const ok = await verifyPassword(witness.passwordHash, password);
+  await db.loginAttempt.create({
+    data: { identifier, ip: ctx.meta.ip, success: ok, reason: ok ? null : "BAD_WITNESS_PASSWORD" },
+  });
+  if (!ok)
+    throw new ValidationError("Witness password incorrect.", { witnessPassword: "Incorrect password" });
+  const wctx = await loadAuthContext(db, witness.id, { activeBranchId: branchId, enforceMfa: false });
+  if (!can(wctx, permission, { branchId }))
+    throw new ForbiddenError("The witness is not authorised for this.", permission);
+  return witness.id;
 }

@@ -158,7 +158,8 @@ model Bed {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   version   Int       @default(0)
 
-  ward Ward @relation(fields: [wardId], references: [id], onDelete: Restrict)
+  ward        Ward            @relation(fields: [wardId], references: [id], onDelete: Restrict)
+  assignments BedAssignment[]
 
   @@unique([wardId, code])
 }
@@ -632,6 +633,9 @@ model Patient {
   documents        Document[]
   prescriptions    Prescription[]
   coverages        PatientCoverage[]
+  pregnancies      PregnancyEpisode[]       @relation("PregnancyMother")
+  newbornRecord    NewbornRecord?           @relation("NewbornBaby")
+  admissions       Admission[]
   charges          Charge[]
   invoices         Invoice[]
   payments         Payment[]
@@ -919,6 +923,7 @@ enum QueueStage {
   AWAITING_SERVICES
   AWAITING_REVIEW
   READY_TO_DISCHARGE
+  ADMITTED
   COMPLETED
   CANCELLED
   NO_SHOW
@@ -980,6 +985,7 @@ model Encounter {
   invoices      Invoice[]
   preauths      Preauthorization[]
   claims        Claim[]
+  admission     Admission?
 
   @@index([branchId, arrivedAt])
   @@index([branchId, status, queueStage])
@@ -2026,10 +2032,11 @@ model PrescriptionItem {
   cancelReason      String?
   version           Int                    @default(0)
 
-  prescription Prescription        @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
-  medication   MedicationProduct   @relation(fields: [medicationId], references: [id], onDelete: Restrict)
-  frequency    MedicationFrequency @relation(fields: [frequencyId], references: [id], onDelete: Restrict)
-  dispenses    DispenseEvent[]
+  prescription    Prescription               @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  medication      MedicationProduct          @relation(fields: [medicationId], references: [id], onDelete: Restrict)
+  frequency       MedicationFrequency        @relation(fields: [frequencyId], references: [id], onDelete: Restrict)
+  dispenses       DispenseEvent[]
+  administrations MedicationAdministration[]
 
   @@index([prescriptionId])
 }
@@ -2084,6 +2091,8 @@ model ServiceItem {
   imagingStudyId     String?         @unique @db.Uuid
   visitTypeId        String?         @unique @db.Uuid
   inventoryProductId String?         @unique @db.Uuid
+  /// Bed-day charge for stays in this ward.
+  wardId             String?         @unique @db.Uuid
   createdAt          DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
 
@@ -2384,6 +2393,7 @@ enum ChargeSource {
   ORDER
   DISPENSE
   MANUAL
+  BED
 }
 
 enum ChargeStatus {
@@ -2797,4 +2807,275 @@ model JournalLine {
   account LedgerAccount @relation(fields: [accountCode], references: [code], onDelete: Restrict)
 
   @@index([accountCode])
+}
+
+// ───────────────────────── Phase 5: maternity ─────────────────────────
+
+enum PregnancyStatus {
+  ACTIVE
+  DELIVERED
+  ENDED
+}
+
+/// One pregnancy. Distinct from the mother's patient record and from each baby's record.
+model PregnancyEpisode {
+  id          String          @id @default(uuid()) @db.Uuid
+  ref         String          @unique
+  patientId   String          @db.Uuid
+  branchId    String          @db.Uuid
+  status      PregnancyStatus @default(ACTIVE)
+  gravida     Int
+  para        Int
+  bookingDate DateTime        @db.Date
+  /// Current estimated date of delivery, from the dating event a clinician adopted.
+  edd         DateTime?       @db.Date
+  bloodGroup  String?
+  riskNotes   String?
+  openedById  String          @db.Uuid
+  createdAt   DateTime        @default(now()) @db.Timestamptz(3)
+  endedAt     DateTime?       @db.Timestamptz(3)
+  endReason   String?
+  version     Int             @default(0)
+
+  patient    Patient                @relation("PregnancyMother", fields: [patientId], references: [id], onDelete: Restrict)
+  dating     PregnancyDatingEvent[]
+  anc        AntenatalVisit[]
+  deliveries DeliveryRecord[]
+  postnatal  PostnatalVisit[]
+
+  @@index([patientId, status])
+}
+
+enum DatingMethod {
+  LMP
+  ULTRASOUND
+  ASSISTED_CONCEPTION
+  OTHER
+}
+
+/// Each way the pregnancy was dated (append-only). The clinician adopts one as current; the EDD on
+/// the episode is never computed silently from data a clinician has not reviewed.
+model PregnancyDatingEvent {
+  id           String       @id @default(uuid()) @db.Uuid
+  episodeId    String       @db.Uuid
+  method       DatingMethod
+  lmp          DateTime?    @db.Date
+  scanDate     DateTime?    @db.Date
+  gaAtScanDays Int?
+  edd          DateTime     @db.Date
+  note         String?
+  adopted      Boolean      @default(false)
+  recordedById String       @db.Uuid
+  recordedAt   DateTime     @default(now()) @db.Timestamptz(3)
+
+  episode PregnancyEpisode @relation(fields: [episodeId], references: [id], onDelete: Restrict)
+}
+
+model AntenatalVisit {
+  id               String    @id @default(uuid()) @db.Uuid
+  episodeId        String    @db.Uuid
+  encounterId      String?   @db.Uuid
+  visitDate        DateTime  @db.Date
+  gestationDays    Int?
+  weightKg         Decimal?  @db.Decimal(5, 1)
+  systolicMmHg     Int?
+  diastolicMmHg    Int?
+  fundalHeightCm   Decimal?  @db.Decimal(4, 1)
+  fetalHeartRate   Int?
+  presentation     String?
+  urineProtein     String?
+  oedema           String?
+  notes            String?
+  recordedById     String    @db.Uuid
+  recordedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  enteredInErrorAt DateTime? @db.Timestamptz(3)
+  errorReason      String?
+
+  episode PregnancyEpisode @relation(fields: [episodeId], references: [id], onDelete: Restrict)
+
+  @@index([episodeId, visitDate])
+}
+
+enum DeliveryMode {
+  SVD
+  ASSISTED_VACUUM
+  ASSISTED_FORCEPS
+  BREECH
+  CAESAREAN_EMERGENCY
+  CAESAREAN_ELECTIVE
+}
+
+enum RecordStatus {
+  DRAFT
+  SIGNED
+}
+
+/// Delivery of one pregnancy (one record even for twins). Immutable once signed.
+model DeliveryRecord {
+  id               String       @id @default(uuid()) @db.Uuid
+  ref              String       @unique
+  episodeId        String       @db.Uuid
+  motherPatientId  String       @db.Uuid
+  encounterId      String?      @db.Uuid
+  deliveredAt      DateTime     @db.Timestamptz(3)
+  mode             DeliveryMode
+  gestationDays    Int?
+  bloodLossMl      Int?
+  placentaComplete Boolean?
+  perineum         String?
+  complications    String?
+  attendants       String?
+  status           RecordStatus @default(DRAFT)
+  recordedById     String       @db.Uuid
+  signedById       String?      @db.Uuid
+  signedAt         DateTime?    @db.Timestamptz(3)
+  contentHash      String?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  version          Int          @default(0)
+
+  episode  PregnancyEpisode @relation(fields: [episodeId], references: [id], onDelete: Restrict)
+  newborns NewbornRecord[]
+}
+
+enum BirthOutcome {
+  LIVE_BIRTH
+  FRESH_STILLBIRTH
+  MACERATED_STILLBIRTH
+}
+
+/// One baby of a delivery. Live-born babies get their own patient record (babyPatientId),
+/// linked to the mother; twins are two rows with birth order 1 and 2.
+model NewbornRecord {
+  id            String       @id @default(uuid()) @db.Uuid
+  deliveryId    String       @db.Uuid
+  birthOrder    Int
+  outcome       BirthOutcome
+  sex           SexAtBirth
+  birthAt       DateTime     @db.Timestamptz(3)
+  birthWeightG  Int?
+  apgar1        Int?
+  apgar5        Int?
+  resuscitation String?
+  notes         String?
+  babyPatientId String?      @unique @db.Uuid
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+
+  delivery DeliveryRecord @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  baby     Patient?       @relation("NewbornBaby", fields: [babyPatientId], references: [id], onDelete: Restrict)
+
+  @@unique([deliveryId, birthOrder])
+}
+
+enum PostnatalSubject {
+  MOTHER
+  BABY
+}
+
+model PostnatalVisit {
+  id            String           @id @default(uuid()) @db.Uuid
+  episodeId     String           @db.Uuid
+  subject       PostnatalSubject
+  babyPatientId String?          @db.Uuid
+  visitDate     DateTime         @db.Date
+  temperatureC  Decimal?         @db.Decimal(4, 1)
+  systolicMmHg  Int?
+  diastolicMmHg Int?
+  weightG       Int?
+  feeding       String?
+  findings      String
+  plan          String?
+  recordedById  String           @db.Uuid
+  recordedAt    DateTime         @default(now()) @db.Timestamptz(3)
+
+  episode PregnancyEpisode @relation(fields: [episodeId], references: [id], onDelete: Restrict)
+}
+
+// ───────────────────────── Phase 5: admissions & wards ─────────────────────────
+
+enum AdmissionStatus {
+  ADMITTED
+  DISCHARGE_AUTHORISED
+  DISCHARGED
+  CANCELLED
+}
+
+/// An inpatient stay. Clinical documentation continues on the linked visit (encounter).
+model Admission {
+  id                      String          @id @default(uuid()) @db.Uuid
+  ref                     String          @unique
+  patientId               String          @db.Uuid
+  encounterId             String          @unique @db.Uuid
+  branchId                String          @db.Uuid
+  status                  AdmissionStatus @default(ADMITTED)
+  reason                  String
+  admittedAt              DateTime        @default(now()) @db.Timestamptz(3)
+  admittedById            String          @db.Uuid
+  attendingClinicianId    String?         @db.Uuid
+  dischargeAuthorisedAt   DateTime?       @db.Timestamptz(3)
+  dischargeAuthorisedById String?         @db.Uuid
+  dischargeSummary        String?
+  dischargeDestination    String?
+  financialClearanceAt    DateTime?       @db.Timestamptz(3)
+  financialClearanceById  String?         @db.Uuid
+  financialClearanceNote  String?
+  dischargedAt            DateTime?       @db.Timestamptz(3)
+  dischargedById          String?         @db.Uuid
+  version                 Int             @default(0)
+
+  patient     Patient                    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter   Encounter                  @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  assignments BedAssignment[]
+  mar         MedicationAdministration[]
+
+  @@index([branchId, status])
+}
+
+/// Bed occupancy over time. A bed can never hold two overlapping assignments (exclusion
+/// constraint), and an admission has at most one open assignment.
+model BedAssignment {
+  id           String    @id @default(uuid()) @db.Uuid
+  admissionId  String    @db.Uuid
+  bedId        String    @db.Uuid
+  startAt      DateTime  @default(now()) @db.Timestamptz(3)
+  endAt        DateTime? @db.Timestamptz(3)
+  reason       String?
+  assignedById String    @db.Uuid
+  endedById    String?   @db.Uuid
+
+  admission Admission @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+  bed       Bed       @relation(fields: [bedId], references: [id], onDelete: Restrict)
+
+  @@index([bedId])
+}
+
+enum AdministrationStatus {
+  GIVEN
+  HELD
+  REFUSED
+  NOT_AVAILABLE
+}
+
+/// Medication administration record (append-only; corrections by an entered-in-error marker).
+model MedicationAdministration {
+  id                 String               @id @default(uuid()) @db.Uuid
+  admissionId        String?              @db.Uuid
+  encounterId        String               @db.Uuid
+  prescriptionItemId String               @db.Uuid
+  patientId          String               @db.Uuid
+  scheduledFor       DateTime?            @db.Timestamptz(3)
+  administeredAt     DateTime             @db.Timestamptz(3)
+  status             AdministrationStatus
+  doseGiven          String?
+  route              String?
+  reason             String?
+  recordedById       String               @db.Uuid
+  witnessedById      String?              @db.Uuid
+  recordedAt         DateTime             @default(now()) @db.Timestamptz(3)
+  enteredInErrorAt   DateTime?            @db.Timestamptz(3)
+  errorReason        String?
+
+  admission Admission?       @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+  item      PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Restrict)
+
+  @@index([encounterId, administeredAt])
 }

@@ -195,7 +195,8 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     description: "Antenatal, labour and postnatal nursing care.",
     kind: "STAFF",
     requiresMfa: false,
-    permissions: [...NURSE_CORE, "maternity.read", "maternity.write"],
+    // Midwife-led normal deliveries are signed by the midwife; hospital policy may restrict this.
+    permissions: [...NURSE_CORE, "maternity.read", "maternity.write", "maternity.delivery.sign"],
   },
   {
     code: "RECEPTION",
@@ -333,6 +334,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "inventory.requisition.approve",
       "inventory.adjust.approve",
       "discharge.clear_finance",
+      "admission.read",
       "report.financial",
       "report.hmo",
     ],

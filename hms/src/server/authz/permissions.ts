@@ -73,6 +73,8 @@ export const PERMISSIONS = [
   p("clinical.prescribe", "CLINICAL", "Sign prescriptions"),
   p("clinical.care_team.manage", "CLINICAL", "Assign clinicians and nurses to a patient's care team"),
   p("clinical.breakglass", "CLINICAL", "Invoke logged emergency access to a patient record"),
+  p("clinical.rules.approve", "CLINICAL", "Approve clinical content: reference ranges, vital thresholds, templates"),
+  p("clinical.results.review", "CLINICAL", "Acknowledge review of verified results for patients under your care"),
   p("nursing.mar.record", "CLINICAL", "Record medication administration"),
   p("nursing.notes.write", "CLINICAL", "Write nursing notes and handovers"),
   p("maternity.read", "CLINICAL", "View maternity episodes"),

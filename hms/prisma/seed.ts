@@ -9,7 +9,7 @@
  */
 import "dotenv/config";
 import { PrismaClient, type QueueStage, type SexAtBirth } from "@prisma/client";
-import { PERMISSIONS, permissionAction, permissionResource } from "../src/server/authz/permissions";
+import { syncPermissionCatalog } from "../src/server/authz/catalog-sync";
 import { ROLE_TEMPLATES } from "../src/server/authz/role-templates";
 import { hashPassword } from "../src/server/auth/password";
 import { encryptField } from "../src/server/crypto";
@@ -42,19 +42,8 @@ function addDays(local: string, days: number) {
 }
 
 async function seedAccessControl() {
-  for (const p of PERMISSIONS) {
-    await prisma.permission.upsert({
-      where: { code: p.code },
-      create: {
-        code: p.code,
-        resource: permissionResource(p.code),
-        action: permissionAction(p.code),
-        description: p.description,
-        sensitivity: p.sensitivity,
-      },
-      update: { description: p.description, sensitivity: p.sensitivity },
-    });
-  }
+  const sync = await syncPermissionCatalog(prisma);
+  if (sync.granted.length) console.warn(`Granted ${sync.granted.length} new release permission(s) to template roles.`);
   const roles: Record<string, string> = {};
   for (const t of ROLE_TEMPLATES) {
     const existing = await prisma.role.findUnique({ where: { code: t.code } });

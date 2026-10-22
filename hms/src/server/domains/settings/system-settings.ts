@@ -34,6 +34,12 @@ export const SETTING_DEFS = {
     label: "Privacy notice version",
     description: "Version recorded when staff confirm the patient privacy notice was given.",
   },
+  "lab.requireIndependentVerification": {
+    schema: z.boolean(),
+    default: true,
+    label: "Lab results need an independent verifier",
+    description: "When on, the person verifying results must be different from whoever entered them.",
+  },
   "records.retentionPolicyStatus": {
     schema: z.enum(["AWAITING_LEGAL_SIGNOFF", "APPROVED"]),
     default: "AWAITING_LEGAL_SIGNOFF" as const,

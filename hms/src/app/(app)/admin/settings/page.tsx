@@ -17,6 +17,19 @@ export const metadata: Metadata = { title: "System settings" };
 function fieldFor(key: string, value: unknown): FieldSpec {
   const def = SETTING_DEFS[key as keyof typeof SETTING_DEFS];
   const schema = def.schema as unknown as { options?: string[] };
+  if (typeof def.default === "boolean") {
+    return {
+      name: "value",
+      label: def.label,
+      type: "select",
+      required: true,
+      defaultValue: String(value),
+      options: [
+        { value: "true", label: "On" },
+        { value: "false", label: "Off" },
+      ],
+    };
+  }
   if (Array.isArray(schema.options)) {
     return {
       name: "value",

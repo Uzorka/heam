@@ -89,3 +89,18 @@ export async function newPatient(
     throw new Error(`Unexpected duplicate warning: ${JSON.stringify(r.candidates)}`);
   return r;
 }
+
+import { checkIn, transitionStage } from "@/server/domains/queue/service";
+
+/** Walk-in visit taken into consultation by `doctor` (establishing the care relationship). */
+export async function visitInConsultation(reception: AuthContext, doctor: AuthContext, patientId: string) {
+  const vt = await visitType();
+  const enc = await checkIn(reception, { patientId, visitTypeId: vt.id, priority: "ROUTINE", payerClass: "CASH", financialTermsAcknowledged: true });
+  let v = await transitionStage(reception, { encounterId: enc.id, version: enc.version, toStage: "READY_FOR_DOCTOR" });
+  v = await transitionStage(doctor, { encounterId: enc.id, version: v.version, toStage: "IN_CONSULTATION" });
+  return { ...enc, version: v.version };
+}
+
+export async function labTest(code: "T-HB" | "T-MP") {
+  return prisma.labTestDefinition.findUniqueOrThrow({ where: { code }, include: { components: true } });
+}

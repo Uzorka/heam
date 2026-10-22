@@ -67,13 +67,14 @@ model Branch {
   updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
   version            Int                @default(0)
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   departments  Department[]
   wards        Ward[]
   userRoles    UserRole[]
   patients     Patient[]
   appointments Appointment[]
   encounters   Encounter[]
+  orders       ServiceOrder[]
 }
 
 enum DepartmentKind {
@@ -260,6 +261,18 @@ model User {
   appointmentsAsClinician Appointment[]        @relation("AppointmentClinician")
   encountersAttending     Encounter[]          @relation("EncounterAttending")
   careTeam                CareTeamAssignment[] @relation("CareTeamUser")
+  notesAuthored           ClinicalNote[]       @relation("NoteAuthor")
+  notesSigned             ClinicalNote[]       @relation("NoteSigner")
+  vitalsRecorded          VitalSign[]          @relation("VitalRecorder")
+  triageRecorded          TriageRecord[]       @relation("TriageRecorder")
+  diagnosesRecorded       Diagnosis[]          @relation("DiagnosisRecorder")
+  ordersPlaced            ServiceOrder[]       @relation("OrderPlacer")
+  ordersReviewed          ServiceOrder[]       @relation("OrderReviewer")
+  resultsEntered          LabResult[]          @relation("ResultEnterer")
+  resultsVerified         LabResult[]          @relation("ResultVerifier")
+  imagingReportsAuthored  ImagingReport[]      @relation("ImagingAuthor")
+  imagingReportsSigned    ImagingReport[]      @relation("ImagingSigner")
+  documentsUploaded       Document[]           @relation("DocumentUploader")
 }
 
 enum PermissionSensitivity {
@@ -604,6 +617,13 @@ model Patient {
   duplicateAsA     DuplicatePatientReview[] @relation("DupA")
   duplicateAsB     DuplicatePatientReview[] @relation("DupB")
   careTeam         CareTeamAssignment[]
+  clinicalNotes    ClinicalNote[]
+  vitalSigns       VitalSign[]
+  triageRecords    TriageRecord[]
+  diagnoses        Diagnosis[]
+  orders           ServiceOrder[]
+  criticalAlerts   CriticalResultAlert[]
+  documents        Document[]
 
   @@index([familyName])
   @@index([phoneE164])
@@ -936,6 +956,12 @@ model Encounter {
   attending   User?                @relation("EncounterAttending", fields: [attendingClinicianId], references: [id], onDelete: Restrict)
   queueEvents VisitQueueEvent[]
   careTeam    CareTeamAssignment[]
+  notes       ClinicalNote[]
+  vitals      VitalSign[]
+  triage      TriageRecord[]
+  diagnoses   Diagnosis[]
+  orders      ServiceOrder[]
+  documents   Document[]
 
   @@index([branchId, arrivedAt])
   @@index([branchId, status, queueStage])
@@ -981,4 +1007,547 @@ model CareTeamAssignment {
 
   @@index([userId, patientId])
   @@index([encounterId])
+}
+
+// ───────────────────────── Phase 2: clinical documentation ─────────────────────────
+
+enum ClinicalNoteType {
+  CONSULTATION
+  PROGRESS
+  NURSING
+  PROCEDURE
+  ADDENDUM
+}
+
+enum NoteStatus {
+  DRAFT
+  SIGNED
+  DISCARDED
+}
+
+/// SOAP-structured clinical note. Drafts are versioned on every save; once SIGNED the row is
+/// immutable (DB trigger). Corrections are separate ADDENDUM notes pointing at the original.
+model ClinicalNote {
+  id           String           @id @default(uuid()) @db.Uuid
+  encounterId  String           @db.Uuid
+  patientId    String           @db.Uuid
+  type         ClinicalNoteType
+  status       NoteStatus       @default(DRAFT)
+  templateKey  String?
+  content      Json
+  version      Int              @default(1)
+  authorId     String           @db.Uuid
+  parentNoteId String?          @db.Uuid
+  signedById   String?          @db.Uuid
+  signedAt     DateTime?        @db.Timestamptz(3)
+  contentHash  String?
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
+
+  encounter Encounter             @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient   Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  author    User                  @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  signedBy  User?                 @relation("NoteSigner", fields: [signedById], references: [id], onDelete: Restrict)
+  parent    ClinicalNote?         @relation("NoteAddenda", fields: [parentNoteId], references: [id], onDelete: Restrict)
+  addenda   ClinicalNote[]        @relation("NoteAddenda")
+  versions  ClinicalNoteVersion[]
+
+  @@index([patientId, createdAt])
+  @@index([encounterId])
+  @@index([authorId, status])
+}
+
+/// Every saved draft state. Append-only.
+model ClinicalNoteVersion {
+  id        String   @id @default(uuid()) @db.Uuid
+  noteId    String   @db.Uuid
+  version   Int
+  content   Json
+  savedById String   @db.Uuid
+  savedAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  note ClinicalNote @relation(fields: [noteId], references: [id], onDelete: Restrict)
+
+  @@unique([noteId, version])
+}
+
+model TriageRecord {
+  id                 String    @id @default(uuid()) @db.Uuid
+  encounterId        String    @db.Uuid
+  patientId          String    @db.Uuid
+  chiefComplaint     String
+  acuity             String
+  notes              String?
+  recordedById       String    @db.Uuid
+  recordedAt         DateTime  @default(now()) @db.Timestamptz(3)
+  enteredInErrorAt   DateTime? @db.Timestamptz(3)
+  enteredInErrorById String?   @db.Uuid
+  errorReason        String?
+
+  encounter  Encounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  recordedBy User      @relation("TriageRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([encounterId])
+}
+
+enum VitalContext {
+  OUTPATIENT
+  INPATIENT
+  ANTENATAL
+}
+
+/// One observation set. Units are part of the column names. Plausibility CHECKs are data-entry
+/// guards only - clinical thresholds live in VitalThreshold and require clinician approval.
+model VitalSign {
+  id                 String       @id @default(uuid()) @db.Uuid
+  encounterId        String?      @db.Uuid
+  patientId          String       @db.Uuid
+  context            VitalContext @default(OUTPATIENT)
+  measuredAt         DateTime     @db.Timestamptz(3)
+  recordedAt         DateTime     @default(now()) @db.Timestamptz(3)
+  recordedById       String       @db.Uuid
+  temperatureC       Decimal?     @db.Decimal(4, 1)
+  pulseBpm           Int?
+  respRatePerMin     Int?
+  systolicMmHg       Int?
+  diastolicMmHg      Int?
+  spo2Pct            Int?
+  weightKg           Decimal?     @db.Decimal(5, 2)
+  heightCm           Decimal?     @db.Decimal(5, 1)
+  painScore          Int?
+  notes              String?
+  enteredInErrorAt   DateTime?    @db.Timestamptz(3)
+  enteredInErrorById String?      @db.Uuid
+  errorReason        String?
+
+  encounter  Encounter? @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient    Patient    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  recordedBy User       @relation("VitalRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([patientId, measuredAt])
+  @@index([encounterId])
+}
+
+enum VitalParameter {
+  TEMPERATURE_C
+  PULSE_BPM
+  RESP_RATE
+  SYSTOLIC
+  DIASTOLIC
+  SPO2
+}
+
+enum ClinicalRuleStatus {
+  DRAFT
+  APPROVED
+  RETIRED
+}
+
+/// Adult display thresholds. Only APPROVED rows (with a named approving clinician) produce flags.
+model VitalThreshold {
+  id           String             @id @default(uuid()) @db.Uuid
+  parameter    VitalParameter
+  low          Decimal?           @db.Decimal(6, 1)
+  high         Decimal?           @db.Decimal(6, 1)
+  criticalLow  Decimal?           @db.Decimal(6, 1)
+  criticalHigh Decimal?           @db.Decimal(6, 1)
+  status       ClinicalRuleStatus @default(DRAFT)
+  source       String?
+  createdById  String?            @db.Uuid
+  approvedById String?            @db.Uuid
+  approvedAt   DateTime?          @db.Timestamptz(3)
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@index([parameter, status])
+}
+
+enum DiagnosisCertainty {
+  PROVISIONAL
+  CONFIRMED
+  REFUTED
+}
+
+enum DiagnosisStatus {
+  ACTIVE
+  RESOLVED
+  ENTERED_IN_ERROR
+}
+
+model Diagnosis {
+  id            String             @id @default(uuid()) @db.Uuid
+  encounterId   String             @db.Uuid
+  patientId     String             @db.Uuid
+  description   String
+  code          String?
+  codeSystem    String?
+  certainty     DiagnosisCertainty
+  status        DiagnosisStatus    @default(ACTIVE)
+  statusReason  String?
+  isPrimary     Boolean            @default(false)
+  onProblemList Boolean            @default(false)
+  recordedById  String             @db.Uuid
+  recordedAt    DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(3)
+  version       Int                @default(0)
+
+  encounter  Encounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  recordedBy User      @relation("DiagnosisRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([patientId, status])
+  @@index([encounterId])
+}
+
+// ───────────────────────── Phase 2: orders, laboratory, imaging ─────────────────────────
+
+enum LabResultType {
+  NUMERIC
+  TEXT
+  CODED
+}
+
+model LabTestDefinition {
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  name            String
+  specimenType    String
+  turnaroundHours Int?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  components LabTestComponent[]
+  orders     ServiceOrder[]
+}
+
+model LabTestComponent {
+  id            String        @id @default(uuid()) @db.Uuid
+  testId        String        @db.Uuid
+  code          String
+  name          String
+  unit          String?
+  resultType    LabResultType
+  decimals      Int?
+  allowedValues String[]
+  sortOrder     Int           @default(0)
+
+  test    LabTestDefinition   @relation(fields: [testId], references: [id], onDelete: Restrict)
+  ranges  LabReferenceRange[]
+  results LabResult[]
+
+  @@unique([testId, code])
+}
+
+enum RangeSex {
+  ANY
+  FEMALE
+  MALE
+}
+
+/// Reference ranges are clinical content: only APPROVED rows (named approver) generate flags.
+model LabReferenceRange {
+  id           String             @id @default(uuid()) @db.Uuid
+  componentId  String             @db.Uuid
+  sex          RangeSex           @default(ANY)
+  ageMinDays   Int                @default(0)
+  ageMaxDays   Int?
+  low          Decimal?           @db.Decimal(12, 4)
+  high         Decimal?           @db.Decimal(12, 4)
+  criticalLow  Decimal?           @db.Decimal(12, 4)
+  criticalHigh Decimal?           @db.Decimal(12, 4)
+  normalText   String?
+  status       ClinicalRuleStatus @default(DRAFT)
+  source       String?
+  createdById  String?            @db.Uuid
+  approvedById String?            @db.Uuid
+  approvedAt   DateTime?          @db.Timestamptz(3)
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+
+  component LabTestComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@index([componentId, status])
+}
+
+enum ImagingModality {
+  XRAY
+  ULTRASOUND
+  CT
+  MRI
+  ECG
+  OTHER
+}
+
+model ImagingStudyDefinition {
+  id        String          @id @default(uuid()) @db.Uuid
+  code      String          @unique
+  name      String
+  modality  ImagingModality
+  bodyPart  String?
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+
+  orders ServiceOrder[]
+}
+
+enum OrderKind {
+  LAB
+  IMAGING
+  PROCEDURE
+  REFERRAL
+}
+
+enum OrderPriority {
+  ROUTINE
+  URGENT
+  STAT
+}
+
+enum OrderStatus {
+  ORDERED
+  SCHEDULED
+  SPECIMEN_COLLECTED
+  IN_PROGRESS
+  RESULTED
+  VERIFIED
+  COMPLETED
+  CANCELLED
+}
+
+/// One orderable item (a single test or study). Items ordered together share requestGroupId,
+/// which doubles as the idempotency key: (requestGroupId, itemIndex) is unique.
+model ServiceOrder {
+  id                 String        @id @default(uuid()) @db.Uuid
+  ref                String        @unique
+  requestGroupId     String        @db.Uuid
+  itemIndex          Int
+  kind               OrderKind
+  encounterId        String        @db.Uuid
+  patientId          String        @db.Uuid
+  branchId           String        @db.Uuid
+  labTestId          String?       @db.Uuid
+  imagingStudyId     String?       @db.Uuid
+  description        String
+  priority           OrderPriority @default(ROUTINE)
+  clinicalIndication String?
+  notes              String?
+  status             OrderStatus   @default(ORDERED)
+  orderedById        String        @db.Uuid
+  orderedAt          DateTime      @default(now()) @db.Timestamptz(3)
+  scheduledAt        DateTime?     @db.Timestamptz(3)
+  resultedAt         DateTime?     @db.Timestamptz(3)
+  verifiedAt         DateTime?     @db.Timestamptz(3)
+  completedAt        DateTime?     @db.Timestamptz(3)
+  cancelledAt        DateTime?     @db.Timestamptz(3)
+  cancelledById      String?       @db.Uuid
+  cancelReason       String?
+  reviewedAt         DateTime?     @db.Timestamptz(3)
+  reviewedById       String?       @db.Uuid
+  version            Int           @default(0)
+
+  encounter      Encounter               @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient        Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  branch         Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  labTest        LabTestDefinition?      @relation(fields: [labTestId], references: [id], onDelete: Restrict)
+  imagingStudy   ImagingStudyDefinition? @relation(fields: [imagingStudyId], references: [id], onDelete: Restrict)
+  orderedBy      User                    @relation("OrderPlacer", fields: [orderedById], references: [id], onDelete: Restrict)
+  reviewedBy     User?                   @relation("OrderReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  events         OrderStatusEvent[]
+  specimens      LabSpecimen[]
+  results        LabResult[]
+  criticalAlerts CriticalResultAlert[]
+  imagingReports ImagingReport[]
+  documents      Document[]
+
+  @@unique([requestGroupId, itemIndex])
+  @@index([branchId, kind, status])
+  @@index([patientId, orderedAt])
+  @@index([encounterId])
+}
+
+model OrderStatusEvent {
+  id          String       @id @default(uuid()) @db.Uuid
+  orderId     String       @db.Uuid
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  note        String?
+  changedById String       @db.Uuid
+  changedAt   DateTime     @default(now()) @db.Timestamptz(3)
+
+  order ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, changedAt])
+}
+
+enum SpecimenStatus {
+  COLLECTED
+  RECEIVED
+  REJECTED
+}
+
+model LabSpecimen {
+  id              String         @id @default(uuid()) @db.Uuid
+  orderId         String         @db.Uuid
+  accession       String         @unique
+  specimenType    String
+  status          SpecimenStatus @default(COLLECTED)
+  collectedAt     DateTime       @db.Timestamptz(3)
+  collectedById   String         @db.Uuid
+  receivedAt      DateTime?      @db.Timestamptz(3)
+  receivedById    String?        @db.Uuid
+  rejectedAt      DateTime?      @db.Timestamptz(3)
+  rejectedById    String?        @db.Uuid
+  rejectionReason String?
+
+  order ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+}
+
+enum ResultFlag {
+  NONE
+  NORMAL
+  LOW
+  HIGH
+  CRITICAL_LOW
+  CRITICAL_HIGH
+  ABNORMAL
+}
+
+enum ResultStatus {
+  DRAFT
+  FINAL
+}
+
+/// DRAFT results may be edited until verification. FINAL rows are immutable (DB trigger) except for
+/// being marked superseded by an accountable amendment, which is a new FINAL row (amendsResultId).
+model LabResult {
+  id              String       @id @default(uuid()) @db.Uuid
+  orderId         String       @db.Uuid
+  componentId     String       @db.Uuid
+  valueText       String
+  valueNumeric    Decimal?     @db.Decimal(14, 4)
+  unit            String?
+  referenceText   String?
+  flag            ResultFlag   @default(NONE)
+  status          ResultStatus @default(DRAFT)
+  enteredById     String       @db.Uuid
+  enteredAt       DateTime     @default(now()) @db.Timestamptz(3)
+  verifiedById    String?      @db.Uuid
+  verifiedAt      DateTime?    @db.Timestamptz(3)
+  amendsResultId  String?      @unique @db.Uuid
+  amendmentReason String?
+  supersededAt    DateTime?    @db.Timestamptz(3)
+  supersededById  String?      @db.Uuid
+
+  order      ServiceOrder     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  component  LabTestComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+  enteredBy  User             @relation("ResultEnterer", fields: [enteredById], references: [id], onDelete: Restrict)
+  verifiedBy User?            @relation("ResultVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+  amends     LabResult?       @relation("ResultAmendment", fields: [amendsResultId], references: [id], onDelete: Restrict)
+  amendedBy  LabResult?       @relation("ResultAmendment")
+
+  @@index([orderId])
+}
+
+/// Raised when a verified result carries a critical flag; must be acknowledged by an accountable person.
+model CriticalResultAlert {
+  id                  String    @id @default(uuid()) @db.Uuid
+  orderId             String    @db.Uuid
+  patientId           String    @db.Uuid
+  raisedAt            DateTime  @default(now()) @db.Timestamptz(3)
+  summary             String
+  acknowledgedById    String?   @db.Uuid
+  acknowledgedAt      DateTime? @db.Timestamptz(3)
+  communicatedTo      String?
+  communicationMethod String?
+  notes               String?
+
+  order   ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  patient Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([acknowledgedAt])
+}
+
+enum ReportStatus {
+  DRAFT
+  SIGNED
+}
+
+model ImagingReport {
+  id              String       @id @default(uuid()) @db.Uuid
+  orderId         String       @db.Uuid
+  findings        String
+  impression      String
+  status          ReportStatus @default(DRAFT)
+  authorId        String       @db.Uuid
+  signedById      String?      @db.Uuid
+  signedAt        DateTime?    @db.Timestamptz(3)
+  contentHash     String?
+  amendsReportId  String?      @unique @db.Uuid
+  amendmentReason String?
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
+
+  order     ServiceOrder   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  author    User           @relation("ImagingAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  signedBy  User?          @relation("ImagingSigner", fields: [signedById], references: [id], onDelete: Restrict)
+  amends    ImagingReport? @relation("ReportAmendment", fields: [amendsReportId], references: [id], onDelete: Restrict)
+  amendedBy ImagingReport? @relation("ReportAmendment")
+
+  @@index([orderId])
+}
+
+// ───────────────────────── Phase 2: documents ─────────────────────────
+
+enum DocumentKind {
+  LAB_REPORT
+  IMAGING
+  REFERRAL
+  CONSENT
+  CLINICAL_OTHER
+  ADMINISTRATIVE
+}
+
+enum DocumentSource {
+  INTERNAL
+  EXTERNAL
+}
+
+enum ScanStatus {
+  NOT_SCANNED
+  CLEAN
+  INFECTED
+}
+
+/// Stored files. Bytes live in object storage under an unguessable key; downloads always go through
+/// an authorised, audited route. Documents are voided, never deleted.
+model Document {
+  id                String         @id @default(uuid()) @db.Uuid
+  patientId         String?        @db.Uuid
+  encounterId       String?        @db.Uuid
+  orderId           String?        @db.Uuid
+  kind              DocumentKind
+  title             String
+  filename          String
+  mimeType          String
+  sizeBytes         Int
+  sha256            String
+  storageKey        String         @unique
+  source            DocumentSource @default(INTERNAL)
+  sourceDescription String?
+  scanStatus        ScanStatus     @default(NOT_SCANNED)
+  uploadedById      String         @db.Uuid
+  uploadedAt        DateTime       @default(now()) @db.Timestamptz(3)
+  voidedAt          DateTime?      @db.Timestamptz(3)
+  voidedById        String?        @db.Uuid
+  voidReason        String?
+
+  patient    Patient?      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter  Encounter?    @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  order      ServiceOrder? @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  uploadedBy User          @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([patientId, uploadedAt])
+  @@index([orderId])
 }

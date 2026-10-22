@@ -1,21 +1,12 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { PERMISSIONS, permissionAction, permissionResource } from "../../src/server/authz/permissions";
+import { syncPermissionCatalog } from "../../src/server/authz/catalog-sync";
 import { ROLE_TEMPLATES } from "../../src/server/authz/role-templates";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.permission.createMany({
-    data: PERMISSIONS.map((p) => ({
-      code: p.code,
-      resource: permissionResource(p.code),
-      action: permissionAction(p.code),
-      description: p.description,
-      sensitivity: p.sensitivity,
-    })),
-    skipDuplicates: true,
-  });
+  await syncPermissionCatalog(prisma);
   for (const t of ROLE_TEMPLATES) {
     // Keep test roles identical to the templates on every run.
     const existing = await prisma.role.findUnique({ where: { code: t.code } });
@@ -57,6 +48,31 @@ async function main() {
       update: {},
     });
   }
+  await prisma.labTestDefinition.upsert({
+    where: { code: "T-HB" },
+    update: {},
+    create: {
+      code: "T-HB",
+      name: "Haemoglobin (test)",
+      specimenType: "EDTA blood",
+      components: { create: [{ code: "HB", name: "Haemoglobin", unit: "g/dL", resultType: "NUMERIC", decimals: 1, allowedValues: [] }] },
+    },
+  });
+  await prisma.labTestDefinition.upsert({
+    where: { code: "T-MP" },
+    update: {},
+    create: {
+      code: "T-MP",
+      name: "Malaria parasite (test)",
+      specimenType: "EDTA blood",
+      components: { create: [{ code: "MP", name: "Malaria parasites", resultType: "CODED", allowedValues: ["Not seen", "Seen (+)", "Seen (++)", "Seen (+++)"] }] },
+    },
+  });
+  await prisma.imagingStudyDefinition.upsert({
+    where: { code: "T-CXR" },
+    update: {},
+    create: { code: "T-CXR", name: "Chest X-ray PA (test)", modality: "XRAY", bodyPart: "Chest" },
+  });
 }
 
 main()

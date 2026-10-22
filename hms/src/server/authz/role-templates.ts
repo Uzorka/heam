@@ -53,6 +53,7 @@ const CLINICIAN_CORE: PermissionCode[] = [
   "clinical.care_team.manage",
   "clinical.breakglass",
   "lab.critical.acknowledge",
+  "clinical.results.review",
   "maternity.read",
   "admission.read",
 ];
@@ -131,6 +132,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     permissions: [
       ...CLINICIAN_CORE,
       "clinical.read.branch_wide",
+      "clinical.rules.approve",
       "clinical.triage.record",
       "maternity.write",
       "maternity.delivery.sign",

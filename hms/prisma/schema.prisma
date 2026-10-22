@@ -67,14 +67,17 @@ model Branch {
   updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
   version            Int                @default(0)
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  departments  Department[]
-  wards        Ward[]
-  userRoles    UserRole[]
-  patients     Patient[]
-  appointments Appointment[]
-  encounters   Encounter[]
-  orders       ServiceOrder[]
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  departments    Department[]
+  wards          Ward[]
+  userRoles      UserRole[]
+  patients       Patient[]
+  appointments   Appointment[]
+  encounters     Encounter[]
+  orders         ServiceOrder[]
+  stockLocations StockLocation[]
+  prescriptions  Prescription[]
+  requisitions   PurchaseRequisition[]
 }
 
 enum DepartmentKind {
@@ -273,6 +276,9 @@ model User {
   imagingReportsAuthored  ImagingReport[]      @relation("ImagingAuthor")
   imagingReportsSigned    ImagingReport[]      @relation("ImagingSigner")
   documentsUploaded       Document[]           @relation("DocumentUploader")
+  prescriptionsWritten    Prescription[]       @relation("Prescriber")
+  dispensesMade           DispenseEvent[]      @relation("Dispenser")
+  stockMovements          StockMovement[]      @relation("StockMover")
 }
 
 enum PermissionSensitivity {
@@ -624,6 +630,7 @@ model Patient {
   orders           ServiceOrder[]
   criticalAlerts   CriticalResultAlert[]
   documents        Document[]
+  prescriptions    Prescription[]
 
   @@index([familyName])
   @@index([phoneE164])
@@ -948,20 +955,21 @@ model Encounter {
   updatedAt                  DateTime          @updatedAt @db.Timestamptz(3)
   version                    Int               @default(0)
 
-  patient     Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  branch      Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  department  Department?          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  appointment Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  visitType   VisitType            @relation(fields: [visitTypeId], references: [id], onDelete: Restrict)
-  attending   User?                @relation("EncounterAttending", fields: [attendingClinicianId], references: [id], onDelete: Restrict)
-  queueEvents VisitQueueEvent[]
-  careTeam    CareTeamAssignment[]
-  notes       ClinicalNote[]
-  vitals      VitalSign[]
-  triage      TriageRecord[]
-  diagnoses   Diagnosis[]
-  orders      ServiceOrder[]
-  documents   Document[]
+  patient       Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  branch        Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  department    Department?          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  appointment   Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  visitType     VisitType            @relation(fields: [visitTypeId], references: [id], onDelete: Restrict)
+  attending     User?                @relation("EncounterAttending", fields: [attendingClinicianId], references: [id], onDelete: Restrict)
+  queueEvents   VisitQueueEvent[]
+  careTeam      CareTeamAssignment[]
+  notes         ClinicalNote[]
+  vitals        VitalSign[]
+  triage        TriageRecord[]
+  diagnoses     Diagnosis[]
+  orders        ServiceOrder[]
+  documents     Document[]
+  prescriptions Prescription[]
 
   @@index([branchId, arrivedAt])
   @@index([branchId, status, queueStage])
@@ -1550,4 +1558,493 @@ model Document {
 
   @@index([patientId, uploadedAt])
   @@index([orderId])
+}
+
+// ───────────────────────── Phase 3: inventory ─────────────────────────
+
+enum InventoryCategory {
+  PHARMACY
+  LAB_CONSUMABLE
+  MEDICAL_SUPPLY
+  MATERNITY_THEATRE
+  OFFICE_MAINTENANCE
+  ASSET
+}
+
+model InventoryProduct {
+  id              String            @id @default(uuid()) @db.Uuid
+  sku             String            @unique
+  name            String
+  category        InventoryCategory
+  baseUnit        String
+  reorderLevel    Int               @default(0)
+  reorderQuantity Int               @default(0)
+  trackExpiry     Boolean           @default(true)
+  active          Boolean           @default(true)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
+
+  medication MedicationProduct?
+  lots       InventoryLot[]
+  movements  StockMovement[]
+  reqItems   RequisitionItem[]
+  poItems    PurchaseOrderItem[]
+}
+
+enum StockLocationKind {
+  MAIN_STORE
+  PHARMACY
+  WARD
+  LABORATORY
+  THEATRE
+  QUARANTINE
+}
+
+model StockLocation {
+  id        String            @id @default(uuid()) @db.Uuid
+  branchId  String            @db.Uuid
+  code      String
+  name      String
+  kind      StockLocationKind
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+
+  branch    Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  balances  StockBalance[]
+  movements StockMovement[]
+  counts    StockCount[]
+
+  @@unique([branchId, code])
+}
+
+enum LotStatus {
+  AVAILABLE
+  QUARANTINED
+  RECALLED
+}
+
+/// A batch of a product. Expiry is a calendar date; a lot is unusable from its expiry date onward.
+model InventoryLot {
+  id           String    @id @default(uuid()) @db.Uuid
+  productId    String    @db.Uuid
+  lotNumber    String
+  expiryDate   DateTime? @db.Date
+  manufacturer String?
+  supplierId   String?   @db.Uuid
+  unitCostKobo BigInt?
+  status       LotStatus @default(AVAILABLE)
+  statusReason String?
+  receivedAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  product   InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  supplier  Supplier?        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  balances  StockBalance[]
+  movements StockMovement[]
+  dispenses DispenseEvent[]
+
+  @@unique([productId, lotNumber])
+  @@index([expiryDate])
+}
+
+/// Current quantity of a lot at a location. Maintained in the same transaction as the ledger;
+/// a CHECK constraint forbids negative stock.
+model StockBalance {
+  lotId      String   @db.Uuid
+  locationId String   @db.Uuid
+  quantity   Int
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  lot      InventoryLot  @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  location StockLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@id([lotId, locationId])
+}
+
+enum StockMovementType {
+  RECEIPT
+  DISPENSE
+  DISPENSE_REVERSAL
+  TRANSFER_OUT
+  TRANSFER_IN
+  ADJUSTMENT
+  COUNT_ADJUSTMENT
+  CONSUMPTION
+}
+
+/// Permanent stock ledger (append-only). quantity is signed; balanceAfter is the lot/location
+/// balance immediately after this movement.
+model StockMovement {
+  id             String            @id @default(uuid()) @db.Uuid
+  productId      String            @db.Uuid
+  lotId          String            @db.Uuid
+  locationId     String            @db.Uuid
+  type           StockMovementType
+  quantity       Int
+  balanceAfter   Int
+  reason         String?
+  referenceType  String?
+  referenceId    String?
+  idempotencyKey String?           @unique
+  performedById  String            @db.Uuid
+  occurredAt     DateTime          @default(now()) @db.Timestamptz(3)
+
+  product     InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  lot         InventoryLot     @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  location    StockLocation    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  performedBy User             @relation("StockMover", fields: [performedById], references: [id], onDelete: Restrict)
+
+  @@index([lotId, locationId, occurredAt])
+  @@index([productId, occurredAt])
+  @@index([referenceType, referenceId])
+}
+
+enum AdjustmentReason {
+  DAMAGED
+  EXPIRED
+  LOST
+  RECALLED
+  FOUND
+  OTHER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Stock corrections need a second person to approve before they post to the ledger.
+model StockAdjustmentRequest {
+  id            String           @id @default(uuid()) @db.Uuid
+  lotId         String           @db.Uuid
+  locationId    String           @db.Uuid
+  quantityDelta Int
+  reason        AdjustmentReason
+  notes         String
+  status        ApprovalStatus   @default(PENDING)
+  requestedById String           @db.Uuid
+  requestedAt   DateTime         @default(now()) @db.Timestamptz(3)
+  decidedById   String?          @db.Uuid
+  decidedAt     DateTime?        @db.Timestamptz(3)
+  decisionNotes String?
+  movementId    String?          @db.Uuid
+
+  @@index([status])
+}
+
+enum StockCountStatus {
+  OPEN
+  SUBMITTED
+  APPROVED
+  CANCELLED
+}
+
+model StockCount {
+  id            String           @id @default(uuid()) @db.Uuid
+  ref           String           @unique
+  locationId    String           @db.Uuid
+  status        StockCountStatus @default(OPEN)
+  startedById   String           @db.Uuid
+  startedAt     DateTime         @default(now()) @db.Timestamptz(3)
+  submittedById String?          @db.Uuid
+  submittedAt   DateTime?        @db.Timestamptz(3)
+  approvedById  String?          @db.Uuid
+  approvedAt    DateTime?        @db.Timestamptz(3)
+  notes         String?
+
+  location StockLocation    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  lines    StockCountLine[]
+}
+
+model StockCountLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  countId      String  @db.Uuid
+  lotId        String  @db.Uuid
+  systemQty    Int
+  countedQty   Int?
+  varianceNote String?
+
+  count StockCount @relation(fields: [countId], references: [id], onDelete: Restrict)
+
+  @@unique([countId, lotId])
+}
+
+// ───────────────────────── Phase 3: procurement ─────────────────────────
+
+model Supplier {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  contactName String?
+  phoneE164   String?
+  email       String?
+  address     String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  lots           InventoryLot[]
+  purchaseOrders PurchaseOrder[]
+}
+
+enum RequisitionStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  ORDERED
+  CANCELLED
+}
+
+model PurchaseRequisition {
+  id            String            @id @default(uuid()) @db.Uuid
+  ref           String            @unique
+  branchId      String            @db.Uuid
+  status        RequisitionStatus @default(SUBMITTED)
+  justification String
+  requestedById String            @db.Uuid
+  requestedAt   DateTime          @default(now()) @db.Timestamptz(3)
+  decidedById   String?           @db.Uuid
+  decidedAt     DateTime?         @db.Timestamptz(3)
+  decisionNotes String?
+
+  branch         Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  items          RequisitionItem[]
+  purchaseOrders PurchaseOrder[]
+}
+
+model RequisitionItem {
+  id            String  @id @default(uuid()) @db.Uuid
+  requisitionId String  @db.Uuid
+  productId     String  @db.Uuid
+  quantity      Int
+  note          String?
+
+  requisition PurchaseRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  product     InventoryProduct    @relation(fields: [productId], references: [id], onDelete: Restrict)
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id            String              @id @default(uuid()) @db.Uuid
+  ref           String              @unique
+  supplierId    String              @db.Uuid
+  requisitionId String?             @db.Uuid
+  branchId      String              @db.Uuid
+  status        PurchaseOrderStatus @default(DRAFT)
+  createdById   String              @db.Uuid
+  createdAt     DateTime            @default(now()) @db.Timestamptz(3)
+  issuedById    String?             @db.Uuid
+  issuedAt      DateTime?           @db.Timestamptz(3)
+  notes         String?
+  version       Int                 @default(0)
+
+  supplier    Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  requisition PurchaseRequisition? @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  items       PurchaseOrderItem[]
+  receipts    GoodsReceipt[]
+}
+
+model PurchaseOrderItem {
+  id               String @id @default(uuid()) @db.Uuid
+  purchaseOrderId  String @db.Uuid
+  productId        String @db.Uuid
+  quantityOrdered  Int
+  quantityReceived Int    @default(0)
+  unitCostKobo     BigInt
+
+  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  product       InventoryProduct   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  receiptLines  GoodsReceiptLine[]
+}
+
+model GoodsReceipt {
+  id              String   @id @default(uuid()) @db.Uuid
+  ref             String   @unique
+  purchaseOrderId String   @db.Uuid
+  locationId      String   @db.Uuid
+  receivedById    String   @db.Uuid
+  receivedAt      DateTime @default(now()) @db.Timestamptz(3)
+  deliveryNote    String?
+  idempotencyKey  String   @unique
+
+  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  lines         GoodsReceiptLine[]
+}
+
+model GoodsReceiptLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  receiptId    String  @db.Uuid
+  poItemId     String  @db.Uuid
+  lotId        String  @db.Uuid
+  quantity     Int
+  unitCostKobo BigInt
+  quarantined  Boolean @default(false)
+
+  receipt GoodsReceipt      @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  poItem  PurchaseOrderItem @relation(fields: [poItemId], references: [id], onDelete: Restrict)
+}
+
+// ───────────────────────── Phase 3: medications & prescribing ─────────────────────────
+
+enum DosageForm {
+  TABLET
+  CAPSULE
+  SYRUP
+  SUSPENSION
+  INJECTION
+  INFUSION
+  CREAM
+  OINTMENT
+  DROPS
+  INHALER
+  SUPPOSITORY
+  PESSARY
+  OTHER
+}
+
+enum FormularyStatus {
+  FORMULARY
+  RESTRICTED
+  NON_FORMULARY
+}
+
+/// Medication master. Dispensing draws stock from the linked InventoryProduct in its base unit.
+model MedicationProduct {
+  id                 String          @id @default(uuid()) @db.Uuid
+  inventoryProductId String          @unique @db.Uuid
+  genericName        String
+  brandName          String?
+  strength           String
+  form               DosageForm
+  defaultRoute       String
+  dispensingUnit     String
+  nafdacNumber       String?
+  nafdacVerified     Boolean         @default(false)
+  controlled         Boolean         @default(false)
+  formularyStatus    FormularyStatus @default(FORMULARY)
+  active             Boolean         @default(true)
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+
+  inventoryProduct InventoryProduct   @relation(fields: [inventoryProductId], references: [id], onDelete: Restrict)
+  items            PrescriptionItem[]
+
+  @@index([genericName])
+}
+
+/// Dose-frequency dictionary. Clinical content: usable for prescribing only when APPROVED.
+model MedicationFrequency {
+  id           String             @id @default(uuid()) @db.Uuid
+  code         String             @unique
+  label        String
+  timesPerDay  Decimal?           @db.Decimal(5, 2)
+  status       ClinicalRuleStatus @default(DRAFT)
+  createdById  String?            @db.Uuid
+  approvedById String?            @db.Uuid
+  approvedAt   DateTime?          @db.Timestamptz(3)
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+
+  items PrescriptionItem[]
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  SIGNED
+  CANCELLED
+  COMPLETED
+}
+
+model Prescription {
+  id           String             @id @default(uuid()) @db.Uuid
+  ref          String             @unique
+  encounterId  String             @db.Uuid
+  patientId    String             @db.Uuid
+  branchId     String             @db.Uuid
+  prescriberId String             @db.Uuid
+  status       PrescriptionStatus @default(DRAFT)
+  notes        String?
+  signedAt     DateTime?          @db.Timestamptz(3)
+  contentHash  String?
+  cancelledAt  DateTime?          @db.Timestamptz(3)
+  cancelReason String?
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
+  version      Int                @default(0)
+
+  encounter  Encounter          @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient    Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  branch     Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  prescriber User               @relation("Prescriber", fields: [prescriberId], references: [id], onDelete: Restrict)
+  items      PrescriptionItem[]
+
+  @@index([branchId, status])
+  @@index([patientId, createdAt])
+}
+
+enum PrescriptionItemStatus {
+  PENDING
+  QUERIED
+  VERIFIED
+  PARTIALLY_DISPENSED
+  DISPENSED
+  CANCELLED
+}
+
+model PrescriptionItem {
+  id                String                 @id @default(uuid()) @db.Uuid
+  prescriptionId    String                 @db.Uuid
+  medicationId      String                 @db.Uuid
+  dose              String
+  route             String
+  frequencyId       String                 @db.Uuid
+  durationDays      Int?
+  prn               Boolean                @default(false)
+  quantity          Int
+  instructions      String?
+  status            PrescriptionItemStatus @default(PENDING)
+  quantityDispensed Int                    @default(0)
+  verifiedById      String?                @db.Uuid
+  verifiedAt        DateTime?              @db.Timestamptz(3)
+  pharmacistNote    String?
+  cancelledAt       DateTime?              @db.Timestamptz(3)
+  cancelReason      String?
+  version           Int                    @default(0)
+
+  prescription Prescription        @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  medication   MedicationProduct   @relation(fields: [medicationId], references: [id], onDelete: Restrict)
+  frequency    MedicationFrequency @relation(fields: [frequencyId], references: [id], onDelete: Restrict)
+  dispenses    DispenseEvent[]
+
+  @@index([prescriptionId])
+}
+
+/// One issue of stock against a prescription item. idempotencyKey guarantees a retried request
+/// dispenses exactly once.
+model DispenseEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  itemId           String    @db.Uuid
+  lotId            String    @db.Uuid
+  locationId       String    @db.Uuid
+  quantity         Int
+  dispensedById    String    @db.Uuid
+  dispensedAt      DateTime  @default(now()) @db.Timestamptz(3)
+  counsellingGiven Boolean   @default(false)
+  idempotencyKey   String
+  movementId       String    @unique @db.Uuid
+  reversedAt       DateTime? @db.Timestamptz(3)
+  reversedById     String?   @db.Uuid
+  reversalReason   String?
+
+  item        PrescriptionItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  lot         InventoryLot     @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  dispensedBy User             @relation("Dispenser", fields: [dispensedById], references: [id], onDelete: Restrict)
+
+  @@unique([idempotencyKey, lotId])
+  @@index([itemId])
 }

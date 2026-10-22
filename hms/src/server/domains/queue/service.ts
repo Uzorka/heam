@@ -1,4 +1,5 @@
 import type { QueueStage } from "@prisma/client";
+import { chargeForVisit } from "../billing/charges";
 import type { z } from "zod";
 import { prisma, withTx, type DbClient } from "../../db";
 import { recordAudit } from "../../audit";
@@ -66,6 +67,15 @@ export async function checkIn(
   const visitType = await db.visitType.findUnique({ where: { id: visitTypeId } });
   if (!visitType?.active)
     throw new ValidationError("Choose an active visit type.", { visitTypeId: "Invalid" });
+  let coverageId: string | null = null;
+  if (input.coverageId && ["HMO", "CORPORATE", "PART_INSURED"].includes(input.payerClass)) {
+    const cover = await db.patientCoverage.findUnique({ where: { id: input.coverageId } });
+    if (!cover || cover.patientId !== patient.id || cover.status !== "ACTIVE")
+      throw new ValidationError("Choose an active cover belonging to this patient.", {
+        coverageId: "Invalid",
+      });
+    coverageId = cover.id;
+  }
   if (clinicianId && !(await isClinicianInBranch(clinicianId, branchId, db))) {
     throw new ValidationError("The selected clinician is not available in this branch.", {
       clinicianId: "Not available",
@@ -93,6 +103,7 @@ export async function checkIn(
           visitTypeId: visitType.id,
           attendingClinicianId: clinicianId ?? null,
           payerClass: input.payerClass,
+          coverageId,
           priority: input.priority,
           queueStage: initialStage,
           reason: input.reason,
@@ -104,6 +115,7 @@ export async function checkIn(
       await tx.visitQueueEvent.create({
         data: { encounterId: encounter.id, fromStage: null, toStage: initialStage, changedById: ctx.userId },
       });
+      await chargeForVisit(tx, encounter, ctx.userId);
       if (clinicianId) {
         await tx.careTeamAssignment.create({
           data: {

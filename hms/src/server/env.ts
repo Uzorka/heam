@@ -24,6 +24,10 @@ const schema = z.object({
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   EMAIL_PROVIDER: z.string().default("disabled"),
   SMS_PROVIDER: z.string().default("disabled"),
+  /** Online card/transfer payments. "disabled" until a merchant agreement and keys exist. */
+  PAYMENT_PROVIDER: z.enum(["disabled", "paystack"]).default("disabled"),
+  /** Secret used to verify provider webhook signatures (HMAC-SHA512 of the raw body). */
+  PAYMENT_WEBHOOK_SECRET: z.string().optional(),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   /** Only for running a production build on a developer machine / CI against localhost. */
   HMS_LOCAL_PRODUCTION_TEST: z.enum(["true", "false"]).default("false"),
@@ -59,6 +63,8 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
       problems.push("encryption and blind-index keys must differ");
     if (/hms_dev_password/.test(env.DATABASE_URL))
       problems.push("DATABASE_URL uses the development password");
+    if (env.PAYMENT_PROVIDER !== "disabled" && (env.PAYMENT_WEBHOOK_SECRET ?? "").length < 16)
+      problems.push("PAYMENT_WEBHOOK_SECRET is required when a payment provider is enabled");
     if (problems.length)
       throw new Error(`Unsafe production configuration - refusing to start. ${problems.join("; ")}`);
     env.MFA_ENFORCE = "true";

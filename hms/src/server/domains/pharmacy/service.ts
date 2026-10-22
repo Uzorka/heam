@@ -11,6 +11,7 @@ import type { dispenseSchema, reverseDispenseSchema, verifyItemSchema } from "@/
 import { getSetting } from "../settings/system-settings";
 import { allocateFefo, lotProblem, postMovement, todayDate } from "../inventory/ledger";
 import { activeAllergies, refreshPrescriptionStatus, rxInclude } from "./prescribing";
+import { chargeForDispense, voidChargeForSource } from "../billing/charges";
 
 export type PharmacyTab = "TO_VERIFY" | "QUERIED" | "TO_DISPENSE" | "COMPLETED_TODAY";
 const TAB_ITEM_STATUS: Record<Exclude<PharmacyTab, "COMPLETED_TODAY">, PrescriptionItemStatus[]> = {
@@ -262,20 +263,20 @@ export async function dispense(
           idempotencyKey: `disp:${input.idempotencyKey}:${a.lotId}`,
           userId: ctx.userId,
         });
-        events.push(
-          await tx.dispenseEvent.create({
-            data: {
-              itemId: item.id,
-              lotId: a.lotId,
-              locationId: loc.id,
-              quantity: a.quantity,
-              dispensedById: ctx.userId,
-              counsellingGiven: input.counsellingGiven,
-              idempotencyKey: input.idempotencyKey,
-              movementId: movement.id,
-            },
-          }),
-        );
+        const ev = await tx.dispenseEvent.create({
+          data: {
+            itemId: item.id,
+            lotId: a.lotId,
+            locationId: loc.id,
+            quantity: a.quantity,
+            dispensedById: ctx.userId,
+            counsellingGiven: input.counsellingGiven,
+            idempotencyKey: input.idempotencyKey,
+            movementId: movement.id,
+          },
+        });
+        await chargeForDispense(tx, ev, item.prescription, productId, ctx.userId);
+        events.push(ev);
       }
       const dispensed = locked.quantityDispensed + input.quantity;
       await tx.prescriptionItem.update({
@@ -357,6 +358,7 @@ export async function reverseDispense(
       idempotencyKey: `rev:${ev.id}`,
       userId: ctx.userId,
     });
+    await voidChargeForSource(tx, "DISPENSE", ev.id, `Dispense reversed: ${input.reason}`, ctx.userId);
     const left = locked!.quantityDispensed - ev.quantity;
     await tx.prescriptionItem.update({
       where: { id: ev.itemId },

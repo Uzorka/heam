@@ -14,6 +14,7 @@ import { nextYearlyRef } from "../../sequence";
 import { todayLocal } from "@/lib/time";
 import type { cancelOrderSchema, placeOrdersSchema } from "@/lib/schemas/clinical";
 import { getEncounterAccess, joinCareTeam, loadEncounterFor } from "./access";
+import { chargeForOrder, voidChargeForSource } from "../billing/charges";
 
 /** Allowed status moves per order kind. Results only enter through the lab/imaging services. */
 export const ORDER_TRANSITIONS: Record<OrderKind, Partial<Record<OrderStatus, OrderStatus[]>>> = {
@@ -156,6 +157,8 @@ export async function placeOrders(
         await tx.orderStatusEvent.create({
           data: { orderId: o.id, fromStatus: null, toStatus: "ORDERED", changedById: ctx.userId },
         });
+        // Billing event in the same transaction (only when the test/study is mapped to a service).
+        await chargeForOrder(tx, o, ctx.userId);
         orders.push(o);
       }
       await joinCareTeam(tx, enc, ctx.userId, "CONSULTING");
@@ -216,6 +219,8 @@ export async function cancelOrder(
       { cancelledAt: new Date(), cancelledById: ctx.userId, cancelReason: input.reason },
       input.reason,
     );
+    // A cancelled order never stays chargeable: its charge is voided in the same transaction.
+    await voidChargeForSource(tx, "ORDER", order.id, `Order cancelled: ${input.reason}`, ctx.userId);
     await recordAudit(tx, {
       actorType: "USER",
       actorUserId: ctx.userId,

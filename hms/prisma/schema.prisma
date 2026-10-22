@@ -631,6 +631,10 @@ model Patient {
   criticalAlerts   CriticalResultAlert[]
   documents        Document[]
   prescriptions    Prescription[]
+  coverages        PatientCoverage[]
+  charges          Charge[]
+  invoices         Invoice[]
+  payments         Payment[]
 
   @@index([familyName])
   @@index([phoneE164])
@@ -948,6 +952,7 @@ model Encounter {
   reason                     String?
   referralSource             String?
   financialTermsAcknowledged Boolean           @default(false)
+  coverageId                 String?           @db.Uuid
   arrivedAt                  DateTime          @default(now()) @db.Timestamptz(3)
   completedAt                DateTime?         @db.Timestamptz(3)
   createdById                String            @db.Uuid
@@ -970,6 +975,11 @@ model Encounter {
   orders        ServiceOrder[]
   documents     Document[]
   prescriptions Prescription[]
+  coverage      PatientCoverage?     @relation(fields: [coverageId], references: [id], onDelete: Restrict)
+  charges       Charge[]
+  invoices      Invoice[]
+  preauths      Preauthorization[]
+  claims        Claim[]
 
   @@index([branchId, arrivedAt])
   @@index([branchId, status, queueStage])
@@ -2047,4 +2057,744 @@ model DispenseEvent {
 
   @@unique([idempotencyKey, lotId])
   @@index([itemId])
+}
+
+// ───────────────────────── Phase 4: service catalogue & prices ─────────────────────────
+
+enum ServiceCategory {
+  CONSULTATION
+  ADMISSION
+  LABORATORY
+  IMAGING
+  PROCEDURE
+  MATERNITY
+  CONSUMABLE
+  PHARMACY
+  MISCELLANEOUS
+}
+
+/// A billable service. Optional links let charges be generated automatically from clinical events.
+model ServiceItem {
+  id                 String          @id @default(uuid()) @db.Uuid
+  code               String          @unique
+  name               String
+  category           ServiceCategory
+  active             Boolean         @default(true)
+  labTestId          String?         @unique @db.Uuid
+  imagingStudyId     String?         @unique @db.Uuid
+  visitTypeId        String?         @unique @db.Uuid
+  inventoryProductId String?         @unique @db.Uuid
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+
+  prices       ServicePrice[]
+  payerTariffs PayerTariff[]
+  charges      Charge[]
+}
+
+enum TariffStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  RETIRED
+}
+
+/// Cash price, effective-dated. Approved rows for one item never overlap (exclusion constraint).
+/// effectiveTo is exclusive.
+model ServicePrice {
+  id            String       @id @default(uuid()) @db.Uuid
+  serviceItemId String       @db.Uuid
+  amountKobo    BigInt
+  effectiveFrom DateTime     @db.Date
+  effectiveTo   DateTime?    @db.Date
+  status        TariffStatus @default(DRAFT)
+  reason        String
+  createdById   String       @db.Uuid
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  decidedById   String?      @db.Uuid
+  decidedAt     DateTime?    @db.Timestamptz(3)
+  decisionNote  String?
+
+  serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
+
+  @@index([serviceItemId, status])
+}
+
+// ───────────────────────── Phase 4: payers (HMO / insurance) ─────────────────────────
+
+enum PayerScheme {
+  PRIVATE_HMO
+  NHIA
+  STATE_SCHEME
+  CORPORATE
+}
+
+enum PayerStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+/// Insurer / HMO / corporate sponsor. Directory listings are seeded as PENDING_VERIFICATION and
+/// never treated as contracts until an authorised officer activates them with contract evidence.
+model Payer {
+  id               String      @id @default(uuid()) @db.Uuid
+  code             String      @unique
+  name             String
+  scheme           PayerScheme
+  status           PayerStatus @default(PENDING_VERIFICATION)
+  providerCode     String?
+  contactName      String?
+  contactPhone     String?
+  contactEmail     String?
+  claimsEmail      String?
+  contractStart    DateTime?   @db.Date
+  contractEnd      DateTime?   @db.Date
+  contractEvidence String?
+  sourceNote       String?
+  activatedById    String?     @db.Uuid
+  activatedAt      DateTime?   @db.Timestamptz(3)
+  createdAt        DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @db.Timestamptz(3)
+
+  plans       PayerPlan[]
+  tariffs     PayerTariff[]
+  coverages   PatientCoverage[]
+  preauths    Preauthorization[]
+  claims      Claim[]
+  remittances Remittance[]
+  charges     Charge[]
+}
+
+enum BillingModel {
+  FEE_FOR_SERVICE
+  CAPITATION
+}
+
+model PayerPlan {
+  id                 String       @id @default(uuid()) @db.Uuid
+  payerId            String       @db.Uuid
+  code               String
+  name               String
+  billingModel       BillingModel @default(FEE_FOR_SERVICE)
+  /// Patient co-payment on covered items, in basis points (1000 = 10%).
+  copayBasisPoints   Int          @default(0)
+  encounterLimitKobo BigInt?
+  annualLimitKobo    BigInt?
+  status             PayerStatus  @default(PENDING_VERIFICATION)
+  notes              String?
+  activatedById      String?      @db.Uuid
+  activatedAt        DateTime?    @db.Timestamptz(3)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
+
+  payer     Payer             @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  tariffs   PayerTariff[]
+  coverages PatientCoverage[]
+
+  @@unique([payerId, code])
+}
+
+enum TariffCoverage {
+  COVERED
+  EXCLUDED
+}
+
+/// Payer-specific rate and benefit rule for one service, optionally limited to a plan.
+/// Effective-dated; approved rows for the same payer/plan/item never overlap.
+model PayerTariff {
+  id               String         @id @default(uuid()) @db.Uuid
+  payerId          String         @db.Uuid
+  planId           String?        @db.Uuid
+  serviceItemId    String         @db.Uuid
+  coverage         TariffCoverage
+  amountKobo       BigInt?
+  copayBasisPoints Int?
+  requiresPreauth  Boolean        @default(false)
+  effectiveFrom    DateTime       @db.Date
+  effectiveTo      DateTime?      @db.Date
+  status           TariffStatus   @default(DRAFT)
+  note             String?
+  createdById      String         @db.Uuid
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+  decidedById      String?        @db.Uuid
+  decidedAt        DateTime?      @db.Timestamptz(3)
+
+  payer       Payer       @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  plan        PayerPlan?  @relation(fields: [planId], references: [id], onDelete: Restrict)
+  serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
+
+  @@index([payerId, serviceItemId, status])
+}
+
+enum CoverageStatus {
+  ACTIVE
+  ENDED
+}
+
+enum EligibilityStatus {
+  NOT_CHECKED
+  VERIFIED_MANUAL
+  VERIFIED_ONLINE
+  NOT_ELIGIBLE
+  CHECK_FAILED
+}
+
+enum MemberRelationship {
+  PRINCIPAL
+  SPOUSE
+  CHILD
+  OTHER_DEPENDANT
+}
+
+model PatientCoverage {
+  id                String             @id @default(uuid()) @db.Uuid
+  patientId         String             @db.Uuid
+  payerId           String             @db.Uuid
+  planId            String             @db.Uuid
+  memberNumber      String
+  relationship      MemberRelationship @default(PRINCIPAL)
+  principalName     String?
+  sponsor           String?
+  validFrom         DateTime           @db.Date
+  validTo           DateTime?          @db.Date
+  status            CoverageStatus     @default(ACTIVE)
+  eligibilityStatus EligibilityStatus  @default(NOT_CHECKED)
+  lastCheckedAt     DateTime?          @db.Timestamptz(3)
+  createdById       String             @db.Uuid
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  endedAt           DateTime?          @db.Timestamptz(3)
+  endReason         String?
+
+  patient    Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  payer      Payer              @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  plan       PayerPlan          @relation(fields: [planId], references: [id], onDelete: Restrict)
+  checks     EligibilityCheck[]
+  encounters Encounter[]
+  preauths   Preauthorization[]
+  claims     Claim[]
+
+  @@index([patientId, status])
+}
+
+enum EligibilityMethod {
+  MANUAL_PHONE
+  MANUAL_PORTAL
+  MANUAL_EMAIL
+  CONNECTOR
+}
+
+enum EligibilityOutcome {
+  ELIGIBLE
+  NOT_ELIGIBLE
+  UNREACHABLE
+  ERROR
+}
+
+/// Evidence of each eligibility check (append-only). Connector failures are recorded as ERROR and
+/// never as eligible.
+model EligibilityCheck {
+  id          String             @id @default(uuid()) @db.Uuid
+  coverageId  String             @db.Uuid
+  method      EligibilityMethod
+  outcome     EligibilityOutcome
+  reference   String?
+  evidence    String?
+  errorCode   String?
+  checkedById String             @db.Uuid
+  checkedAt   DateTime           @default(now()) @db.Timestamptz(3)
+
+  coverage PatientCoverage @relation(fields: [coverageId], references: [id], onDelete: Restrict)
+
+  @@index([coverageId, checkedAt])
+}
+
+// ───────────────────────── Phase 4: pre-authorisation ─────────────────────────
+
+enum PreauthStatus {
+  DRAFT
+  SUBMITTED
+  QUERIED
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model Preauthorization {
+  id                   String        @id @default(uuid()) @db.Uuid
+  ref                  String        @unique
+  encounterId          String        @db.Uuid
+  patientId            String        @db.Uuid
+  coverageId           String        @db.Uuid
+  payerId              String        @db.Uuid
+  status               PreauthStatus @default(DRAFT)
+  medicalNecessity     String
+  requestedKobo        BigInt
+  approvedKobo         BigInt?
+  authCode             String?
+  validUntil           DateTime?     @db.Date
+  decisionNote         String?
+  createdById          String        @db.Uuid
+  createdAt            DateTime      @default(now()) @db.Timestamptz(3)
+  submittedAt          DateTime?     @db.Timestamptz(3)
+  decidedAt            DateTime?     @db.Timestamptz(3)
+  decisionRecordedById String?       @db.Uuid
+  version              Int           @default(0)
+
+  encounter Encounter       @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  coverage  PatientCoverage @relation(fields: [coverageId], references: [id], onDelete: Restrict)
+  payer     Payer           @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  items     PreauthItem[]
+  events    PreauthEvent[]
+  charges   Charge[]
+
+  @@index([payerId, status])
+}
+
+model PreauthItem {
+  id            String  @id @default(uuid()) @db.Uuid
+  preauthId     String  @db.Uuid
+  serviceItemId String  @db.Uuid
+  orderId       String? @db.Uuid
+  quantity      Int
+  requestedKobo BigInt
+  approvedQty   Int?
+
+  preauth Preauthorization @relation(fields: [preauthId], references: [id], onDelete: Restrict)
+}
+
+model PreauthEvent {
+  id         String         @id @default(uuid()) @db.Uuid
+  preauthId  String         @db.Uuid
+  fromStatus PreauthStatus?
+  toStatus   PreauthStatus
+  note       String?
+  byId       String         @db.Uuid
+  at         DateTime       @default(now()) @db.Timestamptz(3)
+
+  preauth Preauthorization @relation(fields: [preauthId], references: [id], onDelete: Restrict)
+}
+
+// ───────────────────────── Phase 4: charges, invoices, payments ─────────────────────────
+
+enum ChargeSource {
+  VISIT
+  ORDER
+  DISPENSE
+  MANUAL
+}
+
+enum ChargeStatus {
+  ACTIVE
+  VOID
+}
+
+/// How the payer split was decided - shown to staff so the decision source is transparent.
+enum CoverageDecision {
+  CASH_PRICE
+  PAYER_TARIFF
+  EXCLUDED_BY_PLAN
+  PAYER_NOT_ACTIVE
+  COVERAGE_NOT_VALID
+  TARIFF_NOT_MAPPED
+  NO_CASH_PRICE
+  RESOLVED_PATIENT_PAY
+}
+
+/// A billable event. Created automatically from clinical events (idempotent per source) or manually.
+/// Money is integer kobo. unitPriceKobo is null until a price exists (never defaulted to zero).
+model Charge {
+  id                 String           @id @default(uuid()) @db.Uuid
+  encounterId        String           @db.Uuid
+  patientId          String           @db.Uuid
+  branchId           String           @db.Uuid
+  invoiceId          String?          @db.Uuid
+  serviceItemId      String           @db.Uuid
+  description        String
+  quantity           Int
+  serviceDate        DateTime         @db.Date
+  sourceType         ChargeSource
+  sourceId           String
+  unitPriceKobo      BigInt?
+  totalKobo          BigInt?
+  payerPortionKobo   BigInt           @default(0)
+  patientPortionKobo BigInt?
+  decision           CoverageDecision
+  decisionNote       String?
+  needsResolution    Boolean          @default(false)
+  coverageId         String?          @db.Uuid
+  payerId            String?          @db.Uuid
+  preauthRequired    Boolean          @default(false)
+  preauthId          String?          @db.Uuid
+  status             ChargeStatus     @default(ACTIVE)
+  voidReason         String?
+  voidedAt           DateTime?        @db.Timestamptz(3)
+  voidedById         String?          @db.Uuid
+  createdById        String           @db.Uuid
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  version            Int              @default(0)
+
+  encounter   Encounter         @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient     Patient           @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  invoice     Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  serviceItem ServiceItem       @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
+  payer       Payer?            @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  preauth     Preauthorization? @relation(fields: [preauthId], references: [id], onDelete: Restrict)
+  claimLines  ClaimLine[]
+
+  @@unique([sourceType, sourceId])
+  @@index([invoiceId])
+  @@index([encounterId])
+}
+
+enum InvoiceStatus {
+  OPEN
+  FINALISED
+  VOID
+}
+
+/// Patient-facing bill for one visit. OPEN invoices accrue charges; FINALISED ones are locked and
+/// change only through approved adjustments.
+model Invoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  ref           String        @unique
+  encounterId   String        @db.Uuid
+  patientId     String        @db.Uuid
+  branchId      String        @db.Uuid
+  status        InvoiceStatus @default(OPEN)
+  finalisedAt   DateTime?     @db.Timestamptz(3)
+  finalisedById String?       @db.Uuid
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  version       Int           @default(0)
+
+  encounter   Encounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient     Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  charges     Charge[]
+  adjustments InvoiceAdjustment[]
+  allocations PaymentAllocation[]
+
+  @@index([patientId, status])
+}
+
+enum AdjustmentType {
+  DISCOUNT
+  CREDIT_NOTE
+  WRITE_OFF
+}
+
+model InvoiceAdjustment {
+  id            String         @id @default(uuid()) @db.Uuid
+  invoiceId     String         @db.Uuid
+  type          AdjustmentType
+  amountKobo    BigInt
+  reason        String
+  status        ApprovalStatus @default(PENDING)
+  requestedById String         @db.Uuid
+  requestedAt   DateTime       @default(now()) @db.Timestamptz(3)
+  decidedById   String?        @db.Uuid
+  decidedAt     DateTime?      @db.Timestamptz(3)
+  decisionNote  String?
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+}
+
+enum PaymentMethod {
+  CASH
+  POS
+  BANK_TRANSFER
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  REVERSED
+}
+
+/// Money received from (or for) a patient. Unallocated confirmed amounts are patient credit.
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  receiptNo      String?       @unique
+  patientId      String        @db.Uuid
+  branchId       String        @db.Uuid
+  method         PaymentMethod
+  amountKobo     BigInt
+  status         PaymentStatus @default(PENDING)
+  reference      String?
+  provider       String?
+  providerRef    String?
+  idempotencyKey String        @unique
+  cashierShiftId String?       @db.Uuid
+  receivedById   String?       @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  confirmedAt    DateTime?     @db.Timestamptz(3)
+  reversedAt     DateTime?     @db.Timestamptz(3)
+  reversedById   String?       @db.Uuid
+  reversalReason String?
+
+  patient     Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  shift       CashierShift?       @relation(fields: [cashierShiftId], references: [id], onDelete: Restrict)
+  allocations PaymentAllocation[]
+  refunds     Refund[]
+
+  @@unique([provider, providerRef])
+  @@index([patientId, status])
+}
+
+model PaymentAllocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  paymentId   String   @db.Uuid
+  invoiceId   String   @db.Uuid
+  amountKobo  BigInt
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+}
+
+/// Every provider callback is stored once per (provider, eventId); replays are acknowledged and ignored.
+model PaymentProviderEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  provider    String
+  eventId     String
+  payloadHash String
+  outcome     String
+  paymentId   String?  @db.Uuid
+  receivedAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([provider, eventId])
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+model Refund {
+  id            String        @id @default(uuid()) @db.Uuid
+  paymentId     String        @db.Uuid
+  amountKobo    BigInt
+  reason        String
+  method        PaymentMethod
+  status        RefundStatus  @default(REQUESTED)
+  requestedById String        @db.Uuid
+  requestedAt   DateTime      @default(now()) @db.Timestamptz(3)
+  decidedById   String?       @db.Uuid
+  decidedAt     DateTime?     @db.Timestamptz(3)
+  decisionNote  String?
+  paidById      String?       @db.Uuid
+  paidAt        DateTime?     @db.Timestamptz(3)
+  reference     String?
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+  APPROVED
+}
+
+model CashierShift {
+  id               String      @id @default(uuid()) @db.Uuid
+  branchId         String      @db.Uuid
+  cashierId        String      @db.Uuid
+  status           ShiftStatus @default(OPEN)
+  openedAt         DateTime    @default(now()) @db.Timestamptz(3)
+  openingFloatKobo BigInt
+  closedAt         DateTime?   @db.Timestamptz(3)
+  expectedCashKobo BigInt?
+  countedCashKobo  BigInt?
+  varianceKobo     BigInt?
+  closeNote        String?
+  approvedById     String?     @db.Uuid
+  approvedAt       DateTime?   @db.Timestamptz(3)
+  approvalNote     String?
+
+  payments Payment[]
+
+  @@index([branchId, status])
+}
+
+// ───────────────────────── Phase 4: claims & remittances ─────────────────────────
+
+enum ClaimStatus {
+  DRAFT
+  VALIDATED
+  SUBMITTED
+  ACKNOWLEDGED
+  QUERIED
+  RESUBMITTED
+  APPROVED
+  PARTLY_APPROVED
+  DENIED
+  PARTLY_PAID
+  PAID
+  CLOSED
+}
+
+model Claim {
+  id             String      @id @default(uuid()) @db.Uuid
+  ref            String      @unique
+  payerId        String      @db.Uuid
+  coverageId     String      @db.Uuid
+  patientId      String      @db.Uuid
+  encounterId    String      @db.Uuid
+  branchId       String      @db.Uuid
+  batchId        String?     @db.Uuid
+  status         ClaimStatus @default(DRAFT)
+  claimedKobo    BigInt      @default(0)
+  approvedKobo   BigInt?
+  paidKobo       BigInt      @default(0)
+  writtenOffKobo BigInt      @default(0)
+  denialReason   String?
+  submittedAt    DateTime?   @db.Timestamptz(3)
+  createdById    String      @db.Uuid
+  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
+  version        Int         @default(0)
+
+  payer     Payer            @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  coverage  PatientCoverage  @relation(fields: [coverageId], references: [id], onDelete: Restrict)
+  encounter Encounter        @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  batch     ClaimBatch?      @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  lines     ClaimLine[]
+  events    ClaimEvent[]
+  remitted  RemittanceLine[]
+
+  @@index([payerId, status])
+}
+
+model ClaimLine {
+  id            String    @id @default(uuid()) @db.Uuid
+  claimId       String    @db.Uuid
+  chargeId      String    @db.Uuid
+  serviceItemId String    @db.Uuid
+  description   String
+  serviceDate   DateTime  @db.Date
+  quantity      Int
+  claimedKobo   BigInt
+  approvedKobo  BigInt?
+  paidKobo      BigInt    @default(0)
+  authCode      String?
+  removedAt     DateTime? @db.Timestamptz(3)
+
+  claim      Claim            @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  charge     Charge           @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+  remittance RemittanceLine[]
+}
+
+model ClaimEvent {
+  id         String       @id @default(uuid()) @db.Uuid
+  claimId    String       @db.Uuid
+  fromStatus ClaimStatus?
+  toStatus   ClaimStatus
+  note       String?
+  byId       String       @db.Uuid
+  at         DateTime     @default(now()) @db.Timestamptz(3)
+
+  claim Claim @relation(fields: [claimId], references: [id], onDelete: Restrict)
+}
+
+model ClaimBatch {
+  id          String    @id @default(uuid()) @db.Uuid
+  ref         String    @unique
+  payerId     String    @db.Uuid
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  submittedAt DateTime? @db.Timestamptz(3)
+
+  claims Claim[]
+}
+
+/// Payment advice from a payer. The payer's reference is unique per payer so the same advice cannot
+/// be imported twice.
+model Remittance {
+  id             String   @id @default(uuid()) @db.Uuid
+  ref            String   @unique
+  payerId        String   @db.Uuid
+  payerReference String
+  receivedDate   DateTime @db.Date
+  totalKobo      BigInt
+  note           String?
+  importedById   String   @db.Uuid
+  importedAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  payer Payer            @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  lines RemittanceLine[]
+
+  @@unique([payerId, payerReference])
+}
+
+model RemittanceLine {
+  id           String  @id @default(uuid()) @db.Uuid
+  remittanceId String  @db.Uuid
+  claimId      String  @db.Uuid
+  claimLineId  String? @db.Uuid
+  paidKobo     BigInt
+  deniedKobo   BigInt  @default(0)
+  reason       String?
+
+  remittance Remittance @relation(fields: [remittanceId], references: [id], onDelete: Restrict)
+  claim      Claim      @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  claimLine  ClaimLine? @relation(fields: [claimLineId], references: [id], onDelete: Restrict)
+}
+
+// ───────────────────────── Phase 4: simplified double-entry ledger ─────────────────────────
+
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  INCOME
+  EXPENSE
+  EQUITY
+}
+
+model LedgerAccount {
+  code String            @id
+  name String
+  type LedgerAccountType
+
+  lines JournalLine[]
+}
+
+/// One posting per financial event (unique per source and kind), balanced and append-only.
+model JournalEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  branchId    String   @db.Uuid
+  sourceType  String
+  sourceId    String
+  kind        String
+  description String
+  occurredAt  DateTime @default(now()) @db.Timestamptz(3)
+  createdById String?  @db.Uuid
+
+  lines JournalLine[]
+
+  @@unique([sourceType, sourceId, kind])
+  @@index([occurredAt])
+}
+
+model JournalLine {
+  id          String  @id @default(uuid()) @db.Uuid
+  entryId     String  @db.Uuid
+  accountCode String
+  debitKobo   BigInt  @default(0)
+  creditKobo  BigInt  @default(0)
+  payerId     String? @db.Uuid
+  patientId   String? @db.Uuid
+
+  entry   JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  account LedgerAccount @relation(fields: [accountCode], references: [code], onDelete: Restrict)
+
+  @@index([accountCode])
 }

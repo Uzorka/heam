@@ -52,6 +52,7 @@ export const checkInSchema = z
     clinicianId: uuid.optional().or(z.literal("").transform(() => undefined)),
     priority: z.enum(PRIORITIES).default("ROUTINE"),
     payerClass: z.enum(PAYER_CLASSES).default("UNDETERMINED"),
+    coverageId: uuid.optional(),
     reason: optionalText(300),
     referralSource: optionalText(120),
     financialTermsAcknowledged: z.boolean().default(false),

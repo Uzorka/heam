@@ -20,7 +20,26 @@ import { CheckInForm } from "./check-in-form";
 
 export const metadata: Metadata = { title: "Check in" };
 
-const COMMON: FieldSpec[] = [
+type Cover = {
+  id: string;
+  memberNumber: string;
+  payer: { name: string; status: string };
+  plan: { name: string };
+};
+
+async function activeCovers(patientId: string): Promise<Cover[]> {
+  return prisma.patientCoverage.findMany({
+    where: { patientId, status: "ACTIVE" },
+    select: {
+      id: true,
+      memberNumber: true,
+      payer: { select: { name: true, status: true } },
+      plan: { select: { name: true } },
+    },
+  });
+}
+
+const commonFields = (covers: Cover[]): FieldSpec[] => [
   {
     name: "priority",
     label: "Priority (staff judgement)",
@@ -40,7 +59,9 @@ const COMMON: FieldSpec[] = [
     type: "select",
     required: true,
     defaultValue: "UNDETERMINED",
-    hint: "HMO coverage checks arrive in Phase 4; record the patient's stated payer for now.",
+    hint: covers.length
+      ? "For HMO / corporate visits choose the cover below; the bill is split automatically."
+      : "No cover is recorded for this patient. Insured visits are billed as cash until the HMO desk adds cover.",
     options: [
       { value: "UNDETERMINED", label: "Not yet determined" },
       { value: "CASH", label: "Self-pay (cash / transfer / POS)" },
@@ -49,6 +70,19 @@ const COMMON: FieldSpec[] = [
       { value: "PART_INSURED", label: "Part insured" },
     ],
   },
+  ...(covers.length
+    ? [
+        {
+          name: "coverageId",
+          label: "Cover used for this visit",
+          type: "select" as const,
+          options: covers.map((c) => ({
+            value: c.id,
+            label: `${c.payer.name} - ${c.plan.name} (${c.memberNumber})${c.payer.status !== "ACTIVE" ? " - payer not active" : ""}`,
+          })),
+        },
+      ]
+    : []),
   { name: "reason", label: "Reason for visit", type: "textarea", hint: "Brief, non-clinical" },
   {
     name: "financialTermsAcknowledged",
@@ -102,7 +136,10 @@ export default async function CheckInPage({
                   This appointment is already {appt.status.toLowerCase().replace("_", " ")}.
                 </Alert>
               ) : (
-                <CheckInForm fixed={{ appointmentId: appt.id }} fields={COMMON} />
+                <CheckInForm
+                  fixed={{ appointmentId: appt.id }}
+                  fields={commonFields(await activeCovers(appt.patientId))}
+                />
               )}
             </CardBody>
           </Card>
@@ -170,7 +207,7 @@ export default async function CheckInPage({
                       placeholder: "Not assigned yet",
                       options: clinicians.map((c) => ({ value: c.id, label: c.displayName })),
                     },
-                    ...COMMON,
+                    ...commonFields(await activeCovers(p.id)),
                     { name: "referralSource", label: "Referred by", type: "text" },
                   ]}
                 />

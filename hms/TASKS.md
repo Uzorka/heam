@@ -43,19 +43,19 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 | 3     | Multiple scoped roles; revocation immediate                     | ✅                                                                            |
 | 4     | Branch / direct URL restriction                                 | ✅                                                                            |
 | 5     | Duplicates never silently merged                                | ✅                                                                            |
-| 6     | Idempotent payment callback                                     | Phase 4                                                                       |
+| 6     | Idempotent payment callback                                     | ✅ integration (concurrent duplicate delivery posts once)                     |
 | 7     | Concurrent bed assignment                                       | Phase 5 (same DB technique proven for appointments)                           |
 | 8–9   | Dispensing lot accuracy; expired lots blocked                   | ✅ integration (idempotent + concurrent) + E2E                                |
 | 10–11 | Verified results / signed notes immutable with amendments       | Phase 2                                                                       |
-| 12–15 | HMO patient-pay, claim vs preauth, remittance, effective tariff | Phase 4                                                                       |
+| 12–15 | HMO patient-pay, claim vs preauth, remittance, effective tariff | ✅ integration + E2E (HMO flow to reconciled remittance)                      |
 | 16    | Pregnancy & newborn (twins) linked records                      | Phase 5                                                                       |
-| 17    | Cancelled orders not chargeable                                 | Phase 2/4                                                                     |
+| 17    | Cancelled orders not chargeable                                 | ✅ integration (charge voided in same transaction; finalised bills protected) |
 | 18    | Critical result acknowledgement                                 | Phase 2                                                                       |
 | 19    | Lagos time & kobo money                                         | ✅ unit                                                                       |
 | 20    | Guardian sees only approved dependant documents                 | Partial: verified guardian links; portal Phase 6                              |
 | 21    | Sensitive downloads/exports permissioned & logged               | Partial: identifier reveal; files/exports Phase 2/6                           |
 | 22    | URL manipulation cannot bypass record rules                     | ✅                                                                            |
-| 23    | Broken connector never marks eligibility verified               | Phase 4                                                                       |
+| 23    | Broken connector never marks eligibility verified               | ✅ integration (missing, failing and malformed connectors)                    |
 | 24    | Core screens on phone/tablet                                    | Partial: front desk/queue verified; extend each phase                         |
 | 25    | Production fails safely without secrets                         | ✅ unit + observed                                                            |
 
@@ -124,17 +124,47 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 - Dispensing is not yet charged; billing arrives in Phase 4.
 - Count approval posts the variance against the snapshot quantity; counts should be done when the location is quiet.
 
-## Phase 4 - next (billing, HMO, claims)
+## Phase 4 - Billing, payments, HMO and claims ✅
 
-- [ ] Service catalogue with effective-dated prices entered and approved by finance (no fabricated prices)
-- [ ] Patient accounts, invoices from orders/dispenses (cancelled orders never charged), payments with idempotent provider callbacks, receipts, refunds/voids with approval, cashier shifts and daily close
-- [ ] HMO partners/plans/tariffs (contracts activated only when verified), patient coverage, eligibility checks that never show verified when a connector fails, pre-authorisation, claims from encounters, submission tracking, remittance import and reconciliation
-- [ ] Tests: acceptance criteria 6, 12–15, 17, 23
+- [x] Migration `phase4_billing_hmo`: effective-dated cash prices and payer tariffs (exclusion constraints, approved rows immutable), charge split CHECKs, charges/invoices never deleted, finalised invoices lock their charges, payments immutable except status/reversal, append-only allocations, provider events, eligibility checks, pre-auth/claim histories and remittances, one open shift per cashier, one live claim line per charge, balanced append-only journal (deferred constraint trigger)
+- [x] Service catalogue linked to lab tests, imaging studies, visit types and stock items; prices proposed by finance and approved by the owner (two people); bills use the price in force on the service date
+- [x] Coverage decision per charge with visible source: payer tariff + co-pay, excluded / lapsed cover / inactive payer = explicit patient pay, unmapped tariff or missing price held for resolution (invoice cannot be finalised until resolved)
+- [x] Automatic, idempotent charges at check-in (consultation), order placement and dispensing; order cancellation and dispense reversal void them in the same transaction; a charge on a finalised invoice blocks silent cancellation
+- [x] Invoices (open → finalised), manual charges, discounts / credit notes / write-offs with second-person approval, printable invoice and receipt
+- [x] Cashier shifts (float, expected vs counted cash, approval), cash/POS/transfer payments with idempotency keys, deposits and credit, apply credit, refunds (request → approve → pay out), reversal of payments recorded in error
+- [x] Online payment adapter (Paystack-style signed webhook) disabled until configured; verified callbacks confirm exactly once
+- [x] Payers (three directory-listed HMOs seeded as pending verification), plans, tariffs, activation only with contract evidence; patient cover; manual eligibility with evidence; connector eligibility that records failures as not verified
+- [x] Pre-authorisation workflow (draft → submitted → queried / approved / partly approved / rejected / expired / cancelled) with auth codes; approval re-links charges
+- [x] Claims from visits (deduplicated), validation (diagnosis, pre-auth, active payer), batches, Excel-friendly CSV export (audited, formula-safe), payer decisions, remittance import with line reconciliation, write-off on close (finance)
+- [x] Simplified double-entry ledger: revenue at charge, receivables (patient / payer), deposits, payments, allocations, refunds, adjustments, remittances, write-offs
+- [x] UI: cashier desk, patient account, invoice, receipts, billing approvals, price list, HMO desk (ageing, by-payer balances, visits to claim, contract expiry), payers/plans/tariffs, pre-authorisations, claims, remittances, finance overview; payer panel on the visit workspace and a non-clinical visit billing page for HMO/billing staff; Coverage tab on the patient record; cover selection at check-in
+- [x] Seed: DEMO price list (labelled fictional), pending Hygeia / Reliance / Fountain listings, one fictional active payer with tariffs (one excluded, one pre-auth), demo patient cover
+
+### Phase 4 test status
+
+- Integration: +17 (effective-dated pricing, overlaps, unpriced services, payer split, AC12 patient pay, unmapped tariffs, payer activation, AC23 connectors, AC17 order charges, finalised-invoice protection, shifts/overpayment/refunds, credit and discounts, AC6 callbacks, ledger guards, AC13 pre-auth vs payment, AC14 duplicates and multiple remittances, write-off approval)
+- E2E: +2 (HMO cover → check-in on cover → orders → pre-authorisation → co-pay collection → claim → batch → approval → remittance → paid; role checks on finance pages)
+- Totals at end of Phase 4: 55 unit + 88 integration, 14 E2E - all passing (E2E suite run twice back to back)
+
+### Known limitations after Phase 4
+
+- Encounter and annual benefit limits are stored on plans but not yet enforced automatically; capitation is recorded but not reconciled.
+- Corporate accounts use the payer model (scheme CORPORATE); there is no separate corporate statement run yet.
+- Expenses, purchase payables and branch comparison reports are not built (finance overview covers revenue, collections, receivables and postings).
+- Claim attachments and appeal letters are not generated; denial reasons and resubmissions are recorded.
+- No live payer or payment integration exists (by design until agreements and credentials).
+
+## Phase 5 - next (maternity and inpatient wards)
+
+- [ ] Pregnancy episode, antenatal visits and trends, clinician-reviewed dating, risk flags only from approved rules
+- [ ] Labour, delivery and newborn records (distinct, linked records; twins), postnatal follow-up
+- [ ] Admissions, bed assignment with concurrency protection, transfers, ward lists, nursing observations, MAR, discharge with clinical authorisation and financial clearance (bed-day charges)
+- [ ] Tests: acceptance criteria 7 and 16; E2E ANC → delivery → mother/newborn discharge, ward move
 
 ## Continuation prompt for the next session
 
 > Continue the Aduraking HMS in `hms/` on branch `claude/aduraking-hms`. Read `TASKS.md`, `docs/ARCHITECTURE.md`
-> and `docs/DOMAIN_MODEL.md` first. Phases 1-3 are complete and green (unit, integration, E2E). Start Phase 4 exactly as
+> and `docs/DOMAIN_MODEL.md` first. Phases 1-4 are complete and green (unit, integration, E2E). Start Phase 5 exactly as
 > listed in TASKS.md: add a new Prisma migration (never edit applied ones), put all rules in `src/server/domains/*`
 > services with `requirePermission`/`getClinicalAccess` checks and same-transaction `recordAudit`, expose them via
 > `defineAction`, and build pages using the existing UI kit (`components/ui`, `components/forms/action-form`).

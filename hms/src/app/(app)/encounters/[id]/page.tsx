@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FilePlus2, ShieldAlert } from "lucide-react";
 import { requireAuthContext } from "@/server/auth/session";
-import { can } from "@/server/authz/context";
+import { can, canAny } from "@/server/authz/context";
 import { prisma } from "@/server/db";
 import { getEncounterWorkspace } from "@/server/domains/clinical/workspace";
 import { NOTE_TEMPLATES, SECTION_LABELS, sectionsFor } from "@/server/domains/clinical/templates";
@@ -34,6 +34,7 @@ import {
 import { pharmacyAvailability } from "@/server/domains/pharmacy/service";
 import { load } from "../../_lib/guard";
 import { StageButtons } from "../../queue/stage-buttons";
+import { PayerPanel } from "./payer-panel";
 import { QUEUE_TRANSITIONS, transitionPermission } from "@/server/domains/queue/state-machine";
 import {
   acknowledgeCriticalAction,
@@ -224,6 +225,10 @@ export default async function EncounterPage({
         ]}
       />
 
+      {tab === "summary" &&
+        canAny(ctx, ["hmo.read", "billing.read", "queue.manage", "hmo.preauth.manage"], { branchId: b }) && (
+          <PayerPanel ctx={ctx} enc={enc} />
+        )}
       {tab === "summary" && (
         <div className="grid gap-5 lg:grid-cols-3">
           <Card className="lg:col-span-2">

@@ -9,12 +9,14 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useServerAction } from "./use-action";
 import { useToast } from "./toaster";
 import { cn } from "@/lib/utils";
+import { parseNairaToKobo } from "@/lib/money";
 
 export type FieldSpec =
   | {
       name: string;
       label: string;
-      type: "text" | "password" | "tel" | "email" | "date" | "time" | "number";
+      /** "money": typed in naira, submitted as integer kobo. */
+      type: "text" | "password" | "tel" | "email" | "date" | "time" | "number" | "money";
       required?: boolean;
       hint?: string;
       placeholder?: string;
@@ -58,6 +60,15 @@ export type FieldSpec =
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server actions have heterogeneous input types
 type AnyAction = (input: any) => Promise<ActionResult<unknown>>;
 
+/** Naira text -> integer kobo; anything unparseable becomes NaN so validation reports it. */
+function nairaToKobo(s: string): number {
+  try {
+    return Number(parseNairaToKobo(s));
+  } catch {
+    return Number.NaN;
+  }
+}
+
 function fieldId(prefix: string, name: string) {
   return `${prefix}-${name.replace(/\./g, "-")}`;
 }
@@ -81,7 +92,10 @@ function collect(form: HTMLFormElement, fields: FieldSpec[]): Record<string, unk
     else {
       const v = fd.get(f.name);
       const s = typeof v === "string" ? v.trim() : "";
-      set(f.name, s === "" ? undefined : f.type === "number" ? Number(s) : s);
+      set(
+        f.name,
+        s === "" ? undefined : f.type === "number" ? Number(s) : f.type === "money" ? nairaToKobo(s) : s,
+      );
     }
   }
   return out;
@@ -170,10 +184,18 @@ export function FormFields({
             ) : (
               <Input
                 name={f.name}
-                type={f.type}
+                type={f.type === "money" ? "text" : f.type}
                 defaultValue={f.defaultValue}
-                placeholder={f.placeholder}
-                inputMode={f.type === "tel" ? "tel" : f.type === "number" ? "numeric" : undefined}
+                placeholder={f.placeholder ?? (f.type === "money" ? "₦ e.g. 5,000.00" : undefined)}
+                inputMode={
+                  f.type === "tel"
+                    ? "tel"
+                    : f.type === "number"
+                      ? "numeric"
+                      : f.type === "money"
+                        ? "decimal"
+                        : undefined
+                }
                 {...("max" in f && f.max ? { max: f.max } : {})}
                 {...("min" in f && f.min ? { min: f.min } : {})}
               />

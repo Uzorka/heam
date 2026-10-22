@@ -58,6 +58,22 @@ _Pharmacy_ worklist → open a prescription. Check the allergy banner, then **Ve
 - _Procurement_: raise a **requisition** → someone else **approves** → **Create order** (supplier and unit costs from the quotation) → **Issue** → when goods arrive, open the order and **Record goods received** with lot numbers and expiry dates (quarantine anything doubtful).
 - _Stock approvals_: approve or reject adjustments; **Start a count** for a location, enter counted quantities, **Submit**; a different person **Approves** and the variances post to the ledger.
 
+## Cashier
+
+_Cashier desk_ → **Open shift** (count the float). Bills with a balance are listed; or search the patient → _Account_. Open the invoice: each line shows its price source and the payer / patient split. **Take payment** (cash needs an open shift; POS and transfers need the slip or bank reference). Overpayments stay as patient credit; deposits can be recorded on the account and **Apply credit** later. Discounts and credit notes are requested here and approved by finance. Lines marked _needs resolution_ must be priced or confirmed as patient pay before **Finalise**. At the end of the day **Close shift** with the counted cash; finance approves the close.
+
+## HMO officer
+
+- Patient record → _Coverage_: **Add cover**, then **Record eligibility check** with the payer's reference (or **Check online** if a connector exists - failures stay "not verified").
+- At check-in reception picks _HMO_ and the cover; if missed, change it from the visit's _Payer & billing_ panel (open charges are re-priced).
+- _HMO desk_: visits with unclaimed payer charges → open the visit billing page → **Request pre-authorisation** when the tariff needs it; record **submitted**, then the payer's decision with the authorisation code.
+- **Create claim** → open it → fix any listed problems → **Validate** → _Claims_ → **Batch & submit** → download the CSV and send it through the payer's channel. Record acknowledgements, queries, approvals or denials.
+- _Remittances_: enter (or paste) each payment advice once; amounts are matched to claims line by line. Claims become _paid_ only here. Close claims with an unpaid balance only with finance approval.
+
+## Finance
+
+_Billing approvals_ for discounts, refunds and shift closes; _Price list_ for proposing prices (owner approves); _Payers & tariffs_ to activate verified contracts and approve tariffs; _Finance overview_ for revenue, collections, receivables and the posting journal.
+
 ## Medical records
 
 _Duplicate review_: request a merge with evidence, or mark _not the same person_. A **different** records officer approves merges. Verify guardian links; reveal identity numbers only when needed (audited).

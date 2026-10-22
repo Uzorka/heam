@@ -13,7 +13,9 @@
 
 See `.env.example`. Production requires: `DATABASE_URL` (least-privilege app user), `APP_URL`
 (https), `DATA_ENCRYPTION_KEY` and `BLIND_INDEX_KEY` (distinct, 32 bytes base64), `STORAGE_DRIVER=s3`.
-`MFA_ENFORCE` is forced on. `HMS_LOCAL_PRODUCTION_TEST` must **never** be set (it is refused for non-localhost URLs anyway).
+`MFA_ENFORCE` is forced on. Online payments stay off (`PAYMENT_PROVIDER=disabled`) until a merchant
+agreement exists; enabling a provider requires `PAYMENT_WEBHOOK_SECRET` (startup refuses otherwise) and
+registering `https://<host>/api/payments/callback` with the provider. `HMS_LOCAL_PRODUCTION_TEST` must **never** be set (it is refused for non-localhost URLs anyway).
 
 ## Release steps
 

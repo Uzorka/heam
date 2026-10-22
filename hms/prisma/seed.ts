@@ -12,6 +12,7 @@ import { PrismaClient, type QueueStage, type SexAtBirth } from "@prisma/client";
 import { syncPermissionCatalog } from "../src/server/authz/catalog-sync";
 import { seedClinicalActivity, seedClinicalCatalogue } from "./seed-clinical";
 import { seedPharmacy } from "./seed-pharmacy";
+import { seedBilling } from "./seed-billing";
 import { ROLE_TEMPLATES } from "../src/server/authz/role-templates";
 import { hashPassword } from "../src/server/auth/password";
 import { encryptField } from "../src/server/crypto";
@@ -540,7 +541,7 @@ const DEMO_PATIENTS: DemoPatient[] = [
     nok: ["Obinna Okafor", "Brother", "08090000104"],
     allergies: [["Penicillin", "DRUG", "Rash and swelling", "SEVERE"]],
     daysAgo: 400,
-    note: "Scenario B: insured (HMO in Phase 4)",
+    note: "Scenario B: insured (DEMO Health Plan cover)",
   },
   {
     key: "C",
@@ -1042,6 +1043,8 @@ async function main() {
     console.warn(
       "Seeded demo pharmacy and stores (medicines, lots, a pending prescription and requisition).",
     );
+  if (await seedBilling(prisma, users))
+    console.warn("Seeded DEMO price list, pending directory-listed HMOs and one fictional active payer.");
   await recordAudit(prisma, {
     actorType: "SYSTEM",
     action: "seed.loaded",

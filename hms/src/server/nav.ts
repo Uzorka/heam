@@ -75,6 +75,45 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Billing & finance",
+    items: [
+      {
+        href: "/billing",
+        label: "Cashier desk",
+        icon: "Wallet",
+        any: ["billing.payment.collect", "billing.invoice.manage"],
+      },
+      {
+        href: "/billing/approvals",
+        label: "Billing approvals",
+        icon: "ClipboardCheck",
+        any: [
+          "billing.discount.approve",
+          "billing.refund.approve",
+          "finance.close.approve",
+          "billing.payment.collect",
+        ],
+      },
+      {
+        href: "/billing/catalogue",
+        label: "Price list",
+        icon: "Tags",
+        any: ["billing.catalogue.manage", "billing.tariff.approve"],
+      },
+      { href: "/finance", label: "Finance overview", icon: "Landmark", any: ["finance.read"] },
+    ],
+  },
+  {
+    label: "HMO & insurance",
+    items: [
+      { href: "/hmo", label: "HMO desk", icon: "ShieldPlus", any: ["hmo.read"] },
+      { href: "/hmo/preauth", label: "Pre-authorisations", icon: "FileClock", any: ["hmo.read"] },
+      { href: "/hmo/claims", label: "Claims", icon: "FileStack", any: ["hmo.read"] },
+      { href: "/hmo/remittances", label: "Remittances", icon: "Banknote", any: ["hmo.remittance.reconcile"] },
+      { href: "/hmo/payers", label: "Payers & tariffs", icon: "Handshake", any: ["hmo.read"] },
+    ],
+  },
+  {
     label: "Administration",
     items: [
       {

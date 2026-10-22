@@ -1,6 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/api/health", "/access-denied"];
+// The payment webhook authenticates by signature, not session.
+const PUBLIC_PATHS = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/api/health",
+  "/access-denied",
+  "/api/payments/callback",
+];
 const SESSION_COOKIES = ["hms_session", "__Host-hms_session"];
 
 /**

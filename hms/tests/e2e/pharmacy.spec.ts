@@ -84,7 +84,7 @@ test("Phase 3: signed prescription -> pharmacist verification -> FEFO dispense s
   await expect(pharmacist.getByText("Dispensed and stock updated.")).toBeVisible();
   // First-expiry-first-out: the near-expiry lot is used, never the expired one.
   // (On a fresh seed that is DEMO-PCM-NEAR; repeated local runs eventually use it up.)
-  await expect(pharmacist.getByText(/from lot DEMO-PCM-(NEAR|L\d+A)/).first()).toBeVisible();
+  await expect(pharmacist.getByText(/from lot DEMO-(PCM-NEAR|L\d+A)/).first()).toBeVisible();
   await expect(pharmacist.getByText(/from lot DEMO-PCM-EXP/)).toHaveCount(0);
   await expect(pharmacist.getByText("Dispensed", { exact: true })).toBeVisible();
 });

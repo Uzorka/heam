@@ -43,6 +43,13 @@ no hard deletes.
 | Medicines | MedicationProduct, MedicationFrequency | Each medicine is one stock item; frequencies are clinician-approved content |
 | Prescribing | Prescription, PrescriptionItem, DispenseEvent | Signed prescriptions immutable (trigger) apart from status; dispensed ≤ prescribed (CHECK); dispense events immutable except one reversal marker |
 
+| Prices | ServiceItem, ServicePrice | Approved prices effective-dated, non-overlapping (exclusion constraint), immutable except closing |
+| Payers | Payer, PayerPlan, PayerTariff, PatientCoverage, EligibilityCheck | Payers pending until activated with evidence; tariffs per payer/plan/service, effective-dated; eligibility evidence append-only |
+| Billing | Charge, Invoice, InvoiceAdjustment | One charge per source event (unique); decision code + note; unpriced charges carry no amounts; finalised invoices lock charges |
+| Payments | Payment, PaymentAllocation, PaymentProviderEvent, Refund, CashierShift | Payment facts immutable; allocations append-only and never exceed the balance; provider events stored once |
+| HMO workflow | Preauthorization(+Item, Event), Claim, ClaimLine, ClaimEvent, ClaimBatch, Remittance(+Line) | One live claim line per charge; PAID only via remittance; paid ≤ claimed (CHECK) |
+| Ledger | LedgerAccount, JournalEntry, JournalLine | Balanced at commit; append-only; unique per (source, kind) for exactly-once posting |
+
 Prescription item states: `PENDING → (QUERIED) → VERIFIED → PARTIALLY_DISPENSED → DISPENSED`; `CANCELLED` before dispensing (prescriber) or for the
 undispensed balance (pharmacy). A same-day reversal returns stock to the original lot and reopens the item.
 
@@ -50,12 +57,11 @@ Order states: LAB `ORDERED → SPECIMEN_COLLECTED → IN_PROGRESS → RESULTED �
 can return RESULTED → IN_PROGRESS); IMAGING `ORDERED → (SCHEDULED) → IN_PROGRESS → RESULTED → VERIFIED`; PROCEDURE/REFERRAL
 `ORDERED → COMPLETED`; any kind → CANCELLED only before work starts.
 
-## Planned (Phases 4–6)
+## Planned (Phases 5–6)
 
-| Phase | Entities                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 4     | ServiceCatalogueItem (effective-dated prices), InsurancePartner, InsurancePlan, InsuranceTariff, PatientCoverage, EligibilityCheck, CoverageDecision, Preauthorization(+Event), Claim, ClaimItem, ClaimStatusEvent, ClaimAttachment, Remittance, ClaimReconciliation, Invoice, InvoiceItem, Payment, PaymentAllocation, Refund, CreditNote, CashierShift, FinancialPosting, LedgerAccount, JournalEntry, JournalLine, IdempotencyKey, Outbox |
-| 5     | MedicationAdministration (MAR), PregnancyEpisode, AntenatalVisit, PregnancyDatingEvent, LabourEpisode, DeliveryRecord, NewbornRelationship, PostnatalVisit, Admission, BedAssignment (exclusion constraint), BedStatusEvent, WardObservation, DischargeRecord                                                                                                                                                                                |
-| 6     | Employment, ProfessionalCredential, Shift, Attendance, LeaveRequest, PayrollRun, Payslip, PortalAccount links, IntegrationCredentialReference, export logs                                                                                                                                                                                                                                                                                   |
+| Phase | Entities                                                                                                                                                                                                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5     | MedicationAdministration (MAR), PregnancyEpisode, AntenatalVisit, PregnancyDatingEvent, LabourEpisode, DeliveryRecord, NewbornRelationship, PostnatalVisit, Admission, BedAssignment (exclusion constraint), BedStatusEvent, WardObservation, DischargeRecord |
+| 6     | Employment, ProfessionalCredential, Shift, Attendance, LeaveRequest, PayrollRun, Payslip, PortalAccount links, IntegrationCredentialReference, export logs                                                                                                    |
 
 `docs/DATA_DICTIONARY.md` and an ERD will be generated from the schema once Phase 2 entities land.

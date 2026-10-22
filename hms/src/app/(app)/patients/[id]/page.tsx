@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { DescriptionList, EmptyState, Forbidden } from "@/components/ui/misc";
 import { LinkTabs } from "@/components/ui/tabs";
+import { CoverageTab } from "./coverage-tab";
 import { Table, TableWrap, TD, TH, THead, TR } from "@/components/ui/table";
 import { ActionDialog, ConfirmAction } from "@/components/forms/action-form";
 import { PatientBanner } from "@/components/patient/banner";
@@ -42,7 +43,16 @@ import { RevealIdentifier } from "./reveal";
 
 export const metadata: Metadata = { title: "Patient record" };
 
-const TABS = ["overview", "clinical", "allergies", "appointments", "visits", "consents", "timeline"] as const;
+const TABS = [
+  "overview",
+  "clinical",
+  "allergies",
+  "appointments",
+  "visits",
+  "coverage",
+  "consents",
+  "timeline",
+] as const;
 type Tab = (typeof TABS)[number];
 
 const CONSENT_LABEL: Record<string, string> = {
@@ -185,6 +195,7 @@ export default async function PatientPage({
             ? [{ key: "appointments", label: "Appointments", href: href("appointments") }]
             : []),
           ...(can(ctx, "queue.read") ? [{ key: "visits", label: "Visits", href: href("visits") }] : []),
+          ...(can(ctx, "hmo.read") ? [{ key: "coverage", label: "Coverage", href: href("coverage") }] : []),
           { key: "consents", label: "Consents", href: href("consents") },
           { key: "timeline", label: "Timeline", href: href("timeline") },
         ]}
@@ -748,6 +759,8 @@ export default async function PatientPage({
           )}
         </Card>
       )}
+
+      {tab === "coverage" && can(ctx, "hmo.read") && <CoverageTab ctx={ctx} patientId={id} />}
 
       {tab === "consents" && (
         <Card>

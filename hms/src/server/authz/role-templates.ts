@@ -258,6 +258,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "inventory.requisition.create",
       "inventory.receive",
       "inventory.count",
+      "inventory.transfer",
     ],
   },
   {
@@ -273,6 +274,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "inventory.receive",
       "inventory.adjust",
       "inventory.count",
+      "inventory.transfer",
     ],
   },
   {

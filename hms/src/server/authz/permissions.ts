@@ -114,6 +114,7 @@ export const PERMISSIONS = [
   p("inventory.adjust", "LOW", "Propose stock adjustments"),
   p("inventory.adjust.approve", "FINANCIAL", "Approve stock adjustments"),
   p("inventory.count", "LOW", "Perform stock counts"),
+  p("inventory.transfer", "LOW", "Move stock between locations; quarantine or recall lots"),
 
   // HMO & insurance
   p("hmo.read", "FINANCIAL", "View HMO partners, plans and coverage"),

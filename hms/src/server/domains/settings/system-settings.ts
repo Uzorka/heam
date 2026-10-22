@@ -40,6 +40,18 @@ export const SETTING_DEFS = {
     label: "Lab results need an independent verifier",
     description: "When on, the person verifying results must be different from whoever entered them.",
   },
+  "pharmacy.requireIndependentVerification": {
+    schema: z.boolean(),
+    default: true,
+    label: "Prescriptions need an independent pharmacist check",
+    description: "When on, the pharmacist verifying a prescription item must not be its prescriber.",
+  },
+  "inventory.nearExpiryDays": {
+    schema: z.number().int().min(7).max(365),
+    default: 90,
+    label: "Near-expiry warning window (days)",
+    description: "Lots expiring within this many days are highlighted on stock pages.",
+  },
   "records.retentionPolicyStatus": {
     schema: z.enum(["AWAITING_LEGAL_SIGNOFF", "APPROVED"]),
     default: "AWAITING_LEGAL_SIGNOFF" as const,

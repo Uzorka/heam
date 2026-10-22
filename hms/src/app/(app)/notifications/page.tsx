@@ -18,6 +18,32 @@ const TEMPLATES: Record<string, { text: string; href?: (p: Record<string, unknow
     text: "An emergency access event needs compliance review.",
     href: () => "/audit/break-glass",
   },
+  "lab.results_ready": {
+    text: "Laboratory results you ordered are ready for review.",
+    href: () => "/results",
+  },
+  "lab.critical_result": {
+    text: "A critical laboratory result needs acknowledgement.",
+    href: () => "/results",
+  },
+  "lab.result_amended": { text: "A laboratory result you ordered was amended.", href: () => "/results" },
+  "lab.specimen_rejected": {
+    text: "A specimen for one of your orders was rejected and needs recollection.",
+    href: () => "/results",
+  },
+  "imaging.report_ready": {
+    text: "An imaging report you ordered is ready for review.",
+    href: () => "/results",
+  },
+  "imaging.report_amended": { text: "An imaging report you ordered was amended.", href: () => "/results" },
+  "pharmacy.item_queried": {
+    text: "The pharmacy has a query about a prescription you wrote.",
+    href: (p) => `/encounters/${String(p.encounterId)}?tab=medications`,
+  },
+  "pharmacy.item_closed": {
+    text: "The pharmacy stopped the remaining supply of a prescription item you wrote.",
+    href: (p) => `/encounters/${String(p.encounterId)}?tab=medications`,
+  },
 };
 
 export default async function NotificationsPage() {

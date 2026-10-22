@@ -115,6 +115,7 @@
 | `inventory.adjust` | LOW |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |  |  |  |
 | `inventory.adjust.approve` | FINANCIAL |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
 | `inventory.count` | LOW |  |  |  |  |  |  |  |  |  |  |  |  | ✓ | ✓ |  |  |  |  |  |  |  |
+| `inventory.transfer` | LOW |  |  |  |  |  |  |  |  |  |  |  |  | ✓ | ✓ |  |  |  |  |  |  |  |
 | `hmo.read` | FINANCIAL |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |  | ✓ |  | ✓ |  |  |  |  |
 | `hmo.partner.manage` | FINANCIAL |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |  |  |
 | `hmo.partner.activate` | FINANCIAL |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
@@ -230,6 +231,7 @@
 - `inventory.adjust` (LOW): Propose stock adjustments
 - `inventory.adjust.approve` (FINANCIAL): Approve stock adjustments
 - `inventory.count` (LOW): Perform stock counts
+- `inventory.transfer` (LOW): Move stock between locations; quarantine or recall lots
 - `hmo.read` (FINANCIAL): View HMO partners, plans and coverage
 - `hmo.partner.manage` (FINANCIAL): Configure HMO partners, plans and tariffs
 - `hmo.partner.activate` (FINANCIAL): Activate a verified HMO contract

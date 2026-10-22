@@ -31,10 +31,22 @@ import {
   Stethoscope,
   UserCog,
   Users,
+  UsersRound,
+  CalendarClock,
+  CalendarCheck2,
+  Coins,
+  BarChart3,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 
 export const NAV_ICONS: Record<string, LucideIcon> = {
+  UsersRound,
+  CalendarClock,
+  CalendarCheck2,
+  Coins,
+  BarChart3,
+  UserRound,
   BookOpenCheck,
   CalendarCog,
   Baby,

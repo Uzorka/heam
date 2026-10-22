@@ -373,3 +373,17 @@ export async function myPayslips(ctx: AuthContext, db: DbClient = prisma) {
     include: { run: { select: { period: true, ref: true } } },
   });
 }
+
+/** Current and past pay items for one employee (payroll staff only). */
+export async function employeePayItems(ctx: AuthContext, employeeId: string, db: DbClient = prisma) {
+  const e = await db.employee.findUnique({ where: { id: employeeId }, select: { branchId: true } });
+  if (!e || !can(ctx, "payroll.read", { branchId: e.branchId }))
+    throw new NotFoundError("Employee not found.");
+  return db.employeePayItem.findMany({
+    where: { employeeId },
+    orderBy: [{ effectiveTo: { sort: "asc", nulls: "first" } }, { effectiveFrom: "desc" }],
+    include: {
+      component: { select: { code: true, name: true, kind: true, calc: true, rateBasisPoints: true } },
+    },
+  });
+}

@@ -153,7 +153,8 @@
 | `report.financial` | FINANCIAL | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
 | `report.hmo` | FINANCIAL | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  | ✓ |  |  |  |  |
 | `report.executive` | LOW | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |
-| `export.data` | PHI |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `export.data` | PHI | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |
+| `portal.accounts.manage` | PHI |  |  |  |  |  |  |  |  |  | ✓ |  |  |  |  |  |  |  |  |  |  |  |
 | `portal.self.read` | PHI |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |
 | `portal.dependent.read` | PHI |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ✓ |
 
@@ -270,5 +271,6 @@
 - `report.hmo` (FINANCIAL): HMO and claims reports
 - `report.executive` (LOW): Executive aggregated dashboard
 - `export.data` (PHI): Export report data (audited, watermarked)
+- `portal.accounts.manage` (PHI): Create and revoke patient portal accounts
 - `portal.self.read` (PHI): Patient portal: own released records
 - `portal.dependent.read` (PHI): Patient portal: verified dependants' released records

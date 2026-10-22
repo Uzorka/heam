@@ -82,6 +82,26 @@ _Cashier desk_ → **Open shift** (count the float). Bills with a balance are li
 
 _Billing approvals_ for discounts, refunds and shift closes; _Price list_ for proposing prices (owner approves); _Payers & tariffs_ to activate verified contracts and approve tariffs; _Finance overview_ for revenue, collections, receivables and the posting journal.
 
+## HR
+
+_Staff records_: add employees (link their staff login by email for self-service), record credentials and have a colleague verify them with the issuing body, change status. _Duty roster_: add shifts week by week; overlapping shifts for one person are refused. _Leave approvals_: decide requests you did not make and that are not your own.
+
+## Payroll
+
+Propose pay components with their source (contract, policy or statute and date) - a payroll approver who did not propose them approves. Set each employee's pay items on their record. _Prepare payroll_ for a month (re-prepare while it is a draft); a different approver checks and _Approves and locks_ it. Approved runs cannot be changed.
+
+## All staff: self-service
+
+_My work & pay_: clock in and out, see your shifts, request leave and see decisions, view approved payslips.
+
+## Reports
+
+Choose a report and date range. Export to CSV only if you hold the export permission; the file is watermarked with your name and recorded in the audit trail.
+
+## Patient portal
+
+Medical records creates the portal account from the patient record (patient must be fully registered) and gives the one-time setup link to the patient in person. Clinicians release reviewed results and documents from the visit's orders (_Release to portal_ / _Withdraw_). Guardians see a child's released items only once the guardian link is verified. Revoke access from the patient record if needed.
+
 ## Medical records
 
 _Duplicate review_: request a merge with evidence, or mark _not the same person_. A **different** records officer approves merges. Verify guardian links; reveal identity numbers only when needed (audited).

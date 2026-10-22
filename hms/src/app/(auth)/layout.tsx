@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
         <div className="rounded-xl border border-border bg-background p-6 shadow-card">{children}</div>
         <p className="mt-6 text-center text-xs text-muted">
-          Authorised staff only. Access to patient information is monitored and recorded.
+          For hospital staff and registered patients. Access to health information is monitored and recorded.
         </p>
       </div>
     </main>

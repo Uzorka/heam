@@ -8,12 +8,15 @@ import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/topbar";
 import { Alert } from "@/components/ui/alert";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 // No group-level loading.tsx here: with Next 15.5 a route-group Suspense boundary intermittently
 // stalled client navigations between sibling pages (reproduced 6/6, fixed 0/6). Use scoped
 // <Suspense> + <LoadingBlock> inside slow pages instead.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireAuthContext();
+  // Patient portal logins never see the staff application.
+  if (ctx.kind === "PORTAL") redirect("/portal");
   const groups = buildNav(ctx);
   const theme = (await cookies()).get("hms_theme")?.value === "dark" ? "dark" : "light";
   const hasAll = ctx.grants.some((g) => g.branchId === null);

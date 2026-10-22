@@ -60,10 +60,15 @@ Order states: LAB `ORDERED → SPECIMEN_COLLECTED → IN_PROGRESS → RESULTED �
 can return RESULTED → IN_PROGRESS); IMAGING `ORDERED → (SCHEDULED) → IN_PROGRESS → RESULTED → VERIFIED`; PROCEDURE/REFERRAL
 `ORDERED → COMPLETED`; any kind → CANCELLED only before work starts.
 
-## Planned (Phase 6)
+## Implemented (Phase 6)
 
-| Phase | Entities                                                                                                                                                   |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 6     | Employment, ProfessionalCredential, Shift, Attendance, LeaveRequest, PayrollRun, Payslip, PortalAccount links, IntegrationCredentialReference, export logs |
+| Area    | Entities                                                                                                                                                                    |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HR      | Employee (encrypted bank account, optional link to a staff User), ProfessionalCredential, RosterShift (no overlap per person), AttendanceRecord (append-only), LeaveRequest |
+| Payroll | PayComponent (DRAFT → APPROVED, one basic), EmployeePayItem (effective-dated), PayrollRun (DRAFT → APPROVED, one per branch-month), Payslip (locked with its run)           |
+| Portal  | PortalAccount (one PORTAL user ↔ one patient, revoked not deleted); `releasedToPortalAt` on ServiceOrder and Document                                                      |
+| Export  | Reports are computed aggregates; FHIR R4 mappers (Patient, Encounter, vital-sign Observation, MedicationRequest) build export bundles; exports are audit events             |
+
+Payroll run states: `DRAFT → APPROVED` (locked); a draft can be re-prepared. Leave: `PENDING → APPROVED | REJECTED`.
 
 `docs/DATA_DICTIONARY.md` and an ERD will be generated from the schema once Phase 2 entities land.

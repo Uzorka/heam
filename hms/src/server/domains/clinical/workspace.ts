@@ -38,6 +38,7 @@ const orderInclude = {
       sourceDescription: true,
       scanStatus: true,
       uploadedAt: true,
+      releasedToPortalAt: true,
     },
   },
 };

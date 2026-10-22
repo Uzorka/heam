@@ -15,6 +15,7 @@ type OrderLike = {
   verifiedAt: Date | null;
   reviewedAt: Date | null;
   cancelReason: string | null;
+  releasedToPortalAt?: Date | null;
   clinicalIndication: string | null;
   orderedBy: { displayName: string };
   reviewedBy: { displayName: string } | null;
@@ -46,11 +47,21 @@ type OrderLike = {
     source: string;
     sourceDescription: string | null;
     scanStatus: string;
+    releasedToPortalAt?: Date | null;
   }[];
 };
 
 /** Read-only rendering of an order with verified results / signed reports. */
-export function OrderResults({ o, actions }: { o: OrderLike; actions?: React.ReactNode }) {
+export function OrderResults({
+  o,
+  actions,
+  documentActions,
+}: {
+  o: OrderLike;
+  actions?: React.ReactNode;
+  /** Optional per-document controls (e.g. release to the patient portal). */
+  documentActions?: (d: OrderLike["documents"][number]) => React.ReactNode;
+}) {
   const current = o.results
     .filter((r) => !r.supersededAt)
     .sort((a, b) => a.component.sortOrder - b.component.sortOrder);
@@ -93,6 +104,7 @@ export function OrderResults({ o, actions }: { o: OrderLike; actions?: React.Rea
             ) : (
               <Badge tone="warning">Not yet reviewed</Badge>
             ))}
+          {o.releasedToPortalAt && <Badge tone="info">On patient portal</Badge>}
           {actions}
         </div>
       </div>
@@ -178,6 +190,12 @@ export function OrderResults({ o, actions }: { o: OrderLike; actions?: React.Rea
                 )}
                 {d.scanStatus === "NOT_SCANNED" && <span className="text-muted"> · not virus-scanned</span>}
               </Link>
+              {d.releasedToPortalAt && (
+                <Badge tone="info" className="ml-1">
+                  on portal
+                </Badge>
+              )}
+              {documentActions?.(d)}
             </li>
           ))}
         </ul>

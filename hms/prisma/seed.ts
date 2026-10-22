@@ -14,6 +14,7 @@ import { seedClinicalActivity, seedClinicalCatalogue } from "./seed-clinical";
 import { seedPharmacy } from "./seed-pharmacy";
 import { seedBilling } from "./seed-billing";
 import { seedMaternity } from "./seed-maternity";
+import { seedHr } from "./seed-hr";
 import { ROLE_TEMPLATES } from "../src/server/authz/role-templates";
 import { hashPassword } from "../src/server/auth/password";
 import { encryptField } from "../src/server/crypto";
@@ -1048,6 +1049,10 @@ async function main() {
     console.warn("Seeded DEMO price list, pending directory-listed HMOs and one fictional active payer.");
   if (await seedMaternity(prisma, users))
     console.warn("Seeded DEMO bed-day prices and an antenatal pregnancy.");
+  if (await seedHr(prisma, users, main.id, await hashPassword(DEMO_PASSWORD)))
+    console.warn(
+      "Seeded DEMO employees, pay components (placeholder rates), a payroll run, a roster and a portal login.",
+    );
   await recordAudit(prisma, {
     actorType: "SYSTEM",
     action: "seed.loaded",

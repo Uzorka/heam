@@ -41,6 +41,9 @@ import {
 } from "../actions";
 import { breakGlassAction } from "../../encounters/actions";
 import { RevealIdentifier } from "./reveal";
+import { CreatePortalAccount } from "./portal-account";
+import { portalAccountStatus } from "@/server/domains/portal/service";
+import { revokePortalAccountAction } from "../../portal-actions";
 
 export const metadata: Metadata = { title: "Patient record" };
 
@@ -109,6 +112,7 @@ export default async function PatientPage({
     tab === "visits" && can(ctx, "queue.read") ? listPatientEncounters(ctx, id) : null,
     tab === "timeline" ? getPatientTimeline(ctx, id) : null,
   ]);
+  const portal = can(ctx, "portal.accounts.manage") ? await portalAccountStatus(ctx, id) : undefined;
   const clinical =
     tab === "clinical" && can(ctx, "clinical.read")
       ? await load(ctx, `/patients/${id}?tab=clinical`, () => getClinicalHistory(ctx, id))
@@ -120,7 +124,27 @@ export default async function PatientPage({
         <Link prefetch={false} href="/patients" className="text-[13px] text-muted hover:text-foreground">
           ← Patients
         </Link>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {portal?.active ? (
+            <ActionDialog
+              action={revokePortalAccountAction}
+              fixed={{ patientId: id }}
+              trigger="Revoke portal access"
+              triggerVariant="ghost"
+              title="Revoke patient portal access?"
+              description={`The portal login ${portal.email} is suspended and signed out everywhere.`}
+              submitLabel="Revoke access"
+              tone="danger"
+              successMessage="Portal access revoked."
+              fields={[{ name: "reason", label: "Reason", type: "textarea", required: true }]}
+            />
+          ) : (
+            portal !== undefined &&
+            p.status === "ACTIVE" &&
+            p.registrationStatus === "COMPLETE" && (
+              <CreatePortalAccount patientId={id} defaultEmail={p.email ?? ""} />
+            )
+          )}
           {editable && (
             <Button asChild variant="secondary" size="sm">
               <Link prefetch={false} href={`/patients/${id}/edit`}>

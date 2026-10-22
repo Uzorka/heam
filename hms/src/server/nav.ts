@@ -19,7 +19,10 @@ export interface NavGroup {
 const NAV: NavGroup[] = [
   {
     label: "Overview",
-    items: [{ href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", any: [] }],
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", any: [] },
+      { href: "/me", label: "My work & pay", icon: "UserRound", any: [] },
+    ],
   },
   {
     label: "Front desk",
@@ -118,6 +121,26 @@ const NAV: NavGroup[] = [
       { href: "/hmo/claims", label: "Claims", icon: "FileStack", any: ["hmo.read"] },
       { href: "/hmo/remittances", label: "Remittances", icon: "Banknote", any: ["hmo.remittance.reconcile"] },
       { href: "/hmo/payers", label: "Payers & tariffs", icon: "Handshake", any: ["hmo.read"] },
+    ],
+  },
+  {
+    label: "People",
+    items: [
+      { href: "/hr", label: "Staff records", icon: "UsersRound", any: ["hr.read"] },
+      { href: "/hr/roster", label: "Duty roster", icon: "CalendarClock", any: ["hr.read"] },
+      { href: "/hr/leave", label: "Leave approvals", icon: "CalendarCheck2", any: ["hr.leave.approve"] },
+      { href: "/payroll", label: "Payroll", icon: "Coins", any: ["payroll.read"] },
+    ],
+  },
+  {
+    label: "Reports",
+    items: [
+      {
+        href: "/reports",
+        label: "Reports",
+        icon: "BarChart3",
+        any: ["report.operational", "report.clinical", "report.financial", "report.hmo"],
+      },
     ],
   },
   {

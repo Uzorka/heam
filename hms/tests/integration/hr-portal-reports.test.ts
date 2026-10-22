@@ -26,6 +26,7 @@ import {
   setDocumentRelease,
 } from "@/server/domains/portal/service";
 import { exportReport, runReport } from "@/server/domains/reports/service";
+import { exportPatientFhir } from "@/server/domains/fhir/export";
 import { searchPatients } from "@/server/domains/patients/service";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
 import { branch, createUser, ctxFor, newPatient, uniq, userCtx, visitInConsultation } from "./helpers";
@@ -189,6 +190,19 @@ describe("HR and payroll (AC2)", () => {
       /locked/,
     );
     await expect(preparePayroll(t.hr, { period: p })).rejects.toBeInstanceOf(ConflictError);
+    const other = await employee(t.hr);
+    await expect(
+      prisma.payslip.create({
+        data: {
+          runId: run.id,
+          employeeId: other.id,
+          grossKobo: 1n,
+          deductionsKobo: 0n,
+          netKobo: 1n,
+          lines: [],
+        },
+      }),
+    ).rejects.toThrow(/locked/);
     // Staff see their own approved payslips without payroll permissions.
     const mine = await myPayslips(await ctxFor(staffUser.id));
     expect(mine.some((s) => s.id === slip.id)).toBe(true);
@@ -306,6 +320,32 @@ describe("reports and exports (AC21)", () => {
     expect(out.csv).toContain("CONFIDENTIAL");
     expect(
       await prisma.auditEvent.count({ where: { actorUserId: md.userId, action: "export.report" } }),
+    ).toBe(1);
+  });
+});
+
+describe("FHIR export", () => {
+  it("needs export.data and a care relationship, and is audited", async () => {
+    const { ctx: reception } = await userCtx(["RECEPTION"]);
+    const { ctx: doctor } = await userCtx(["PHYSICIAN"]);
+    const { ctx: exporter } = await userCtx(["PHYSICIAN", "MEDICAL_DIRECTOR"]);
+    const { ctx: finance } = await userCtx(["FINANCE"]);
+    const pt = await newPatient(reception);
+    await visitInConsultation(reception, exporter, pt.patientId);
+    // Clinician without export.data, and exporter without a care relationship, are both denied.
+    await expect(exportPatientFhir(doctor, pt.patientId)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(exportPatientFhir(finance, pt.patientId)).rejects.toBeInstanceOf(ForbiddenError);
+    for (const who of [doctor, finance])
+      expect(
+        await prisma.auditEvent.count({ where: { actorUserId: who.userId, action: "denied.export.fhir" } }),
+      ).toBe(1);
+    const b = await exportPatientFhir(exporter, pt.patientId);
+    expect(b.resourceType).toBe("Bundle");
+    expect(b.entry.map((e) => (e.resource as { resourceType: string }).resourceType)).toEqual(
+      expect.arrayContaining(["Patient", "Encounter"]),
+    );
+    expect(
+      await prisma.auditEvent.count({ where: { actorUserId: exporter.userId, action: "export.fhir" } }),
     ).toBe(1);
   });
 });

@@ -1,6 +1,6 @@
 # Aduraking HMS - task tracker
 
-Last updated: 22 Oct 2026 (end of Phase 2).
+Last updated: 22 Oct 2026 (end of Phase 6).
 
 ## Phase 1 - Foundation ✅
 
@@ -38,7 +38,7 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 
 | #     | Criterion                                                       | Status                                                                        |
 | ----- | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 1     | Reception cannot read clinical notes                            | Partial: clinical-access rule tested (reception denied); notes arrive Phase 2 |
+| 1     | Reception cannot read clinical notes                            | ✅ integration + E2E (reception denied notes and charts)                      |
 | 2     | HR no PHI; clinicians no payroll                                | ✅ integration + E2E                                                          |
 | 3     | Multiple scoped roles; revocation immediate                     | ✅                                                                            |
 | 4     | Branch / direct URL restriction                                 | ✅                                                                            |
@@ -46,17 +46,17 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 | 6     | Idempotent payment callback                                     | ✅ integration (concurrent duplicate delivery posts once)                     |
 | 7     | Concurrent bed assignment                                       | ✅ integration (concurrent moves: one wins; DB exclusion constraint)          |
 | 8–9   | Dispensing lot accuracy; expired lots blocked                   | ✅ integration (idempotent + concurrent) + E2E                                |
-| 10–11 | Verified results / signed notes immutable with amendments       | Phase 2                                                                       |
+| 10–11 | Verified results / signed notes immutable with amendments       | ✅ integration (DB triggers; signed amendments supersede)                     |
 | 12–15 | HMO patient-pay, claim vs preauth, remittance, effective tariff | ✅ integration + E2E (HMO flow to reconciled remittance)                      |
 | 16    | Pregnancy & newborn (twins) linked records                      | ✅ integration + E2E (twins: two baby records linked to mother)               |
 | 17    | Cancelled orders not chargeable                                 | ✅ integration (charge voided in same transaction; finalised bills protected) |
-| 18    | Critical result acknowledgement                                 | Phase 2                                                                       |
+| 18    | Critical result acknowledgement                                 | ✅ integration (attributed acknowledgement)                                   |
 | 19    | Lagos time & kobo money                                         | ✅ unit                                                                       |
-| 20    | Guardian sees only approved dependant documents                 | Partial: verified guardian links; portal Phase 6                              |
-| 21    | Sensitive downloads/exports permissioned & logged               | Partial: identifier reveal; files/exports Phase 2/6                           |
+| 20    | Guardian sees only approved dependant documents                 | ✅ integration + E2E (released items of verified dependants only)             |
+| 21    | Sensitive downloads/exports permissioned & logged               | ✅ integration + E2E (export.data, watermark, audited denials; FHIR export)   |
 | 22    | URL manipulation cannot bypass record rules                     | ✅                                                                            |
 | 23    | Broken connector never marks eligibility verified               | ✅ integration (missing, failing and malformed connectors)                    |
-| 24    | Core screens on phone/tablet                                    | Partial: front desk/queue verified; extend each phase                         |
+| 24    | Core screens on phone/tablet                                    | ✅ E2E @mobile (front desk, ward board, self-service, portal)                 |
 | 25    | Production fails safely without secrets                         | ✅ unit + observed                                                            |
 
 ## Phase 2 - Clinical, laboratory, imaging, documents ✅
@@ -181,19 +181,40 @@ Last updated: 22 Oct 2026 (end of Phase 2).
 - Bed-day charges are posted at financial clearance per bed segment (nights to that day); a stay extended after clearance needs a manual charge.
 - Babies' visits start as "payer not determined"; HMO enrolment of newborns is done by the HMO desk.
 
-## Phase 6 - next (HR, portal, reporting, interoperability, hardening)
+## Phase 6 - HR, payroll, portal, reporting, interoperability, hardening ✅
 
-- [ ] Staff directory, rosters, attendance, leave with approval, payroll runs prepared and approved by different people (no payroll rules invented - configurable, reviewed)
-- [ ] Patient / guardian portal: own and verified dependants' released records only (AC20), appointment requests
-- [ ] Notification adapters (SMS/email) disabled until configured; reports and exports with permission checks, watermarking and audit (AC21)
-- [ ] FHIR mapping foundation (Patient, Encounter, Observation, MedicationRequest) as export only
-- [ ] Hardening: accessibility pass, mobile checks on core screens (AC24), threat model, DPIA preparation notes, backup/restore dry run, dependency audit
+- [x] Migration `phase6_hr_portal`: rosters with a per-person no-overlap exclusion constraint, append-only attendance, leave date checks, employees and portal accounts never deleted, one approved basic pay component, one payroll run per branch-month, approved runs locked (trigger), payslip amount check; migration `payslip_insert_guard` also blocks adding or moving payslips in an approved run
+- [x] HR: staff records (bank account encrypted, last 4 shown), credentials verified by someone other than the person who added them, employment status, duty roster by week, attendance (self or supervisor, double clock-in refused), leave with an approver who is neither the employee nor the requester
+- [x] Payroll: pay components with source references, proposed and approved by different people; effective-dated pay items; payroll prepared and approved by different people; approved runs locked; no statutory rules invented
+- [x] Self-service (_My work & pay_): clock in/out, shifts, leave requests, own approved payslips
+- [x] Patient portal (separate layout, `PORTAL` logins redirected away from staff screens): own record and verified, current dependants only; clinician-released results and documents; appointments; audited views, downloads and denials. Staff create portal accounts from the patient record with a one-time setup link and revoke them; clinicians release/withdraw results and documents from the visit
+- [x] Reports: visits, lab turnaround, admissions/discharges, diagnoses, deliveries, charges, collections, HMO claims - aggregated, branch-scoped, each with its own permission; CSV export needs `export.data`, is watermarked, formula-escaped and audited (denials too)
+- [x] FHIR R4 export foundation: Patient, Encounter, vital-sign Observations (LOINC/UCUM), MedicationRequest; `/api/fhir/patients/[id]` needs `export.data` and a care relationship, audited
+- [x] Hardening: axe-core accessibility scan of core screens in E2E (2 label-in-name fixes), mobile/tablet checks for self-service and portal, threat model, DPIA preparation notes, backup/restore dry run (recorded in `BACKUP_RESTORE.md`), dependency audit with non-breaking fixes applied
+- [x] Role template changes (review before go-live): medical records manage portal accounts; owner, medical director and finance may export. Existing deployments apply these through the role-change approval workflow
+- [x] Seed: five DEMO employees linked to demo staff, DEMO pay components (placeholder rates, labelled), an approved DEMO payroll run for last month, today's roster, portal login `patient@demo.aduraking.test` for Ngozi Okafor with one released result
+- [x] Test fix: integration test phone numbers no longer collide across runs (caused an intermittent duplicate-patient failure)
+
+### Phase 6 test status
+
+- Unit: +4 (FHIR mappers)
+- Integration: +7 (AC2 HR/clinician separation, encrypted bank details, roster overlap, leave approval, payroll approval separation and locking incl. payslip insert guard; AC20 portal release, unverified/revoked guardianship, portal users denied staff functions; AC21 export permission, watermark and audit; FHIR export permission and care relationship)
+- E2E: +7 (HR separation, self-service clock-in and leave approved by HR, report export watermark and denial, portal released record and URL guessing, phone and tablet layouts, axe scans of staff screens and portal)
+- Totals at end of Phase 6: 63 unit + 103 integration, 23 E2E - all passing (E2E suite run twice back to back)
+
+### Known limitations after Phase 6
+
+- Payroll has no built-in PAYE, pension or NHF calculations by design; percentage components are of basic pay only; no bank payment file export yet.
+- Portal: no appointment requests, messaging or MFA for portal logins yet; results are shown as released, without patient-friendly explanations.
+- No SMS/email delivery (adapters remain disabled until a provider is contracted).
+- FHIR is export-only (no import, no national exchange connection); Observations cover vital signs only, not lab results.
+- Remaining `npm audit` advisories need major upgrades (Next 16, Prisma 7).
 
 ## Continuation prompt for the next session
 
 > Continue the Aduraking HMS in `hms/` on branch `claude/aduraking-hms`. Read `TASKS.md`, `docs/ARCHITECTURE.md`
-> and `docs/DOMAIN_MODEL.md` first. Phases 1-5 are complete and green (unit, integration, E2E). Start Phase 6 exactly as
-> listed in TASKS.md: add a new Prisma migration (never edit applied ones), put all rules in `src/server/domains/*`
+> and `docs/DOMAIN_MODEL.md` first. Phases 1-6 are complete and green (unit, integration, E2E). Next work is go-live preparation
+> (see `docs/HOSPITAL_GO_LIVE_CHECKLIST.md`) and the known limitations above. For any change: add a new Prisma migration (never edit applied ones), put all rules in `src/server/domains/*`
 > services with `requirePermission`/`getClinicalAccess` checks and same-transaction `recordAudit`, expose them via
 > `defineAction`, and build pages using the existing UI kit (`components/ui`, `components/forms/action-form`).
 > Clinical notes and verified results must be append-only with signed amendments (DB triggers + tests). Keep

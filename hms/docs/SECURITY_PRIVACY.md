@@ -28,6 +28,9 @@ compliance review under the Nigeria Data Protection Act 2023; it is not a certif
 | Clinical safety controls   | Flags only from approved rules; independent verification of lab results (configurable, default on); critical-result alerts need attributed acknowledgement; no automated diagnosis, triage or interaction checking.                                                                                                                                                                                                                                            |
 | Financial integrity        | Integer kobo everywhere; balanced, append-only double-entry journal (deferred DB check); idempotency keys on payments, receipts and dispenses; exactly-once provider callbacks (signature verified with HMAC-SHA512, events stored once); approved prices/tariffs immutable and non-overlapping; second-person approval for prices, tariffs, payer activation, discounts, refunds, shift closes and write-offs; HMO staff work from a non-clinical visit view. |
 | Data protection by default | Demo seed refuses to run in production; demo banner in non-production; DEMO labels on sample capacity.                                                                                                                                                                                                                                                                                                                                                         |
+| HR and payroll             | HR records contain no patient data and HR roles have no clinical permissions; bank account numbers encrypted (last 4 shown); pay rules proposed and approved by different people; payroll prepared and approved by different people; approved runs and payslips locked by DB triggers; staff see only their own payslips.                                                                                                                                      |
+| Patient portal             | Separate login kind and layout; only clinician-released results and documents; dependants only through verified, current guardian links; every view, download and denial audited; staff never choose portal passwords (one-time setup link).                                                                                                                                                                                                                   |
+| Reports and exports        | Aggregated reports with no identifiers, each behind its own permission; CSV export needs `export.data`, carries a watermark (exporter, time, CONFIDENTIAL) and is audited, including denials; cells are formula-escaped; FHIR export additionally needs a care relationship.                                                                                                                                                                                   |
 
 ## Clinical safety
 
@@ -38,9 +41,9 @@ and an owner. No drug-interaction engine is claimed. AI-generated clinical sugge
 ## Outstanding before go-live
 
 - DPIA, records of processing, privacy notice text and lawful bases (legal review).
-- Retention/destruction schedule and data-subject request workflow (Phase 6).
+- Retention/destruction schedule and data-subject request workflow (see `DPIA_PREPARATION.md`).
 - Connect a malware scanner (ClamAV or storage-provider scanning) to `scanUpload` in `src/server/domains/documents/validate.ts`.
-- External penetration test; dependency audit triage (current advisories are in build tooling: PostCSS bundled with Next, Prisma CLI config dependency).
+- External penetration test (see `THREAT_MODEL.md`). Dependency audit (22 Oct 2026): non-breaking fixes applied (AWS SDK / fast-xml-parser, uuid); remaining advisories are PostCSS bundled in Next 15 (build-time CSS processing) and the Prisma CLI config dependency, both requiring major upgrades (Next 16, Prisma 7).
 - Error-monitoring provider with PHI scrubbing (adapter exists, disabled).
 - Key management (KMS/secrets manager) and rotation runbook.
 - Payment provider and payer connectors: security review of each adapter, webhook secret rotation, IP allow-listing at the edge.

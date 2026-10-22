@@ -310,3 +310,21 @@ export async function authorizePortalDownload(ctx: AuthContext, documentId: stri
   });
   return doc;
 }
+
+/** Staff view of a patient's portal account (no secrets). */
+export async function portalAccountStatus(ctx: AuthContext, patientId: string, db: DbClient = prisma) {
+  requirePermission(ctx, "portal.accounts.manage");
+  const acct = await db.portalAccount.findUnique({ where: { patientId } });
+  if (!acct) return null;
+  const user = await db.user.findUniqueOrThrow({
+    where: { id: acct.userId },
+    select: { email: true, lastLoginAt: true },
+  });
+  return {
+    active: !acct.revokedAt,
+    email: user.email,
+    createdAt: acct.createdAt,
+    revokedAt: acct.revokedAt,
+    lastLoginAt: user.lastLoginAt,
+  };
+}

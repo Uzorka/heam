@@ -449,3 +449,24 @@ export async function pendingLeave(ctx: AuthContext, db: DbClient = prisma) {
     },
   });
 }
+
+/** Self-service view: the signed-in member of staff's own shifts, leave and attendance only. */
+export async function mySelfService(ctx: AuthContext, db: DbClient = prisma) {
+  const e = await myEmployee(ctx, db);
+  if (!e) return null;
+  const [shifts, leave, lastAttendance] = await Promise.all([
+    db.rosterShift.findMany({
+      where: { employeeId: e.id, cancelledAt: null, endAt: { gt: new Date() } },
+      orderBy: { startAt: "asc" },
+      take: 14,
+    }),
+    db.leaveRequest.findMany({ where: { employeeId: e.id }, orderBy: { requestedAt: "desc" }, take: 10 }),
+    db.attendanceRecord.findFirst({ where: { employeeId: e.id }, orderBy: { at: "desc" } }),
+  ]);
+  return {
+    employee: { id: e.id, staffNumber: e.staffNumber, jobTitle: e.jobTitle, givenName: e.givenName },
+    shifts,
+    leave,
+    lastAttendance,
+  };
+}

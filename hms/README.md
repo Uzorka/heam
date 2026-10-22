@@ -53,7 +53,9 @@ not exist in any shared environment. For shared/staging use set `SEED_FORCE_PASS
 | `pharmacist`                                | Pharmacy verification and dispensing                              |
 | `store`                                     | Storekeeper (stock, requisitions, orders, receipts)               |
 | `finance`                                   | Approves requisitions, stock adjustments and counts               |
-| `hr`, `cashier`, `hmo`                      | Later-phase roles                                                 |
+| `hr`                                        | HR & payroll (no patient access)                                  |
+| `cashier`, `hmo`                            | Cashier desk; HMO desk                                            |
+| `patient` (portal)                          | Patient portal login for demo patient Ngozi Okafor                |
 | `multi`                                     | Nurse + reception (multi-role example)                            |
 
 Roles marked MFA in the matrix (admin, owner, medical director, records, finance, HR, support,
@@ -84,6 +86,7 @@ build with `HMS_LOCAL_PRODUCTION_TEST=true`, which relaxes production hardening 
 - [Permissions matrix](docs/PERMISSIONS_MATRIX.md) · [Security & privacy](docs/SECURITY_PRIVACY.md)
 - [Hospital setup checklist](docs/HOSPITAL_SETUP_CHECKLIST.md) · [Go-live checklist](docs/HOSPITAL_GO_LIVE_CHECKLIST.md)
 - [Operations workflows](docs/OPERATIONS_WORKFLOWS.md) · [Deployment](docs/DEPLOYMENT.md) · [Backup & restore](docs/BACKUP_RESTORE.md) · [Incident response](docs/INCIDENT_RESPONSE.md)
+- [Threat model](docs/THREAT_MODEL.md) · [DPIA preparation](docs/DPIA_PREPARATION.md) · [Accessibility](docs/ACCESSIBILITY.md)
 - [Task tracker](TASKS.md)
 
 ## Important limitations
@@ -91,5 +94,6 @@ build with `HMS_LOCAL_PRODUCTION_TEST=true`, which relaxes production hardening 
 This software does **not** diagnose, triage, prescribe or discharge on its own; prescriptions are
 written and signed by clinicians, and there is no automated drug-interaction checking. It holds no regulatory approval
 or medical-device certification. HMO, payment, SMS/email and national health-exchange integrations
-are **disabled** until credentials, agreements and testing exist. Public facts about the hospital are
+are **disabled** until credentials, agreements and testing exist. Payroll contains no built-in tax or
+pension rules: every pay component is entered from an authoritative source and approved by a second person. Public facts about the hospital are
 loaded as _unverified_ setup facts and must be confirmed by an authorised person.

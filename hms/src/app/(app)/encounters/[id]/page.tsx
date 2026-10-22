@@ -51,6 +51,7 @@ import {
   updateDiagnosisAction,
   vitalsErrorAction,
 } from "../actions";
+import { setDocumentReleaseAction, setResultReleaseAction } from "../../portal-actions";
 
 export const metadata: Metadata = { title: "Visit workspace" };
 
@@ -759,8 +760,58 @@ export default async function EncounterPage({
                   <OrderResults
                     key={o.id}
                     o={o}
+                    documentActions={
+                      can(ctx, "clinical.note.write", { branchId: b })
+                        ? (d) => (
+                            <ConfirmAction
+                              action={setDocumentReleaseAction}
+                              fixed={{ documentId: d.id, release: !d.releasedToPortalAt }}
+                              trigger={d.releasedToPortalAt ? "Withdraw" : "Release to portal"}
+                              triggerVariant="ghost"
+                              title={
+                                d.releasedToPortalAt
+                                  ? "Withdraw from the portal?"
+                                  : "Release to the patient portal?"
+                              }
+                              description={
+                                d.releasedToPortalAt
+                                  ? "The patient and their verified guardians will no longer see this document."
+                                  : "The patient and their verified guardians will be able to view and download this document."
+                              }
+                              submitLabel={d.releasedToPortalAt ? "Withdraw" : "Release"}
+                              successMessage={
+                                d.releasedToPortalAt ? "Withdrawn from portal." : "Released to portal."
+                              }
+                            />
+                          )
+                        : undefined
+                    }
                     actions={
                       <>
+                        {(o.status === "VERIFIED" || o.status === "COMPLETED") &&
+                          (o.kind === "LAB" || o.kind === "IMAGING") &&
+                          can(ctx, "clinical.results.review", { branchId: b }) && (
+                            <ConfirmAction
+                              action={setResultReleaseAction}
+                              fixed={{ orderId: o.id, release: !o.releasedToPortalAt }}
+                              trigger={o.releasedToPortalAt ? "Withdraw from portal" : "Release to portal"}
+                              triggerVariant="ghost"
+                              title={
+                                o.releasedToPortalAt
+                                  ? "Withdraw this result from the portal?"
+                                  : "Release this result to the patient portal?"
+                              }
+                              description={
+                                o.releasedToPortalAt
+                                  ? "The patient and their verified guardians will no longer see it."
+                                  : "Only release results you have reviewed and, where appropriate, discussed with the patient."
+                              }
+                              submitLabel={o.releasedToPortalAt ? "Withdraw" : "Release"}
+                              successMessage={
+                                o.releasedToPortalAt ? "Withdrawn from portal." : "Released to portal."
+                              }
+                            />
+                          )}
                         {!NON_CANCELLABLE.includes(o.status) &&
                           can(ctx, "clinical.order.cancel", { branchId: b }) && (
                             <ActionDialog

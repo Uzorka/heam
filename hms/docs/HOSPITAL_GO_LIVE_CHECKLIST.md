@@ -34,3 +34,12 @@ Real patient data may only be entered after every item is signed off. Record nam
 - [ ] Training delivered; quick-reference guides at each desk
 - [ ] Downtime paper forms printed; downtime drill completed
 - [ ] Emergency care fallback confirmed: the system never blocks emergency treatment
+
+## HR, payroll and portal (Phase 6)
+
+- [ ] Delete all DEMO pay components and the DEMO payroll run from any non-local environment (never seed demo data there)
+- [ ] Enter real pay components (basic, allowances, PAYE, pension, NHF, etc.) from authoritative sources with references; second-person approval
+- [ ] Parallel-run at least one payroll month against the existing process and reconcile
+- [ ] Policy for portal release of results (which results, after discussion?) approved by the medical director
+- [ ] Guardian identity verification procedure for portal access to children's records approved by medical records / DPO
+- [ ] Existing deployments: role-change requests for template updates (`export.data` for owner, medical director, finance; `portal.accounts.manage` for medical records)

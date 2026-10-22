@@ -98,3 +98,19 @@ export const payrollRunSchema = z.object({
   period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use YYYY-MM"),
   note: optionalText(300),
 });
+
+export const decisionSchema = z.object({
+  id: uuid,
+  decision: z.enum(["APPROVE", "REJECT"]),
+  note: optionalText(300),
+});
+
+export const approvePayrollSchema = z.object({ id: uuid, version: z.coerce.number().int().min(0) });
+
+export const cancelShiftSchema = z.object({ id: uuid, reason: requiredText("Reason", 200) });
+
+export const clockSchema = z.object({
+  kind: z.enum(["CLOCK_IN", "CLOCK_OUT"]),
+  employeeId: uuid.optional(),
+  note: optionalText(200),
+});

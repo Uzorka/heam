@@ -119,20 +119,23 @@ export function TopBar({ groups, user, branches, activeBranchId, canSearchPatien
           prefetch={false}
           href="/notifications"
           className="relative inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-surface-2 sm:h-9 sm:w-9"
-          aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
+          // The label repeats the badge text exactly (WCAG 2.5.3 label in name).
+          aria-label={`Notifications${unread ? `, ${unread > 9 ? "9+" : unread} unread` : ""}`}
         >
           <Bell className="h-[18px] w-[18px]" aria-hidden />
           {unread > 0 && (
-            <span className="absolute right-1.5 top-1.5 min-w-4 rounded-full bg-danger px-1 text-center text-[10px] font-semibold leading-4 text-white dark:text-background">
+            <span
+              aria-hidden
+              className="absolute right-1.5 top-1.5 min-w-4 rounded-full bg-danger px-1 text-center text-[10px] font-semibold leading-4 text-white dark:text-background"
+            >
               {unread > 9 ? "9+" : unread}
             </span>
           )}
         </Link>
         <DM.Root>
-          <DM.Trigger
-            className="flex min-h-11 items-center gap-2 rounded-md px-2 hover:bg-surface-2 sm:min-h-9"
-            aria-label="Account menu"
-          >
+          <DM.Trigger className="flex min-h-11 items-center gap-2 rounded-md px-2 hover:bg-surface-2 sm:min-h-9">
+            {/* Accessible name includes the visible text (WCAG 2.5.3 label in name). */}
+            <span className="sr-only">Account menu:</span>
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent"
               aria-hidden

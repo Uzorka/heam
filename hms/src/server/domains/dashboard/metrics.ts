@@ -137,3 +137,40 @@ export async function clinicianSummary(ctx: AuthContext, db: DbClient = prisma) 
   ]);
   return { generatedAt: new Date(), myOpen, readyForDoctor, myAppointments, awaitingVitals };
 }
+
+/** Visits per hospital-local day in range (for the trend chart and its table alternative). */
+export async function visitsByDay(ctx: AuthContext, from: string, to: string, db: DbClient = prisma) {
+  requirePermission(ctx, "report.executive");
+  const scope = branchesWith(ctx, "report.executive");
+  const { start, end } = rangeFromLocalDates(from, to);
+  const rows =
+    scope === "ALL"
+      ? await db.$queryRaw<{ day: string; visits: bigint }[]>`
+          SELECT to_char(("arrivedAt" AT TIME ZONE 'Africa/Lagos')::date, 'YYYY-MM-DD') AS day, count(*) AS visits
+          FROM "Encounter" WHERE "arrivedAt" >= ${start} AND "arrivedAt" < ${end}
+          GROUP BY 1 ORDER BY 1`
+      : await db.$queryRaw<{ day: string; visits: bigint }[]>`
+          SELECT to_char(("arrivedAt" AT TIME ZONE 'Africa/Lagos')::date, 'YYYY-MM-DD') AS day, count(*) AS visits
+          FROM "Encounter" WHERE "arrivedAt" >= ${start} AND "arrivedAt" < ${end}
+            AND "branchId" = ANY(${scope}::uuid[])
+          GROUP BY 1 ORDER BY 1`;
+  const byDay = new Map(rows.map((r) => [r.day, Number(r.visits)]));
+  const out: { day: string; visits: number }[] = [];
+  for (let d = new Date(`${from}T00:00:00Z`); d <= new Date(`${to}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    out.push({ day: key, visits: byDay.get(key) ?? 0 });
+    if (out.length > 370) break;
+  }
+  return out;
+}
+
+export async function pendingApprovals(ctx: AuthContext, db: DbClient = prisma) {
+  const [roleChanges, breakGlass, merges] = await Promise.all([
+    can(ctx, "roles.approve_change") ? db.roleChangeRequest.count({ where: { status: "PENDING", NOT: { requestedById: ctx.userId } } }) : null,
+    can(ctx, "audit.breakglass.review") ? db.breakGlassGrant.count({ where: { reviewStatus: "PENDING" } }) : null,
+    can(ctx, "patient.merge.approve")
+      ? db.duplicatePatientReview.count({ where: { status: "MERGE_REQUESTED", NOT: { mergeRequestedById: ctx.userId } } })
+      : null,
+  ]);
+  return { roleChanges, breakGlass, merges };
+}

@@ -24,7 +24,8 @@ export default defineConfig({
           globalSetup: ["tests/integration/global-setup.ts"],
           setupFiles: ["tests/integration/setup.ts"],
           // One database: run files sequentially; tests create their own uniquely-named data.
-          fileParallelism: false,
+          pool: "forks",
+          poolOptions: { forks: { singleFork: true } },
           testTimeout: 30_000,
           hookTimeout: 120_000,
         },

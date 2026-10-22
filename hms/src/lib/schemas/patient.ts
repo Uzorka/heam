@@ -28,8 +28,8 @@ const demographics = {
   preferredName: optionalText(80),
   dateOfBirth: localDate.optional().or(z.literal("").transform(() => undefined)),
   estimatedAgeYears: z.coerce.number().int().min(0).max(130).optional(),
-  dobProvenance: z.enum(DOB_PROVENANCE),
-  sexAtBirth: z.enum(SEX_OPTIONS),
+  dobProvenance: z.enum(DOB_PROVENANCE, { errorMap: () => ({ message: "Select where the date of birth came from" }) }),
+  sexAtBirth: z.enum(SEX_OPTIONS, { errorMap: () => ({ message: "Select sex at birth" }) }),
   genderIdentity: optionalText(60),
   phone: optionalPhone,
   altPhone: optionalPhone,
@@ -91,6 +91,7 @@ export const searchPatientsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
   includeInactive: z.boolean().default(false),
+  provisionalOnly: z.boolean().default(false),
 });
 
 export const allergySchema = z.object({

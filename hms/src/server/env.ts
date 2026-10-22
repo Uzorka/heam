@@ -25,6 +25,8 @@ const schema = z.object({
   EMAIL_PROVIDER: z.string().default("disabled"),
   SMS_PROVIDER: z.string().default("disabled"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  /** Only for running a production build on a developer machine / CI against localhost. */
+  HMS_LOCAL_PRODUCTION_TEST: z.enum(["true", "false"]).default("false"),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -37,6 +39,14 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     throw new Error(`Invalid environment configuration - refusing to start. ${issues}`);
   }
   const env = result.data;
+  if (env.NODE_ENV === "production" && env.HMS_LOCAL_PRODUCTION_TEST === "true") {
+    const host = new URL(env.APP_URL).hostname;
+    if (host !== "localhost" && host !== "127.0.0.1") {
+      throw new Error("HMS_LOCAL_PRODUCTION_TEST is only allowed when APP_URL points to localhost - refusing to start.");
+    }
+    console.warn("WARNING: HMS_LOCAL_PRODUCTION_TEST=true - production hardening checks relaxed for localhost testing only.");
+    return env;
+  }
   if (env.NODE_ENV === "production") {
     const problems: string[] = [];
     if (!env.APP_URL.startsWith("https://")) problems.push("APP_URL must use https in production");

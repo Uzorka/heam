@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { QUEUE_TRANSITIONS, STAGE_ENTRY_PERMISSION, TERMINAL_STAGES, canTransition } from "@/server/domains/queue/state-machine";
+import { QUEUE_TRANSITIONS, STAGE_ENTRY_PERMISSION, TERMINAL_STAGES, canTransition, transitionPermission } from "@/server/domains/queue/state-machine";
 
 describe("visit queue state machine", () => {
   it("allows the normal outpatient path", () => {
@@ -15,5 +15,10 @@ describe("visit queue state machine", () => {
     expect(STAGE_ENTRY_PERMISSION.IN_CONSULTATION).toBe("clinical.note.write");
     expect(STAGE_ENTRY_PERMISSION.READY_TO_DISCHARGE).toBe("clinical.note.write");
     expect(STAGE_ENTRY_PERMISSION.AWAITING_VITALS).toBe("queue.manage");
+  });
+  it("leaving a clinical stage needs a clinician, but closing a discharge-ready visit does not", () => {
+    expect(transitionPermission("IN_CONSULTATION", "READY_FOR_DOCTOR")).toBe("clinical.note.write");
+    expect(transitionPermission("AWAITING_SERVICES", "AWAITING_REVIEW")).toBe("clinical.note.write");
+    expect(transitionPermission("READY_TO_DISCHARGE", "COMPLETED")).toBe("queue.manage");
   });
 });

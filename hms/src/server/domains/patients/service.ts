@@ -268,6 +268,7 @@ export async function searchPatients(
   const q = input.q.trim();
   const filters: Prisma.PatientWhereInput[] = [scope];
   filters.push(input.includeInactive ? { status: { not: "MERGED" } } : { status: { in: ["ACTIVE", "DECEASED"] } });
+  if (input.provisionalOnly) filters.push({ registrationStatus: "PROVISIONAL" });
   if (q) {
     const upper = q.toUpperCase().replace(/\s+/g, "");
     const phone = /^[+\d][\d\s-]{6,}$/.test(q) ? normalizePhone(q) : null;

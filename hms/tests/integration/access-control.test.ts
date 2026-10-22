@@ -21,7 +21,7 @@ describe("RBAC and record-level access", () => {
     const { ctx: reception } = await userCtx(["RECEPTION"]);
     const p = await newPatient(reception);
     const { ctx: hr } = await userCtx(["HR_PAYROLL"]);
-    await expect(searchPatients(hr, { q: "", page: 1, pageSize: 20, includeInactive: false })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(searchPatients(hr, { q: "", page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false })).rejects.toBeInstanceOf(ForbiddenError);
     await expect(getPatientDetail(hr, p.patientId)).rejects.toBeInstanceOf(ForbiddenError);
     const { ctx: doctor } = await userCtx(["PHYSICIAN"]);
     expect(can(doctor, "payroll.read")).toBe(false);
@@ -74,7 +74,7 @@ describe("RBAC and record-level access", () => {
     const other = await newPatient(otherReception);
     const { ctx: mainReception } = await userCtx(["RECEPTION"], { branch: "T-MAIN" });
     await expect(getPatientDetail(mainReception, other.patientId)).rejects.toBeInstanceOf(NotFoundError);
-    const res = await searchPatients(mainReception, { q: other.mrn, page: 1, pageSize: 20, includeInactive: false });
+    const res = await searchPatients(mainReception, { q: other.mrn, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
     expect(res.total).toBe(0);
     const { ctx: allBranch } = await userCtx(["MEDICAL_RECORDS"], { allBranches: true });
     expect((await getPatientDetail(allBranch, other.patientId)).patient.id).toBe(other.patientId);

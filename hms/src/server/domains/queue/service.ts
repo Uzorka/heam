@@ -13,10 +13,10 @@ import { isClinicianInBranch } from "../staff/clinicians";
 import { getSetting } from "../settings/system-settings";
 import {
   ACTIVE_STAGES,
-  STAGE_ENTRY_PERMISSION,
   STAGES_REQUIRING_NOTE,
   TERMINAL_STAGES,
   canTransition,
+  transitionPermission,
 } from "./state-machine";
 
 const OPEN_ENCOUNTER_INDEX = "Encounter_one_open_per_patient_branch";
@@ -126,7 +126,7 @@ export async function transitionStage(ctx: AuthContext, input: z.output<typeof t
   const to = input.toStage as QueueStage;
   if (enc.status !== "OPEN") throw new ConflictError("This visit is already closed.");
   if (!canTransition(enc.queueStage, to)) throw new InvalidTransitionError(enc.queueStage, to, "visit");
-  const needed = STAGE_ENTRY_PERMISSION[to];
+  const needed = transitionPermission(enc.queueStage, to);
   if (!can(ctx, needed, { branchId: enc.branchId })) {
     throw new ForbiddenError("Your role cannot move a patient into this stage.", needed);
   }

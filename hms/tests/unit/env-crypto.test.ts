@@ -81,3 +81,20 @@ describe("password policy", () => {
     expect(passwordProblems("Kemi.Balogun-2026", { email: "kemi.balogun@x.test" })).not.toHaveLength(0);
   });
 });
+
+describe("local production test mode", () => {
+  const base = {
+    NODE_ENV: "production",
+    DATABASE_URL: "postgresql://hms:hms_dev_password@localhost:5432/hms",
+    DATA_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString("base64"),
+    BLIND_INDEX_KEY: Buffer.alloc(32, 2).toString("base64"),
+    HMS_LOCAL_PRODUCTION_TEST: "true",
+  };
+  it("is accepted only for localhost", () => {
+    expect(() => parseEnv({ ...base, APP_URL: "http://localhost:3100" })).not.toThrow();
+    expect(() => parseEnv({ ...base, APP_URL: "https://hms.example.org" })).toThrow(/only allowed/);
+  });
+  it("still requires encryption keys", () => {
+    expect(() => parseEnv({ ...base, APP_URL: "http://localhost:3100", DATA_ENCRYPTION_KEY: "" })).toThrow(/refusing to start/i);
+  });
+});

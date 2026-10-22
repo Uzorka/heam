@@ -277,3 +277,28 @@ export async function adminResetMfa(ctx: AuthContext, userId: string, reason: st
   });
 }
 
+
+export async function listUserSessions(ctx: AuthContext, userId: string, db: DbClient = prisma) {
+  requirePermission(ctx, "sessions.manage");
+  return db.session.findMany({
+    where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: { lastSeenAt: "desc" },
+    select: { id: true, createdAt: true, lastSeenAt: true, ip: true, userAgent: true },
+  });
+}
+
+export async function adminRevokeSessions(ctx: AuthContext, userId: string, db: DbClient = prisma) {
+  requirePermission(ctx, "sessions.manage");
+  await withTx(db, async (tx) => {
+    const n = await revokeAllSessions(tx, userId, "ADMIN_REVOKED");
+    await recordAudit(tx, {
+      actorType: "USER",
+      actorUserId: ctx.userId,
+      action: "users.sessions_revoked",
+      resourceType: "User",
+      resourceId: userId,
+      details: { count: n },
+      meta: ctx.meta,
+    });
+  });
+}

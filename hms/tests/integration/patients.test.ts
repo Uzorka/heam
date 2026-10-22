@@ -126,12 +126,12 @@ describe("patient registry", () => {
     const family = uniq("Searchable");
     const given = uniq("Adaobi");
     const p = await newPatient(ctx, { givenName: given, familyName: family, phone });
-    const byMrn = await searchPatients(ctx, { q: p.mrn, page: 1, pageSize: 20, includeInactive: false });
+    const byMrn = await searchPatients(ctx, { q: p.mrn, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
     expect(byMrn.rows[0]!.id).toBe(p.patientId);
-    const byPhone = await searchPatients(ctx, { q: phone, page: 1, pageSize: 20, includeInactive: false });
+    const byPhone = await searchPatients(ctx, { q: phone, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
     expect(byPhone.rows.map((r) => r.id)).toContain(p.patientId);
     expect(byPhone.rows[0]!.maskedPhone).toContain("***");
-    const byName = await searchPatients(ctx, { q: `${given.toLowerCase()} ${family.toLowerCase()}`, page: 1, pageSize: 20, includeInactive: false });
+    const byName = await searchPatients(ctx, { q: `${given.toLowerCase()} ${family.toLowerCase()}`, page: 1, pageSize: 20, includeInactive: false, provisionalOnly: false });
     expect(byName.rows.map((r) => r.id)).toEqual([p.patientId]);
   });
 

@@ -1,0 +1,984 @@
+// Aduraking HMS - Prisma schema
+// Conventions:
+//  * ids are random UUIDv4 (never sequential, never guessable in URLs)
+//  * human-readable references (MRN, encounter ref) come from the Sequence table
+//  * money is stored as integer kobo (BigInt/Int) - never floats
+//  * timestamps are UTC (timestamptz); display converts to Africa/Lagos
+//  * clinical/financial records are never hard-deleted; relations use Restrict
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Organisation & configuration ─────────────────────────
+
+enum VerificationStatus {
+  UNKNOWN
+  AWAITING_APPROVAL
+  VERIFIED
+  REJECTED
+}
+
+enum BranchStatus {
+  ACTIVE
+  PENDING_VERIFICATION
+  INACTIVE
+}
+
+model Organization {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  subtitle   String?
+  tagline    String?
+  legalName  String?
+  website    String?
+  email      String?
+  phoneE164  String?
+  timezone   String   @default("Africa/Lagos")
+  currency   String   @default("NGN")
+  letterhead String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  version    Int      @default(0)
+
+  branches Branch[]
+}
+
+model Branch {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @db.Uuid
+  code               String             @unique
+  name               String
+  addressLine        String?
+  city               String?
+  state              String?
+  phoneE164          String?
+  email              String?
+  status             BranchStatus       @default(PENDING_VERIFICATION)
+  verificationStatus VerificationStatus @default(UNKNOWN)
+  verificationNotes  String?
+  isDemo             Boolean            @default(false)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+  version            Int                @default(0)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  departments  Department[]
+  wards        Ward[]
+  userRoles    UserRole[]
+  patients     Patient[]
+  appointments Appointment[]
+  encounters   Encounter[]
+}
+
+enum DepartmentKind {
+  CLINICAL
+  DIAGNOSTIC
+  SUPPORT
+  ADMINISTRATIVE
+}
+
+model Department {
+  id        String         @id @default(uuid()) @db.Uuid
+  branchId  String         @db.Uuid
+  code      String
+  name      String
+  kind      DepartmentKind
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @db.Timestamptz(3)
+
+  branch       Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  wards        Ward[]
+  visitTypes   VisitType[]
+  userRoles    UserRole[]
+  appointments Appointment[]
+  encounters   Encounter[]
+
+  @@unique([branchId, code])
+}
+
+enum WardKind {
+  GENERAL
+  MATERNITY
+  LABOUR
+  PAEDIATRIC
+  NEWBORN
+  EMERGENCY
+  PRIVATE
+  OTHER
+}
+
+model Ward {
+  id           String   @id @default(uuid()) @db.Uuid
+  branchId     String   @db.Uuid
+  departmentId String?  @db.Uuid
+  code         String
+  name         String
+  kind         WardKind
+  active       Boolean  @default(true)
+  isDemo       Boolean  @default(false)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  branch     Branch      @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  beds       Bed[]
+
+  @@unique([branchId, code])
+}
+
+enum BedStatus {
+  FREE
+  RESERVED
+  OCCUPIED
+  CLEANING
+  UNAVAILABLE
+}
+
+model Bed {
+  id        String    @id @default(uuid()) @db.Uuid
+  wardId    String    @db.Uuid
+  code      String
+  label     String
+  category  String    @default("STANDARD")
+  status    BedStatus @default(FREE)
+  isDemo    Boolean   @default(false)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  version   Int       @default(0)
+
+  ward Ward @relation(fields: [wardId], references: [id], onDelete: Restrict)
+
+  @@unique([wardId, code])
+}
+
+model VisitType {
+  id                 String   @id @default(uuid()) @db.Uuid
+  departmentId       String?  @db.Uuid
+  code               String   @unique
+  name               String
+  defaultDurationMin Int      @default(15)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(3)
+
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  appointments Appointment[]
+  encounters   Encounter[]
+}
+
+/// Public facts imported for onboarding. Nothing here is treated as truth until VERIFIED.
+model SetupFact {
+  id           String             @id @default(uuid()) @db.Uuid
+  key          String             @unique
+  category     String
+  label        String
+  value        String
+  source       String?
+  status       VerificationStatus @default(UNKNOWN)
+  notes        String?
+  verifiedById String?            @db.Uuid
+  verifiedAt   DateTime?          @db.Timestamptz(3)
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
+
+  verifiedBy User? @relation("SetupFactVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+}
+
+model SystemSetting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+}
+
+/// Transactional counters for human-readable identifiers (MRN, encounter refs, ...)
+model Sequence {
+  scope String @id
+  value BigInt @default(0)
+}
+
+// ───────────────────────── Identity, access & security ─────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum UserKind {
+  STAFF
+  PORTAL
+}
+
+model User {
+  id                  String     @id @default(uuid()) @db.Uuid
+  kind                UserKind   @default(STAFF)
+  email               String     @unique
+  displayName         String
+  givenName           String
+  familyName          String
+  phoneE164           String?
+  staffNumber         String?    @unique
+  jobTitle            String?
+  passwordHash        String
+  status              UserStatus @default(ACTIVE)
+  statusReason        String?
+  mustChangePassword  Boolean    @default(true)
+  passwordChangedAt   DateTime?  @db.Timestamptz(3)
+  mfaEnabled          Boolean    @default(false)
+  mfaSecretEnc        String?
+  mfaPendingSecretEnc String?
+  failedLoginCount    Int        @default(0)
+  lockedUntil         DateTime?  @db.Timestamptz(3)
+  lastLoginAt         DateTime?  @db.Timestamptz(3)
+  defaultBranchId     String?    @db.Uuid
+  isDemo              Boolean    @default(false)
+  createdAt           DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime   @updatedAt @db.Timestamptz(3)
+  version             Int        @default(0)
+
+  roles                   UserRole[]           @relation("UserRoleUser")
+  grantedRoles            UserRole[]           @relation("UserRoleGrantedBy")
+  revokedRoles            UserRole[]           @relation("UserRoleRevokedBy")
+  delegatedRoles          UserRole[]           @relation("UserRoleDelegatedFrom")
+  sessions                Session[]
+  resetTokens             PasswordResetToken[]
+  breakGlassGrants        BreakGlassGrant[]    @relation("BreakGlassUser")
+  breakGlassReviews       BreakGlassGrant[]    @relation("BreakGlassReviewer")
+  verifiedFacts           SetupFact[]          @relation("SetupFactVerifier")
+  roleChangeRequests      RoleChangeRequest[]  @relation("RoleChangeRequester")
+  roleChangeDecisions     RoleChangeRequest[]  @relation("RoleChangeDecider")
+  appointmentsAsClinician Appointment[]        @relation("AppointmentClinician")
+  encountersAttending     Encounter[]          @relation("EncounterAttending")
+  careTeam                CareTeamAssignment[] @relation("CareTeamUser")
+}
+
+enum PermissionSensitivity {
+  LOW
+  ADMIN
+  PHI
+  CLINICAL
+  FINANCIAL
+  HR
+}
+
+model Permission {
+  code        String                @id
+  resource    String
+  action      String
+  description String
+  sensitivity PermissionSensitivity
+
+  roles RolePermission[]
+}
+
+model Role {
+  id               String   @id @default(uuid()) @db.Uuid
+  code             String   @unique
+  name             String
+  description      String?
+  kind             UserKind @default(STAFF)
+  isSystemTemplate Boolean  @default(false)
+  requiresMfa      Boolean  @default(false)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+  version          Int      @default(0)
+
+  permissions    RolePermission[]
+  userRoles      UserRole[]
+  changeRequests RoleChangeRequest[]
+}
+
+model RolePermission {
+  roleId         String   @db.Uuid
+  permissionCode String
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Restrict)
+
+  @@id([roleId, permissionCode])
+}
+
+enum ChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Role permission edits require a second authorised person to approve (segregation of duties).
+model RoleChangeRequest {
+  id                String              @id @default(uuid()) @db.Uuid
+  roleId            String              @db.Uuid
+  addPermissions    String[]
+  removePermissions String[]
+  reason            String
+  status            ChangeRequestStatus @default(PENDING)
+  requestedById     String              @db.Uuid
+  requestedAt       DateTime            @default(now()) @db.Timestamptz(3)
+  decidedById       String?             @db.Uuid
+  decidedAt         DateTime?           @db.Timestamptz(3)
+  decisionNotes     String?
+  roleVersion       Int
+
+  role        Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  requestedBy User  @relation("RoleChangeRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy   User? @relation("RoleChangeDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  @@index([status])
+}
+
+/// A role granted to a user, scoped to one branch (or all branches) and optionally a department.
+/// Never deleted: revocation sets revokedAt so history is preserved.
+model UserRole {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @db.Uuid
+  roleId              String    @db.Uuid
+  branchId            String?   @db.Uuid
+  allBranches         Boolean   @default(false)
+  departmentId        String?   @db.Uuid
+  effectiveFrom       DateTime  @default(now()) @db.Timestamptz(3)
+  effectiveTo         DateTime? @db.Timestamptz(3)
+  isDelegation        Boolean   @default(false)
+  delegatedFromUserId String?   @db.Uuid
+  reason              String?
+  grantedById         String?   @db.Uuid
+  grantedAt           DateTime  @default(now()) @db.Timestamptz(3)
+  revokedAt           DateTime? @db.Timestamptz(3)
+  revokedById         String?   @db.Uuid
+  revokedReason       String?
+
+  user          User        @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Restrict)
+  role          Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  branch        Branch?     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  grantedBy     User?       @relation("UserRoleGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+  revokedBy     User?       @relation("UserRoleRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+  delegatedFrom User?       @relation("UserRoleDelegatedFrom", fields: [delegatedFromUserId], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt])
+}
+
+model Session {
+  id             String    @id @default(uuid()) @db.Uuid
+  tokenHash      String    @unique
+  userId         String    @db.Uuid
+  activeBranchId String?   @db.Uuid
+  mfaVerified    Boolean   @default(false)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt     DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt      DateTime  @db.Timestamptz(3)
+  ip             String?
+  userAgent      String?
+  revokedAt      DateTime? @db.Timestamptz(3)
+  revokedReason  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt])
+}
+
+model PasswordResetToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  tokenHash   String    @unique
+  expiresAt   DateTime  @db.Timestamptz(3)
+  usedAt      DateTime? @db.Timestamptz(3)
+  createdById String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+}
+
+model LoginAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  identifier String
+  ip         String?
+  success    Boolean
+  reason     String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([identifier, createdAt])
+  @@index([ip, createdAt])
+}
+
+enum BreakGlassReview {
+  PENDING
+  APPROPRIATE
+  CONCERN
+}
+
+/// Time-limited emergency access to one patient's clinical record. Always reviewed by compliance.
+model BreakGlassGrant {
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String           @db.Uuid
+  patientId     String           @db.Uuid
+  reason        String
+  justification String
+  startedAt     DateTime         @default(now()) @db.Timestamptz(3)
+  expiresAt     DateTime         @db.Timestamptz(3)
+  endedAt       DateTime?        @db.Timestamptz(3)
+  reviewStatus  BreakGlassReview @default(PENDING)
+  reviewedById  String?          @db.Uuid
+  reviewedAt    DateTime?        @db.Timestamptz(3)
+  reviewNotes   String?
+
+  user       User    @relation("BreakGlassUser", fields: [userId], references: [id], onDelete: Restrict)
+  reviewedBy User?   @relation("BreakGlassReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([userId, patientId, expiresAt])
+  @@index([reviewStatus])
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  PATIENT
+}
+
+enum AuditOutcome {
+  SUCCESS
+  DENIED
+  FAILURE
+}
+
+/// Append-only, hash-chained audit trail. `details` must never contain PHI values or secrets.
+/// UPDATE/DELETE are blocked by a database trigger (see migration).
+model AuditEvent {
+  seq          BigInt       @id @default(autoincrement())
+  id           String       @unique @default(uuid()) @db.Uuid
+  occurredAt   DateTime     @default(now()) @db.Timestamptz(3)
+  actorType    ActorType
+  actorUserId  String?      @db.Uuid
+  action       String
+  resourceType String
+  resourceId   String?
+  patientId    String?      @db.Uuid
+  branchId     String?      @db.Uuid
+  outcome      AuditOutcome
+  requestId    String?
+  ip           String?
+  userAgent    String?
+  details      Json?
+  prevHash     String
+  hash         String       @unique
+
+  @@index([occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([patientId, occurredAt])
+  @@index([resourceType, resourceId])
+  @@index([action])
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED_NO_PROVIDER
+  SKIPPED_NO_CONSENT
+}
+
+/// Outbound messages. Payload holds template variables only - never diagnoses, results or pregnancy details.
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  channel   NotificationChannel
+  template  String
+  recipient String
+  userId    String?             @db.Uuid
+  patientId String?             @db.Uuid
+  payload   Json
+  status    NotificationStatus  @default(QUEUED)
+  attempts  Int                 @default(0)
+  lastError String?
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+  sentAt    DateTime?           @db.Timestamptz(3)
+  readAt    DateTime?           @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@index([userId, readAt])
+}
+
+// ───────────────────────── Patient master registry ─────────────────────────
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  DECEASED
+  MERGED
+}
+
+enum RegistrationStatus {
+  COMPLETE
+  PROVISIONAL
+}
+
+enum SexAtBirth {
+  FEMALE
+  MALE
+  INTERSEX
+  UNKNOWN
+}
+
+enum DobProvenance {
+  DOCUMENT
+  STATED
+  ESTIMATED
+  UNKNOWN
+}
+
+enum AllergyReviewStatus {
+  NOT_ASKED
+  NO_KNOWN_ALLERGIES
+  HAS_ALLERGIES
+}
+
+model Patient {
+  id                  String              @id @default(uuid()) @db.Uuid
+  mrn                 String              @unique
+  registeredBranchId  String              @db.Uuid
+  givenName           String
+  middleName          String?
+  familyName          String
+  preferredName       String?
+  /// lower-cased "given middle family preferred" for search
+  nameSearch          String
+  dateOfBirth         DateTime?           @db.Date
+  dobProvenance       DobProvenance       @default(UNKNOWN)
+  sexAtBirth          SexAtBirth          @default(UNKNOWN)
+  genderIdentity      String?
+  phoneE164           String?
+  altPhoneE164        String?
+  email               String?
+  addressLine         String?
+  city                String?
+  lga                 String?
+  state               String?
+  country             String              @default("NG")
+  occupation          String?
+  maritalStatus       String?
+  preferredLanguage   String?
+  referralSource      String?
+  allergyReviewStatus AllergyReviewStatus @default(NOT_ASKED)
+  status              PatientStatus       @default(ACTIVE)
+  statusReason        String?
+  registrationStatus  RegistrationStatus  @default(COMPLETE)
+  deceasedAt          DateTime?           @db.Timestamptz(3)
+  mergedIntoId        String?             @db.Uuid
+  isDemo              Boolean             @default(false)
+  createdById         String?             @db.Uuid
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
+  version             Int                 @default(0)
+
+  registeredBranch Branch                   @relation(fields: [registeredBranchId], references: [id], onDelete: Restrict)
+  mergedInto       Patient?                 @relation("PatientMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
+  mergedFrom       Patient[]                @relation("PatientMerge")
+  identifiers      PatientIdentifier[]
+  contacts         PatientContact[]
+  allergies        PatientAllergy[]
+  consents         ConsentRecord[]
+  guardians        GuardianRelationship[]   @relation("GuardianDependent")
+  dependents       GuardianRelationship[]   @relation("GuardianPatient")
+  appointments     Appointment[]
+  encounters       Encounter[]
+  breakGlassGrants BreakGlassGrant[]
+  duplicateAsA     DuplicatePatientReview[] @relation("DupA")
+  duplicateAsB     DuplicatePatientReview[] @relation("DupB")
+  careTeam         CareTeamAssignment[]
+
+  @@index([familyName])
+  @@index([phoneE164])
+  @@index([dateOfBirth])
+  @@index([status])
+}
+
+enum IdentifierType {
+  NIN
+  NHIA_NUMBER
+  PASSPORT
+  VOTERS_CARD
+  DRIVERS_LICENCE
+  OTHER
+}
+
+/// Identity documents. Value is encrypted at rest; `blindIndex` (HMAC) supports exact-match lookup.
+model PatientIdentifier {
+  id          String         @id @default(uuid()) @db.Uuid
+  patientId   String         @db.Uuid
+  type        IdentifierType
+  valueEnc    String
+  valueLast4  String
+  blindIndex  String
+  issuer      String?
+  verified    Boolean        @default(false)
+  createdById String?        @db.Uuid
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+  revokedAt   DateTime?      @db.Timestamptz(3)
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([type, blindIndex])
+  @@index([patientId])
+}
+
+enum ContactKind {
+  NEXT_OF_KIN
+  EMERGENCY
+  BOTH
+}
+
+model PatientContact {
+  id           String      @id @default(uuid()) @db.Uuid
+  patientId    String      @db.Uuid
+  kind         ContactKind
+  name         String
+  relationship String
+  phoneE164    String?
+  addressLine  String?
+  isPrimary    Boolean     @default(false)
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime    @updatedAt @db.Timestamptz(3)
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+}
+
+enum AllergyCategory {
+  DRUG
+  FOOD
+  ENVIRONMENT
+  OTHER
+}
+
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
+  UNKNOWN
+}
+
+enum AllergySource {
+  PATIENT_REPORTED
+  CLINICIAN_VERIFIED
+  PRIOR_RECORDS
+}
+
+enum AllergyStatus {
+  ACTIVE
+  INACTIVE
+  ENTERED_IN_ERROR
+}
+
+model PatientAllergy {
+  id           String          @id @default(uuid()) @db.Uuid
+  patientId    String          @db.Uuid
+  substance    String
+  category     AllergyCategory
+  reaction     String?
+  severity     AllergySeverity @default(UNKNOWN)
+  source       AllergySource
+  status       AllergyStatus   @default(ACTIVE)
+  statusReason String?
+  recordedById String          @db.Uuid
+  recordedAt   DateTime        @default(now()) @db.Timestamptz(3)
+  verifiedById String?         @db.Uuid
+  verifiedAt   DateTime?       @db.Timestamptz(3)
+  updatedAt    DateTime        @updatedAt @db.Timestamptz(3)
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, status])
+}
+
+enum ConsentType {
+  DATA_PROCESSING_NOTICE
+  GENERAL_TREATMENT
+  PHOTO_CAPTURE
+  SMS_REMINDERS
+  EMAIL_NOTICES
+  WHATSAPP_MESSAGES
+  PORTAL_ACCESS
+}
+
+enum ConsentStatus {
+  GRANTED
+  DECLINED
+  WITHDRAWN
+}
+
+enum LegalBasis {
+  CONSENT
+  CONTRACT
+  LEGAL_OBLIGATION
+  VITAL_INTEREST
+  PUBLIC_INTEREST
+  LEGITIMATE_INTEREST
+}
+
+model ConsentRecord {
+  id                    String        @id @default(uuid()) @db.Uuid
+  patientId             String        @db.Uuid
+  type                  ConsentType
+  status                ConsentStatus
+  legalBasis            LegalBasis
+  noticeVersion         String?
+  signatoryName         String?
+  signatoryRelationship String?
+  notes                 String?
+  capturedById          String        @db.Uuid
+  capturedAt            DateTime      @default(now()) @db.Timestamptz(3)
+  supersededAt          DateTime?     @db.Timestamptz(3)
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, type])
+}
+
+model GuardianRelationship {
+  id                   String    @id @default(uuid()) @db.Uuid
+  dependentPatientId   String    @db.Uuid
+  guardianPatientId    String?   @db.Uuid
+  guardianName         String
+  guardianPhoneE164    String?
+  relationship         String
+  verified             Boolean   @default(false)
+  verificationEvidence String?
+  verifiedById         String?   @db.Uuid
+  verifiedAt           DateTime? @db.Timestamptz(3)
+  validFrom            DateTime  @default(now()) @db.Timestamptz(3)
+  validTo              DateTime? @db.Timestamptz(3)
+  revokedAt            DateTime? @db.Timestamptz(3)
+  revokedReason        String?
+  createdById          String    @db.Uuid
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+
+  dependent Patient  @relation("GuardianDependent", fields: [dependentPatientId], references: [id], onDelete: Restrict)
+  guardian  Patient? @relation("GuardianPatient", fields: [guardianPatientId], references: [id], onDelete: Restrict)
+
+  @@index([dependentPatientId])
+  @@index([guardianPatientId])
+}
+
+enum DuplicateReviewStatus {
+  OPEN
+  NOT_DUPLICATE
+  MERGE_REQUESTED
+  MERGED
+}
+
+/// Suspected duplicate pair. patientAId < patientBId (enforced in service) so a pair appears once.
+/// Merging is a two-person workflow: requested by one authorised user, approved by another.
+model DuplicatePatientReview {
+  id                 String                @id @default(uuid()) @db.Uuid
+  patientAId         String                @db.Uuid
+  patientBId         String                @db.Uuid
+  score              Int
+  reasons            String[]
+  status             DuplicateReviewStatus @default(OPEN)
+  survivorId         String?               @db.Uuid
+  raisedById         String?               @db.Uuid
+  raisedAt           DateTime              @default(now()) @db.Timestamptz(3)
+  mergeRequestedById String?               @db.Uuid
+  mergeRequestedAt   DateTime?             @db.Timestamptz(3)
+  decidedById        String?               @db.Uuid
+  decidedAt          DateTime?             @db.Timestamptz(3)
+  decisionNotes      String?
+  mergeSummary       Json?
+
+  patientA Patient @relation("DupA", fields: [patientAId], references: [id], onDelete: Restrict)
+  patientB Patient @relation("DupB", fields: [patientBId], references: [id], onDelete: Restrict)
+
+  @@unique([patientAId, patientBId])
+  @@index([status])
+}
+
+// ───────────────────────── Scheduling, check-in & queue ─────────────────────────
+
+enum AppointmentStatus {
+  BOOKED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum AppointmentSource {
+  WALK_IN
+  PHONE
+  ONLINE_REQUEST
+  REFERRAL
+  FOLLOW_UP
+}
+
+/// Double-booking of a clinician is blocked by a Postgres exclusion constraint (see migration)
+/// unless `allowOverlap` is set through an authorised, audited override.
+model Appointment {
+  id                String            @id @default(uuid()) @db.Uuid
+  ref               String            @unique
+  patientId         String            @db.Uuid
+  branchId          String            @db.Uuid
+  departmentId      String?           @db.Uuid
+  clinicianId       String?           @db.Uuid
+  visitTypeId       String            @db.Uuid
+  startAt           DateTime          @db.Timestamptz(3)
+  endAt             DateTime          @db.Timestamptz(3)
+  status            AppointmentStatus @default(BOOKED)
+  source            AppointmentSource
+  reason            String?
+  allowOverlap      Boolean           @default(false)
+  overrideReason    String?
+  overrideById      String?           @db.Uuid
+  cancelReason      String?
+  rescheduledFromId String?           @unique @db.Uuid
+  createdById       String            @db.Uuid
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @db.Timestamptz(3)
+  version           Int               @default(0)
+
+  patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  branch          Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  department      Department?  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  clinician       User?        @relation("AppointmentClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
+  visitType       VisitType    @relation(fields: [visitTypeId], references: [id], onDelete: Restrict)
+  rescheduledFrom Appointment? @relation("Reschedule", fields: [rescheduledFromId], references: [id], onDelete: Restrict)
+  rescheduledTo   Appointment? @relation("Reschedule")
+  encounter       Encounter?
+
+  @@index([branchId, startAt])
+  @@index([clinicianId, startAt])
+  @@index([patientId, startAt])
+  @@index([status])
+}
+
+enum PayerClass {
+  UNDETERMINED
+  CASH
+  HMO
+  CORPORATE
+  PART_INSURED
+}
+
+enum QueueStage {
+  REGISTERED
+  AWAITING_VITALS
+  READY_FOR_DOCTOR
+  IN_CONSULTATION
+  AWAITING_SERVICES
+  AWAITING_REVIEW
+  READY_TO_DISCHARGE
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum EncounterStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum EncounterPriority {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+model Encounter {
+  id                         String            @id @default(uuid()) @db.Uuid
+  ref                        String            @unique
+  patientId                  String            @db.Uuid
+  branchId                   String            @db.Uuid
+  departmentId               String?           @db.Uuid
+  appointmentId              String?           @unique @db.Uuid
+  visitTypeId                String            @db.Uuid
+  attendingClinicianId       String?           @db.Uuid
+  payerClass                 PayerClass        @default(UNDETERMINED)
+  priority                   EncounterPriority @default(ROUTINE)
+  queueStage                 QueueStage        @default(REGISTERED)
+  status                     EncounterStatus   @default(OPEN)
+  reason                     String?
+  referralSource             String?
+  financialTermsAcknowledged Boolean           @default(false)
+  arrivedAt                  DateTime          @default(now()) @db.Timestamptz(3)
+  completedAt                DateTime?         @db.Timestamptz(3)
+  createdById                String            @db.Uuid
+  createdAt                  DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime          @updatedAt @db.Timestamptz(3)
+  version                    Int               @default(0)
+
+  patient     Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  branch      Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  department  Department?          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  appointment Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  visitType   VisitType            @relation(fields: [visitTypeId], references: [id], onDelete: Restrict)
+  attending   User?                @relation("EncounterAttending", fields: [attendingClinicianId], references: [id], onDelete: Restrict)
+  queueEvents VisitQueueEvent[]
+  careTeam    CareTeamAssignment[]
+
+  @@index([branchId, arrivedAt])
+  @@index([branchId, status, queueStage])
+  @@index([patientId, arrivedAt])
+}
+
+/// Append-only history of every queue-stage change.
+model VisitQueueEvent {
+  id          String      @id @default(uuid()) @db.Uuid
+  encounterId String      @db.Uuid
+  fromStage   QueueStage?
+  toStage     QueueStage
+  note        String?
+  changedById String      @db.Uuid
+  changedAt   DateTime    @default(now()) @db.Timestamptz(3)
+
+  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+
+  @@index([encounterId, changedAt])
+}
+
+enum CareTeamRole {
+  ATTENDING
+  CONSULTING
+  NURSE
+  MIDWIFE
+}
+
+/// Establishes the care relationship that grants record-level clinical access.
+model CareTeamAssignment {
+  id           String       @id @default(uuid()) @db.Uuid
+  encounterId  String       @db.Uuid
+  patientId    String       @db.Uuid
+  userId       String       @db.Uuid
+  role         CareTeamRole
+  assignedById String       @db.Uuid
+  assignedAt   DateTime     @default(now()) @db.Timestamptz(3)
+  endedAt      DateTime?    @db.Timestamptz(3)
+
+  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  user      User      @relation("CareTeamUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, patientId])
+  @@index([encounterId])
+}

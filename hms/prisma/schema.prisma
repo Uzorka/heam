@@ -1341,33 +1341,36 @@ enum OrderStatus {
 /// One orderable item (a single test or study). Items ordered together share requestGroupId,
 /// which doubles as the idempotency key: (requestGroupId, itemIndex) is unique.
 model ServiceOrder {
-  id                 String        @id @default(uuid()) @db.Uuid
-  ref                String        @unique
-  requestGroupId     String        @db.Uuid
-  itemIndex          Int
-  kind               OrderKind
-  encounterId        String        @db.Uuid
-  patientId          String        @db.Uuid
-  branchId           String        @db.Uuid
-  labTestId          String?       @db.Uuid
-  imagingStudyId     String?       @db.Uuid
-  description        String
-  priority           OrderPriority @default(ROUTINE)
-  clinicalIndication String?
-  notes              String?
-  status             OrderStatus   @default(ORDERED)
-  orderedById        String        @db.Uuid
-  orderedAt          DateTime      @default(now()) @db.Timestamptz(3)
-  scheduledAt        DateTime?     @db.Timestamptz(3)
-  resultedAt         DateTime?     @db.Timestamptz(3)
-  verifiedAt         DateTime?     @db.Timestamptz(3)
-  completedAt        DateTime?     @db.Timestamptz(3)
-  cancelledAt        DateTime?     @db.Timestamptz(3)
-  cancelledById      String?       @db.Uuid
-  cancelReason       String?
-  reviewedAt         DateTime?     @db.Timestamptz(3)
-  reviewedById       String?       @db.Uuid
-  version            Int           @default(0)
+  id                   String        @id @default(uuid()) @db.Uuid
+  ref                  String        @unique
+  requestGroupId       String        @db.Uuid
+  itemIndex            Int
+  kind                 OrderKind
+  encounterId          String        @db.Uuid
+  patientId            String        @db.Uuid
+  branchId             String        @db.Uuid
+  labTestId            String?       @db.Uuid
+  imagingStudyId       String?       @db.Uuid
+  description          String
+  priority             OrderPriority @default(ROUTINE)
+  clinicalIndication   String?
+  notes                String?
+  status               OrderStatus   @default(ORDERED)
+  orderedById          String        @db.Uuid
+  orderedAt            DateTime      @default(now()) @db.Timestamptz(3)
+  scheduledAt          DateTime?     @db.Timestamptz(3)
+  resultedAt           DateTime?     @db.Timestamptz(3)
+  verifiedAt           DateTime?     @db.Timestamptz(3)
+  completedAt          DateTime?     @db.Timestamptz(3)
+  cancelledAt          DateTime?     @db.Timestamptz(3)
+  cancelledById        String?       @db.Uuid
+  cancelReason         String?
+  reviewedAt           DateTime?     @db.Timestamptz(3)
+  reviewedById         String?       @db.Uuid
+  /// Set when a clinician releases the verified result to the patient portal.
+  releasedToPortalAt   DateTime?     @db.Timestamptz(3)
+  releasedToPortalById String?       @db.Uuid
+  version              Int           @default(0)
 
   encounter      Encounter               @relation(fields: [encounterId], references: [id], onDelete: Restrict)
   patient        Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)
@@ -1547,25 +1550,28 @@ enum ScanStatus {
 /// Stored files. Bytes live in object storage under an unguessable key; downloads always go through
 /// an authorised, audited route. Documents are voided, never deleted.
 model Document {
-  id                String         @id @default(uuid()) @db.Uuid
-  patientId         String?        @db.Uuid
-  encounterId       String?        @db.Uuid
-  orderId           String?        @db.Uuid
-  kind              DocumentKind
-  title             String
-  filename          String
-  mimeType          String
-  sizeBytes         Int
-  sha256            String
-  storageKey        String         @unique
-  source            DocumentSource @default(INTERNAL)
-  sourceDescription String?
-  scanStatus        ScanStatus     @default(NOT_SCANNED)
-  uploadedById      String         @db.Uuid
-  uploadedAt        DateTime       @default(now()) @db.Timestamptz(3)
-  voidedAt          DateTime?      @db.Timestamptz(3)
-  voidedById        String?        @db.Uuid
-  voidReason        String?
+  id                   String         @id @default(uuid()) @db.Uuid
+  patientId            String?        @db.Uuid
+  encounterId          String?        @db.Uuid
+  orderId              String?        @db.Uuid
+  kind                 DocumentKind
+  title                String
+  filename             String
+  mimeType             String
+  sizeBytes            Int
+  sha256               String
+  storageKey           String         @unique
+  source               DocumentSource @default(INTERNAL)
+  sourceDescription    String?
+  scanStatus           ScanStatus     @default(NOT_SCANNED)
+  uploadedById         String         @db.Uuid
+  uploadedAt           DateTime       @default(now()) @db.Timestamptz(3)
+  voidedAt             DateTime?      @db.Timestamptz(3)
+  voidedById           String?        @db.Uuid
+  voidReason           String?
+  /// Set when a clinician releases the document to the patient portal.
+  releasedToPortalAt   DateTime?      @db.Timestamptz(3)
+  releasedToPortalById String?        @db.Uuid
 
   patient    Patient?      @relation(fields: [patientId], references: [id], onDelete: Restrict)
   encounter  Encounter?    @relation(fields: [encounterId], references: [id], onDelete: Restrict)
@@ -3078,4 +3084,251 @@ model MedicationAdministration {
   item      PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Restrict)
 
   @@index([encounterId, administeredAt])
+}
+
+// ───────────────────────── Phase 6: HR ─────────────────────────
+
+enum EmploymentType {
+  PERMANENT
+  CONTRACT
+  LOCUM
+  INTERN
+  NYSC
+  VOLUNTEER
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  EXITED
+}
+
+/// HR record of a member of staff. Separate from the login account (userId is optional) and never
+/// linked to patient data. Bank account numbers are encrypted.
+model Employee {
+  id               String         @id @default(uuid()) @db.Uuid
+  staffNumber      String         @unique
+  userId           String?        @unique @db.Uuid
+  branchId         String         @db.Uuid
+  givenName        String
+  familyName       String
+  jobTitle         String
+  department       String?
+  employmentType   EmploymentType
+  status           EmployeeStatus @default(ACTIVE)
+  startDate        DateTime       @db.Date
+  endDate          DateTime?      @db.Date
+  phoneE164        String?
+  email            String?
+  bankName         String?
+  bankAccountEnc   String?
+  bankAccountLast4 String?
+  createdById      String         @db.Uuid
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
+  version          Int            @default(0)
+
+  credentials ProfessionalCredential[]
+  shifts      RosterShift[]
+  attendance  AttendanceRecord[]
+  leave       LeaveRequest[]
+  payItems    EmployeePayItem[]
+  payslips    Payslip[]
+
+  @@index([branchId, status])
+}
+
+model ProfessionalCredential {
+  id           String    @id @default(uuid()) @db.Uuid
+  employeeId   String    @db.Uuid
+  kind         String
+  number       String
+  issuer       String
+  expiresAt    DateTime? @db.Date
+  verified     Boolean   @default(false)
+  verifiedById String?   @db.Uuid
+  verifiedAt   DateTime? @db.Timestamptz(3)
+  evidence     String?
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+}
+
+enum ShiftKind {
+  MORNING
+  AFTERNOON
+  NIGHT
+  ON_CALL
+  OTHER
+}
+
+/// Rostered shift. One person cannot be rostered on overlapping shifts (exclusion constraint).
+model RosterShift {
+  id          String    @id @default(uuid()) @db.Uuid
+  employeeId  String    @db.Uuid
+  branchId    String    @db.Uuid
+  location    String?
+  kind        ShiftKind
+  startAt     DateTime  @db.Timestamptz(3)
+  endAt       DateTime  @db.Timestamptz(3)
+  note        String?
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  cancelledAt DateTime? @db.Timestamptz(3)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, startAt])
+}
+
+enum AttendanceKind {
+  CLOCK_IN
+  CLOCK_OUT
+}
+
+model AttendanceRecord {
+  id           String         @id @default(uuid()) @db.Uuid
+  employeeId   String         @db.Uuid
+  kind         AttendanceKind
+  at           DateTime       @default(now()) @db.Timestamptz(3)
+  recordedById String         @db.Uuid
+  note         String?
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, at])
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  MATERNITY
+  PATERNITY
+  STUDY
+  COMPASSIONATE
+  UNPAID
+  OTHER
+}
+
+model LeaveRequest {
+  id            String         @id @default(uuid()) @db.Uuid
+  employeeId    String         @db.Uuid
+  type          LeaveType
+  startDate     DateTime       @db.Date
+  endDate       DateTime       @db.Date
+  days          Int
+  reason        String
+  status        ApprovalStatus @default(PENDING)
+  requestedById String         @db.Uuid
+  requestedAt   DateTime       @default(now()) @db.Timestamptz(3)
+  decidedById   String?        @db.Uuid
+  decidedAt     DateTime?      @db.Timestamptz(3)
+  decisionNote  String?
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+}
+
+// ───────────────────────── Phase 6: payroll ─────────────────────────
+
+enum PayComponentKind {
+  EARNING
+  DEDUCTION
+}
+
+enum PayCalc {
+  FIXED
+  PERCENT_OF_BASIC
+}
+
+/// Pay element configured by HR and approved by a payroll approver. No statutory rule (tax,
+/// pension, NHF) is built in; each is entered and reviewed by the hospital's payroll specialist.
+model PayComponent {
+  id              String           @id @default(uuid()) @db.Uuid
+  code            String           @unique
+  name            String
+  kind            PayComponentKind
+  calc            PayCalc
+  rateBasisPoints Int?
+  isBasic         Boolean          @default(false)
+  status          TariffStatus     @default(DRAFT)
+  note            String?
+  createdById     String           @db.Uuid
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  decidedById     String?          @db.Uuid
+  decidedAt       DateTime?        @db.Timestamptz(3)
+
+  items EmployeePayItem[]
+}
+
+model EmployeePayItem {
+  id            String    @id @default(uuid()) @db.Uuid
+  employeeId    String    @db.Uuid
+  componentId   String    @db.Uuid
+  amountKobo    BigInt?
+  effectiveFrom DateTime  @db.Date
+  effectiveTo   DateTime? @db.Date
+  createdById   String    @db.Uuid
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+
+  employee  Employee     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  component PayComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+}
+
+/// A month's payroll. Prepared by one person, approved (and thereby locked) by another.
+model PayrollRun {
+  id             String        @id @default(uuid()) @db.Uuid
+  ref            String        @unique
+  branchId       String        @db.Uuid
+  period         String
+  status         PayrollStatus @default(DRAFT)
+  grossKobo      BigInt        @default(0)
+  deductionsKobo BigInt        @default(0)
+  netKobo        BigInt        @default(0)
+  preparedById   String        @db.Uuid
+  preparedAt     DateTime      @default(now()) @db.Timestamptz(3)
+  approvedById   String?       @db.Uuid
+  approvedAt     DateTime?     @db.Timestamptz(3)
+  note           String?
+  version        Int           @default(0)
+
+  payslips Payslip[]
+}
+
+model Payslip {
+  id             String @id @default(uuid()) @db.Uuid
+  runId          String @db.Uuid
+  employeeId     String @db.Uuid
+  grossKobo      BigInt
+  deductionsKobo BigInt
+  netKobo        BigInt
+  /// [{ code, name, kind, amountKobo }] - amounts as strings (kobo).
+  lines          Json
+
+  run      PayrollRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+  employee Employee   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, employeeId])
+}
+
+// ───────────────────────── Phase 6: patient portal ─────────────────────────
+
+/// Links a PORTAL login to exactly one patient. Dependants are reached only through verified,
+/// current guardian relationships.
+model PortalAccount {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @db.Uuid
+  patientId   String    @unique @db.Uuid
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  revokedAt   DateTime? @db.Timestamptz(3)
+  revokedById String?   @db.Uuid
 }

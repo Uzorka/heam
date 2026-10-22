@@ -165,6 +165,7 @@ export const PERMISSIONS = [
   p("export.data", "PHI", "Export report data (audited, watermarked)"),
 
   // Portal
+  p("portal.accounts.manage", "PHI", "Create and revoke patient portal accounts"),
   p("portal.self.read", "PHI", "Patient portal: own released records"),
   p("portal.dependent.read", "PHI", "Patient portal: verified dependants' released records"),
 ] as const satisfies readonly PermissionDef[];

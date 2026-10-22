@@ -66,8 +66,35 @@ export async function userCtx(
 }
 
 /** Unique 11-digit Nigerian mobile number. */
+const PHONE_PREFIXES = [
+  "0803",
+  "0806",
+  "0813",
+  "0816",
+  "0703",
+  "0706",
+  "0903",
+  "0906",
+  "0810",
+  "0814",
+  "0809",
+  "0817",
+  "0818",
+  "0909",
+  "0802",
+  "0808",
+  "0812",
+  "0701",
+  "0902",
+  "0805",
+];
+
+// The test database is not reset between runs, so random numbers alone eventually collide and
+// trigger duplicate-patient detection. A clock-derived number plus a random prefix avoids that.
 export function uniquePhone() {
-  return `0809${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`;
+  counter += 1;
+  const prefix = PHONE_PREFIXES[Math.floor(Math.random() * PHONE_PREFIXES.length)];
+  return `${prefix}${String((Math.floor(Date.now() / 10) + counter * 104_729) % 1e7).padStart(7, "0")}`;
 }
 
 export async function newPatient(

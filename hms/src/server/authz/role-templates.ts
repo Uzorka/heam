@@ -88,6 +88,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "report.operational",
       "report.financial",
       "report.hmo",
+      "export.data",
       "finance.read",
       "settings.read",
       "users.read",
@@ -146,6 +147,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "roles.approve_change",
       "report.clinical",
       "report.operational",
+      "export.data",
       "hmo.preauth.manage",
     ],
   },
@@ -218,6 +220,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "patient.merge.approve",
       "patient.status.manage",
       "patient.guardian.verify",
+      "portal.accounts.manage",
     ],
   },
   {
@@ -337,6 +340,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "admission.read",
       "report.financial",
       "report.hmo",
+      "export.data",
     ],
   },
   {

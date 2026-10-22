@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAuthContext } from "@/server/auth/session";
-import { env } from "@/server/env";
+import { isDemoEnvironment } from "@/server/env";
 import { prisma } from "@/server/db";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Alert } from "@/components/ui/alert";
@@ -23,7 +23,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </div>
       </header>
       <main id="main" className="mx-auto max-w-3xl px-4 py-6">
-        {env().NODE_ENV !== "production" && user?.isDemo && (
+        {isDemoEnvironment() && user?.isDemo && (
           <Alert tone="warning" title="Demonstration environment" className="mb-4">
             Fictional data only.
           </Alert>

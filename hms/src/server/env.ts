@@ -31,7 +31,14 @@ const schema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   /** Only for running a production build on a developer machine / CI against localhost. */
   HMS_LOCAL_PRODUCTION_TEST: z.enum(["true", "false"]).default("false"),
+  /** A public demonstration deployment with fictional data: shows a warning on every page. */
+  HMS_DEMO_SITE: z.enum(["true", "false"]).default("false"),
 });
+
+/** True where the "fictional data only" warning must be shown to demo users. */
+export function isDemoEnvironment(e: Env = env()): boolean {
+  return e.NODE_ENV !== "production" || e.HMS_DEMO_SITE === "true";
+}
 
 export type Env = z.infer<typeof schema>;
 

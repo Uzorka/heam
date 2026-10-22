@@ -3,7 +3,7 @@ import { prisma } from "@/server/db";
 import { requireAuthContext } from "@/server/auth/session";
 import { can } from "@/server/authz/context";
 import { buildNav } from "@/server/nav";
-import { env } from "@/server/env";
+import { isDemoEnvironment } from "@/server/env";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/topbar";
 import { Alert } from "@/components/ui/alert";
@@ -54,7 +54,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         />
         <main id="main" className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <div className="no-print mb-4 space-y-2 empty:hidden">
-            {env().NODE_ENV !== "production" && user?.isDemo && (
+            {isDemoEnvironment() && user?.isDemo && (
               <Alert tone="warning" title="Demonstration environment">
                 Fictional data only. Do not enter real patient information.
               </Alert>

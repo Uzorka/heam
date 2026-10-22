@@ -34,3 +34,33 @@ Create separate roles: migration owner (DDL), application (DML only on app table
 The audit append-only triggers belong to the owner role; the application role must not own tables.
 
 Never run the demo seed in production; it refuses when `NODE_ENV=production`.
+
+## Public demo site (fictional data) on a serverless host
+
+For a site where people can try the system with fictional data only. Any Node.js host that runs
+Next.js 15 (Vercel, Netlify, Render, ...) with any PostgreSQL 15+ that allows the `btree_gist`
+extension (Supabase, Neon, ...) and any S3-compatible bucket (Supabase Storage, Cloudflare R2, ...).
+
+1. **Database.** Create a project. Use the **direct or session** connection string for migrations and
+   seeding, and the **pooled (transaction)** string with `?pgbouncer=true&connection_limit=1` as the
+   app's `DATABASE_URL` on serverless hosts.
+2. **Migrate and seed from a workstation** (never from the host build):
+   ```bash
+   DATABASE_URL="<direct url>" npx prisma migrate deploy
+   SEED_DEMO_PASSWORD="<long random password>" SEED_FORCE_PASSWORD_CHANGE=false \
+     DATABASE_URL="<direct url>" DATA_ENCRYPTION_KEY=... BLIND_INDEX_KEY=... npm run db:seed
+   ```
+   Use a strong demo password: the site is public. Share it only with the people testing.
+3. **Bucket.** Create a private bucket and S3 access keys. Set `STORAGE_DRIVER=s3`, `S3_ENDPOINT`,
+   `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`.
+4. **Host.** Import the repository with root directory `hms`. Build command `npm run build`
+   (`postinstall` runs `prisma generate`). Environment: `DATABASE_URL` (pooled), `APP_URL`
+   (the site's https URL), `DATA_ENCRYPTION_KEY` and `BLIND_INDEX_KEY` (the **same** values used when
+   seeding, otherwise encrypted demo identifiers cannot be read), the S3 variables, and
+   `HMS_DEMO_SITE=true` (shows a "fictional data only" warning on every page).
+5. Check `https://<site>/api/health`, then sign in. MFA is enforced in production, so privileged demo
+   roles (owner, admin, medical director, records, finance, HR, support, auditor) must enrol an
+   authenticator app on first sign-in.
+
+A demo site must never hold real patient data. A real deployment starts from an empty database
+without the seed, with `HMS_DEMO_SITE=false`.

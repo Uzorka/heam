@@ -59,8 +59,9 @@ await call('/functions/deploy?slug=accept-invite', { method: 'POST', body: form 
 console.log('  function: accept-invite deployed');
 
 // 3. Login settings
-await call('/config/auth', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password_min_length: 6 }) });
-console.log('  logins: minimum password length 6');
+const authConfig = { password_min_length: 6, ...(project.site ? { site_url: project.site } : {}) };
+await call('/config/auth', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(authConfig) });
+console.log(`  logins: minimum password length 6${project.site ? `, app address ${project.site}` : ''}`);
 
 // 4. Smoke test, as the public app would
 const pub = { apikey: project.key, 'content-type': 'application/json' };

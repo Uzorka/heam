@@ -2,3 +2,4 @@ node_modules/
 tests/screens/output/
 supabase/.temp/
 .env
+tests/staging/output/

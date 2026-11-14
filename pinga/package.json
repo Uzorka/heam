@@ -14,7 +14,7 @@
     "stamp": "node scripts/stamp.js",
     "deploy:staging": "env -u SUPABASE_ACCESS_TOKEN NODE_USE_ENV_PROXY=1 node --no-warnings scripts/deploy.js staging && npm run test:staging",
     "deploy:live": "env -u SUPABASE_ACCESS_TOKEN NODE_USE_ENV_PROXY=1 node --no-warnings scripts/deploy.js live",
-    "test:staging": "env -u SUPABASE_ACCESS_TOKEN NODE_USE_ENV_PROXY=1 node --no-warnings tests/staging/rules.js && env -u SUPABASE_ACCESS_TOKEN NODE_USE_ENV_PROXY=1 node --no-warnings tests/staging/journey.js"
+    "test:staging": "env -u SUPABASE_ACCESS_TOKEN NODE_USE_ENV_PROXY=1 node --no-warnings tests/staging/rules.js && env -u SUPABASE_ACCESS_TOKEN NODE_USE_ENV_PROXY=1 node --no-warnings tests/staging/journey.js && env -u SUPABASE_ACCESS_TOKEN NODE_USE_ENV_PROXY=1 node --no-warnings tests/staging/browser.js"
   },
   "engines": {
     "node": ">=20"

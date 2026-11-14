@@ -38,15 +38,17 @@ function headers(withUser = true) {
   return h;
 }
 
-async function request(path, { method = 'GET', body, extra, withUser = true } = {}) {
+async function request(path, { method = 'GET', body, extra, withUser = true, blob = false } = {}) {
   let r;
+  const raw = typeof Blob !== 'undefined' && body instanceof Blob;
   try {
     r = await fetch(CONFIG.url + path, {
-      method, headers: { ...headers(withUser), ...extra }, body: body === undefined ? undefined : JSON.stringify(body),
+      method, headers: { ...headers(withUser), ...extra }, body: body === undefined || raw ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError('No connection. Check your internet and try again.', 0, 'offline');
   }
+  if (blob && r.ok) return r.blob();
   const text = await r.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -101,6 +103,7 @@ export async function signInFromLink(hash) {
 export async function signOut() {
   if (session) request('/auth/v1/logout', { method: 'POST' }).catch(() => {});
   save(null);
+  clearCache();
 }
 
 // ── Data ─────────────────────────────────────────────────────
@@ -110,4 +113,40 @@ export const insert = (table, row) =>
 export const update = (table, query, changes) =>
   data(`/rest/v1/${table}?${query}`, { method: 'PATCH', body: changes, extra: { prefer: 'return=representation' } });
 export const rpc = (fn, args = {}) => data(`/rest/v1/rpc/${fn}`, { method: 'POST', body: args });
+// Photos (private storage).
+export const upload = (bucket, path, file) =>
+  data(`/storage/v1/object/${bucket}/${path}`, { method: 'POST', body: file, extra: { 'content-type': file.type || 'image/jpeg' } });
+export const download = (bucket, path) => data(`/storage/v1/object/authenticated/${bucket}/${path}`, { blob: true });
+
+// ── Server time ──────────────────────────────────────────────
+// Phones often have the wrong time. We learn the difference whenever online and use it offline too.
+const CLOCK_KEY = 'pinga.clockOffset';
+let clockOffset = Number(store.get(CLOCK_KEY)) || 0;
+export const serverNow = () => new Date(Date.now() + clockOffset);
+export async function syncClock() {
+  const t0 = Date.now();
+  const server = Date.parse(await rpc('server_now'));
+  const t1 = Date.now();
+  if (Number.isFinite(server)) { clockOffset = Math.round(server - (t0 + t1) / 2); store.set(CLOCK_KEY, String(clockOffset)); }
+}
+
+// ── Offline copies ───────────────────────────────────────────
+// Loads fresh data when online and keeps a copy; with no signal, returns the last copy.
+export async function cached(key, load) {
+  const k = 'pinga.cache.' + key;
+  try {
+    const value = await load();
+    store.set(k, JSON.stringify(value));
+    return value;
+  } catch (e) {
+    const copy = store.get(k);
+    if (e.status === 0 && copy !== null) return JSON.parse(copy);
+    throw e;
+  }
+}
+
+export function clearCache() {
+  try { Object.keys(localStorage).filter((k) => k.startsWith('pinga.cache.')).forEach((k) => localStorage.removeItem(k)); } catch { /* none */ }
+}
+
 export const callFunction = (name, body) => request(`/functions/v1/${name}`, { method: 'POST', body, withUser: false });

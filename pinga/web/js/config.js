@@ -14,4 +14,4 @@ const PROJECTS = {
 const host = typeof location === 'undefined' ? '' : location.hostname;
 const env = LIVE_HOSTS.includes(host) ? 'live' : 'staging';
 
-export const CONFIG = { env, release: '0.1.0', ...PROJECTS[env] };
+export const CONFIG = { env, release: '0.2.0', ...PROJECTS[env] };

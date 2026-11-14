@@ -1,56 +1,12 @@
-// Pinga web app: sign in, company set-up, team invites, staff home.
+// Pinga web app: signing in, joining, and sending each person to their screens.
 import * as api from './api.js';
-import { normalizePhone, loginEmailFor, displayPhone, validPin, PHONE_LOGIN_DOMAIN } from './phone.js';
-import { catchAll, report } from './report.js';
+import { normalizePhone, loginEmailFor, validPin, PHONE_LOGIN_DOMAIN } from './phone.js';
+import { catchAll } from './report.js';
+import { show, go, esc, Say, friendly, toast } from './ui.js';
 
-const app = document.getElementById('app');
-const ROLE = { owner: 'Owner', admin: 'Manager', staff: 'Office staff', rep: 'Sales rep' };
 const PENDING = 'pinga.pendingCompany';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-
-// A message meant for the person on screen (not a bug, so not reported).
-class Say extends Error {}
-
-let me = null; // { id, role, full_name, company_id, companies: { name } }
-
-function friendly(x) {
-  if (x instanceof Say) return x.message;
-  if (x instanceof api.ApiError && x.status === 0) return x.message;
-  if (x instanceof api.ApiError && x.status < 500) return x.message;
-  report(x);
-  return 'Something went wrong. Please try again.';
-}
-
-// Renders a screen. If it has a form, runs onSubmit with its values and shows any problem under it.
-function show(html, onSubmit) {
-  app.innerHTML = html;
-  const form = app.querySelector('form');
-  if (form && onSubmit) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = form.querySelector('[type=submit]');
-      const out = form.querySelector('.error');
-      out.textContent = '';
-      btn.disabled = true;
-      try { await onSubmit(Object.fromEntries(new FormData(form))); } catch (x) { out.textContent = friendly(x); } finally { btn.disabled = false; }
-    });
-  }
-  const first = app.querySelector('input:not([readonly])');
-  if (first && matchMedia('(min-width: 700px)').matches) first.focus();
-}
-
-const go = (hash) => (location.hash === hash ? route() : (location.hash = hash));
-
-const bar = (title) => `
-  <header class="bar">
-    <div><div class="muted">${esc(me.companies.name)}</div><h1>${esc(title)}</h1></div>
-    <button class="link" id="signout">Sign out</button>
-  </header>`;
-
-function wireSignOut() {
-  document.getElementById('signout').onclick = async () => { await api.signOut(); me = null; go('#/'); };
-}
+let me = null; // { id, role, full_name, company_id, reference_photo_path, companies: {...} }
 
 // ── Signing in ──────────────────────────────────────────────
 
@@ -163,6 +119,7 @@ async function join(token) {
     if (!validPin(pin)) throw new Say('Use 6 digits that are hard to guess (not 123456 or 111111).');
     if (pin !== again) throw new Say('The two PINs are different. Try again.');
     const { login_email } = await api.callFunction('accept-invite', { token, pin });
+    await api.signOut();
     await api.signIn(login_email, pin);
     me = null;
     go('#/');
@@ -203,127 +160,15 @@ function noCompany() {
   document.getElementById('signout').onclick = async () => { await api.signOut(); go('#/'); };
 }
 
-// ── Owners and managers ─────────────────────────────────────
-
-async function team() {
-  const people = await api.select('members',
-    `select=id,full_name,phone,role,joined_at&company_id=eq.${me.company_id}&active=is.true&order=full_name`);
-  show(`
-    <main class="page">
-      ${bar('Team')}
-      <a class="primary button" href="#/invite">Invite someone</a>
-      <ul class="list">
-        ${people.map((p) => `
-          <li><a class="card row" href="#/person/${p.id}">
-            <span><strong>${esc(p.full_name)}</strong><br><span class="muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</span></span>
-            ${p.joined_at ? '<span class="pill ok">Joined</span>' : '<span class="pill wait">Not joined</span>'}
-          </a></li>`).join('')}
-      </ul>
-    </main>`);
-  wireSignOut();
-}
-
-function invite() {
-  const roles = [['staff', 'Office staff', 'Clocks in at the office'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
-  show(`
-    <main class="page narrow">
-      <a class="back" href="#/">‹ Team</a>
-      <h1>Invite someone</h1>
-      <form class="stack">
-        <label>Full name<input name="full_name" autocomplete="off" required></label>
-        <label>Phone number<input name="phone" type="tel" placeholder="0803 123 4567" required></label>
-        <fieldset class="choices"><legend>Role</legend>
-          ${roles.map(([v, t, d], i) => `<label class="choice"><input type="radio" name="role" value="${v}"${i ? '' : ' checked'}><span><strong>${t}</strong><br><span class="muted">${d}</span></span></label>`).join('')}
-        </fieldset>
-        <p class="error" role="alert"></p>
-        <button type="submit" class="primary">Create invite</button>
-      </form>
-    </main>`, async ({ full_name, phone, role }) => {
-    const p = normalizePhone(phone);
-    if (!p) throw new Say('Enter a valid phone number, like 0803 123 4567.');
-    let row;
-    try { row = await api.insert('members', { company_id: me.company_id, full_name: full_name.trim(), phone: p, role }); } catch (x) {
-      if (x.code === '23505') throw new Say('Someone with this phone number is already in your team.');
-      throw x;
-    }
-    go('#/person/' + row.id);
-  });
-}
-
-async function person(id) {
-  const [p] = await api.select('members', `select=id,full_name,phone,role,joined_at,invite_token&id=eq.${encodeURIComponent(id)}`);
-  if (!p) return go('#/');
-  const share = (token) => {
-    const link = `${location.origin}${location.pathname}#/join/${token}`;
-    const first = p.full_name.split(' ')[0];
-    const text = `Hi ${first}, ${me.companies.name} uses Pinga for attendance. Open this link to set your PIN: ${link}`;
-    return `
-      <div class="card stack">
-        <p>Send ${esc(first)} this link. It works for 7 days.</p>
-        <input readonly value="${esc(link)}" id="link" aria-label="Invite link">
-        <a class="primary button" href="https://wa.me/${p.phone.slice(1)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Send on WhatsApp</a>
-        <button class="secondary" id="copy">Copy link</button>
-      </div>`;
-  };
-  const isOwner = p.role === 'owner';
-  show(`
-    <main class="page narrow">
-      <a class="back" href="#/">‹ Team</a>
-      <h1>${esc(p.full_name)}</h1>
-      <p class="muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</p>
-      <div id="share">
-        ${isOwner ? '<p>Owners sign in with their email.</p>'
-          : p.invite_token ? share(p.invite_token)
-          : `<p>${esc(p.full_name.split(' ')[0])} has joined.</p><button class="secondary" id="reset">Forgot PIN? Create a new PIN link</button>`}
-      </div>
-    </main>`);
-  const wireCopy = () => {
-    const btn = document.getElementById('copy');
-    if (!btn) return;
-    btn.onclick = async () => {
-      const input = document.getElementById('link');
-      try { await navigator.clipboard.writeText(input.value); } catch { input.select(); document.execCommand('copy'); }
-      btn.textContent = 'Copied';
-    };
-  };
-  wireCopy();
-  const reset = document.getElementById('reset');
-  if (reset) {
-    reset.onclick = async () => {
-      reset.disabled = true;
-      try {
-        document.getElementById('share').innerHTML = share(await api.rpc('renew_invite', { p_member: p.id }));
-        wireCopy();
-      } catch (x) { reset.disabled = false; toast(friendly(x)); }
-    };
-  }
-}
-
-// ── Staff and sales reps ────────────────────────────────────
-
-function staffHome() {
-  const h = new Date().getHours();
-  const hello = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  show(`
-    <main class="page narrow">
-      ${bar(hello)}
-      <div class="card hero">
-        <h2>${esc(me.full_name.split(' ')[0])}</h2>
-        <p>You're all set up as ${ROLE[me.role].toLowerCase()} at ${esc(me.companies.name)}.</p>
-      </div>
-      <p class="muted center">${me.role === 'rep' ? 'Store visits arrive' : 'Clocking in arrives'} in the next update.</p>
-    </main>`);
-  wireSignOut();
-}
-
 // ── Navigation ──────────────────────────────────────────────
 
-async function loadMe() {
+const loadMe = () => api.cached('me', async () => {
   const uid = api.getSession().user.id;
   const rows = await api.select('members',
-    `select=id,role,full_name,company_id,companies(name)&user_id=eq.${uid}&active=is.true&order=created_at&limit=1`);
+    'select=id,role,full_name,company_id,reference_photo_path,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days)' +
+    `&user_id=eq.${uid}&active=is.true&order=created_at&limit=1`);
   return rows[0] || null;
-}
+});
 
 async function route() {
   const hash = location.hash;
@@ -343,21 +188,9 @@ async function route() {
     const isStaffLogin = (api.getSession().user.email || '').endsWith('@' + PHONE_LOGIN_DOMAIN);
     return isStaffLogin ? noCompany() : createCompany();
   }
-  if (me.role === 'owner' || me.role === 'admin') {
-    if (name === 'invite') return invite();
-    if (name === 'person') return person(arg);
-    return team();
-  }
-  return staffHome();
-}
-
-function toast(text) {
-  const t = document.createElement('div');
-  t.className = 'toast';
-  t.setAttribute('role', 'status');
-  t.textContent = text;
-  document.body.append(t);
-  setTimeout(() => t.remove(), 4000);
+  // Managers' screens are downloaded only by managers, keeping the staff app small.
+  if (me.role === 'owner' || me.role === 'admin') return (await import('./admin.js')).adminRoute(me, name, arg);
+  return (await import('./staff.js')).staffRoute(me, name, arg);
 }
 
 function start() {
@@ -375,4 +208,10 @@ function start() {
 
 catchAll(() => toast('Something went wrong. Please try again.'));
 addEventListener('hashchange', start);
+addEventListener('pinga:reload', () => { me = null; api.clearCache(); });
 start();
+
+// Offline support: keep the app's files on the phone.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}

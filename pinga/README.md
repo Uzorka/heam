@@ -31,6 +31,18 @@ Individual checks: `npm run test:unit`, `npm run test:db`, `npm run test:screens
 - **Forgot PIN:** the manager opens the person and taps "Create a new PIN link".
 - One phone number belongs to one company. A manager can never reset the PIN of someone who works at another company.
 
+## Clocking in (office attendance)
+
+- Staff tap **Clock in**. The app takes a fresh GPS reading and one small selfie (under 50 KB), finds the nearest office, and saves it **on the phone first**. It is sent when there is signal: on opening the app, when signal returns, and every minute while open. The time saved is the moment of tapping.
+- "3 waiting to send" shows under the button until everything is sent. Staff can't sign out while anything is waiting.
+- Phones with the wrong clock are handled: the app learns the server's time whenever online.
+- Nothing is blocked. Instead, the manager sees a flag on that clock-in: outside the office, weak GPS, possible fake location, impossible travel speed, phone clock changed, no photo.
+- Lateness is worked out by the server from the company's working hours and grace minutes (Lagos time).
+- New staff take one reference photo after setting their PIN (used for face checks in step 6).
+- The app opens with no signal once it has been opened before (the "service worker" keeps its files on the phone).
+
+Managers set up **Offices** (stand in the office and tap "Use my current location", or paste from Google Maps) and **Hours** (start, end, grace minutes, work days).
+
 ## Who can see what (enforced by the database)
 
 | | Own company | Other companies |
@@ -61,7 +73,7 @@ npx supabase functions deploy accept-invite
 
 Repeat with `<live-ref>` after checking staging.
 
-App: upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build.
+App: run `npm run stamp` (tells phones a new version exists; the tests fail if you forget), then upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build.
 
 Supabase settings needed once per project (Dashboard → Authentication):
 - Site URL: the app's address (so the owner's email confirmation link comes back to the app).
@@ -74,4 +86,4 @@ Supabase settings needed once per project (Dashboard → Authentication):
 
 ## Size budget
 
-The staff app's JavaScript must stay under 100 KB (gzipped). `npm run size` checks it and fails if over.
+The staff app's JavaScript must stay under 100 KB (gzipped). `npm run size` checks it and fails if over. Managers' screens (`admin.js`) are only downloaded by managers and are reported separately.

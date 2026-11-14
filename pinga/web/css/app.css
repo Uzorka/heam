@@ -77,3 +77,39 @@ button.link { background: none; color: var(--accent); width: auto; min-height: 4
   position: fixed; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); margin: 0 auto; max-width: 420px;
   background: var(--text); color: #fff; padding: 14px 16px; border-radius: 14px; font-size: 15px; text-align: center;
 }
+
+/* Step 2 */
+.tabs { display: flex; gap: 4px; background: #e8e8ed; border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+.tabs a { flex: 1; text-align: center; padding: 10px 0; border-radius: 9px; color: var(--text); font-weight: 500; font-size: 15px; }
+.tabs a.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.08); font-weight: 600; }
+.big { min-height: 64px; font-size: 20px; }
+.status { font-size: 17px; margin: 0; }
+.late { color: var(--wait); font-weight: 600; }
+.waiting { text-align: center; color: var(--wait); font-size: 15px; margin-top: 16px; }
+.empty { margin-top: 24px; }
+.chev { color: var(--muted); font-size: 22px; }
+.hint { font-weight: 400; font-size: 13px; }
+.section { font-size: 17px; margin: 28px 0 0; }
+.pair { display: flex; gap: 12px; }
+.pair label { flex: 1; }
+.narrow-form { max-width: 440px; }
+fieldset.days { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.days label { flex-direction: row; align-items: center; gap: 6px; font-weight: 500; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.days input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.camera { width: 220px; height: 220px; margin: 12px auto 16px; border-radius: 50%; overflow: hidden; background: #dcdce1; }
+.camera video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.camera.off { height: 0; margin: 0; }
+.where { text-align: center; font-size: 15px; color: var(--muted); min-height: 22px; }
+.where.good { color: var(--accent); font-weight: 600; }
+.where.warn { color: var(--wait); }
+.where.bad { color: var(--danger); }
+
+.person { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.person h1 { margin: 0; }
+.person p { margin: 0; }
+.face { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: #dcdce1; flex: none; }
+.record { align-items: flex-start; justify-content: flex-start; }
+.thumb { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; background: #ececf0; flex: none; }
+.grow { flex: 1; }
+.pill.warn { background: var(--wait-bg); color: var(--wait); display: inline-block; margin-top: 4px; }

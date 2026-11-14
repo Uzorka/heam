@@ -13,7 +13,9 @@ const rows = walk(root).filter((f) => ['.js', '.css', '.html', '.webmanifest'].i
 
 const total = (ext) => rows.filter((r) => extname(r.file) === ext).reduce((s, r) => s + r.kb, 0);
 for (const r of rows) console.log(`${r.kb.toFixed(1).padStart(6)} KB  ${r.file}`);
-const js = total('.js');
-console.log(`\nJavaScript: ${js.toFixed(1)} KB of ${BUDGET_JS_KB} KB budget (gzipped)`);
+// Managers' screens (admin.js) are only downloaded by managers, so they don't count towards the staff budget.
+const js = rows.filter((r) => extname(r.file) === '.js' && r.file !== 'js/admin.js').reduce((s, r) => s + r.kb, 0);
+console.log(`\nStaff app JavaScript: ${js.toFixed(1)} KB of ${BUDGET_JS_KB} KB budget (gzipped)`);
+console.log(`All JavaScript incl. managers' screens: ${total('.js').toFixed(1)} KB`);
 console.log(`Everything: ${rows.reduce((s, r) => s + r.kb, 0).toFixed(1)} KB`);
 if (js > BUDGET_JS_KB) { console.error('Over budget!'); process.exit(1); }

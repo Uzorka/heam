@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const walk = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
-const files = walk(root).map((f) => relative(root, f).split('\\').join('/')).filter((f) => f !== 'sw.js').sort();
+const files = walk(root).map((f) => relative(root, f).split('\\').join('/')).filter((f) => f !== 'sw.js' && !f.startsWith('vendor/')).sort(); // vendor/ (the map) is for owners only: not kept on staff phones
 
 const hash = createHash('sha256');
 for (const f of files) hash.update(f).update(readFileSync(join(root, f)));

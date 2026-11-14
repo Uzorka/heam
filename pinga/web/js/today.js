@@ -46,7 +46,7 @@ export async function today(me, arg, tabs) {
       <div class="dayrow">
         <label class="sr" for="day">Date</label>
         <input type="date" id="day" value="${day}" max="${now}">
-        ${isToday ? '<span class="muted small">Pick a past date to fix it</span>' : '<a href="#/" class="small">Back to today</a>'}
+        ${isToday ? '<span class="muted small">Pick a past date to fix it</span>' : '<a href="#/today" class="small">Back to today</a>'}
       </div>
       <div class="chips" role="group" aria-label="Show">
         ${FILTERS.map(([k, t]) => `<button type="button" class="chip${FILTER === k ? ' on' : ''}" data-f="${k}" aria-pressed="${FILTER === k}">${t} <b>${count(k)}</b></button>`).join('')}
@@ -98,7 +98,7 @@ export async function today(me, arg, tabs) {
   draw();
 
   document.getElementById('q').oninput = draw;
-  document.getElementById('day').onchange = (e) => go(e.target.value && e.target.value !== now ? '#/day/' + e.target.value : '#/');
+  document.getElementById('day').onchange = (e) => go(e.target.value && e.target.value !== now ? '#/day/' + e.target.value : '#/today');
   app.querySelectorAll('[data-f]').forEach((b) => {
     b.onclick = () => {
       FILTER = b.dataset.f;

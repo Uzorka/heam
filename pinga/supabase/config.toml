@@ -4,3 +4,7 @@
 [functions.accept-invite]
 # The invite page is used before the person has a login; the function checks the invite link itself.
 verify_jwt = false
+
+[functions.daily-summary]
+# Called by the hourly schedule, which proves itself with a key (see scripts/deploy.js).
+verify_jwt = false

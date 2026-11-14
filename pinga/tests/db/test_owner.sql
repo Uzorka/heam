@@ -89,7 +89,7 @@ select public.summary_logged('c000000a-0000-0000-0000-000000000000', (now() at t
 select tests.eq((select count(*) from public.summaries_due() where company_id = 'c000000a-0000-0000-0000-000000000000'), 0::bigint, 'never sent twice on the same day');
 select tests.eq(public.summary_key_ok('guess'), false, 'the schedule key must match');
 reset role;
-insert into private.settings values ('summary_key', 'k-123');
+insert into private.settings values ('summary_key', 'k-123') on conflict (key) do update set value = excluded.value;  -- rolled back below
 select tests.act_as_server();
 select tests.eq(public.summary_key_ok('k-123'), true, '...and the right key is accepted');
 reset role;

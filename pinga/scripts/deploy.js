@@ -51,12 +51,31 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
 await sql("notify pgrst, 'reload schema';");
 
 // 2. Functions
-const fnDir = new URL('../supabase/functions/accept-invite/', import.meta.url);
-const form = new FormData();
-form.append('metadata', JSON.stringify({ name: 'accept-invite', entrypoint_path: 'index.ts', verify_jwt: false }));
-for (const f of ['index.ts', 'handler.js']) form.append('file', new Blob([readFileSync(new URL(f, fnDir))]), f);
-await call('/functions/deploy?slug=accept-invite', { method: 'POST', body: form });
-console.log('  function: accept-invite deployed');
+for (const [slug, files] of [['accept-invite', ['index.ts', 'handler.js']], ['daily-summary', ['index.ts', 'handler.js']]]) {
+  const fnDir = new URL(`../supabase/functions/${slug}/`, import.meta.url);
+  const form = new FormData();
+  form.append('metadata', JSON.stringify({ name: slug, entrypoint_path: 'index.ts', verify_jwt: false }));
+  for (const f of files) form.append('file', new Blob([readFileSync(new URL(f, fnDir))]), f);
+  await call(`/functions/deploy?slug=${slug}`, { method: 'POST', body: form });
+  console.log(`  function: ${slug} deployed`);
+}
+
+// Evening summary: app address for the email's button, and the hourly schedule.
+// The schedule proves itself with a random key that is created in the database and never leaves it.
+if (project.site) {
+  await call('/secrets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify([{ name: 'APP_URL', value: project.site }]) });
+}
+await sql(`create extension if not exists pg_net;
+  create extension if not exists pg_cron;
+  insert into private.settings (key, value) values ('summary_key', encode(extensions.gen_random_bytes(24), 'hex')) on conflict (key) do nothing;
+  select cron.schedule('pinga-daily-summary', '5 * * * *', $job$
+    select net.http_post(
+      url := 'https://${project.ref}.supabase.co/functions/v1/daily-summary',
+      headers := jsonb_build_object('content-type', 'application/json', 'x-summary-key', (select value from private.settings where key = 'summary_key')),
+      body := '{}'::jsonb)
+  $job$);`);
+const secrets = (await call('/secrets')).map((x) => x.name);
+console.log(`  summary: scheduled hourly; email ${secrets.includes('RESEND_API_KEY') ? 'is set up' : 'NOT set up yet (add RESEND_API_KEY in Supabase → Edge Functions → Secrets)'}`);
 
 // 3. Login settings
 const authConfig = { password_min_length: 6, ...(project.site ? { site_url: project.site } : {}) };
@@ -74,4 +93,6 @@ await check('visitors cannot read people', fetch(`${base}/rest/v1/members?select
 await check('visitors cannot read companies', fetch(`${base}/rest/v1/companies?select=id`, { headers: pub }).then((r) => r.status === 401 || r.status === 403));
 await check('invite function refuses a bad link', fetch(`${base}/functions/v1/accept-invite`, { method: 'POST', headers: pub, body: JSON.stringify({ token: 'x', pin: '482913' }) })
   .then((r) => r.status === 400));
+await check('summary function refuses callers without the schedule key', fetch(`${base}/functions/v1/daily-summary`, { method: 'POST', headers: pub, body: '{}' })
+  .then((r) => r.status === 401));
 console.log('Done.');

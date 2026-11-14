@@ -6,7 +6,7 @@ import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, relo
 
 const tabs = (on) => `
   <nav class="tabs">
-    ${[['#/', 'Today'], ['#/team', 'Team'], ['#/offices', 'Offices'], ['#/stores', 'Stores'], ['#/hours', 'Hours']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
+    ${[['#/overview', 'Overview'], ['#/today', 'Today'], ['#/team', 'Team'], ['#/setup', 'Setup']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
   </nav>`;
 
 export function adminRoute(me, name, arg) {
@@ -19,7 +19,11 @@ export function adminRoute(me, name, arg) {
   if (name === 'assign') return assign(me, arg);
   if (name === 'team') return team(me);
   if (name === 'hours') return hours(me);
-  return import('./today.js').then((m) => m.today(me, arg, tabs));
+  if (name === 'setup') return setup(me);
+  if (name === 'export') return import('./export.js').then((m) => m.exportScreen(me));
+  if (name === 'today' || name === 'day') return import('./today.js').then((m) => m.today(me, arg, tabs));
+  if (name === 'overview' || me.role === 'owner') return import('./overview.js').then((m) => m.overview(me, tabs));
+  return import('./today.js').then((m) => m.today(me, '', tabs));
 }
 
 // ── Team ────────────────────────────────────────────────────
@@ -87,11 +91,16 @@ async function person(me, id) {
   const tz = me.companies.timezone;
   const mid = encodeURIComponent(id);
   const [[p], records] = await Promise.all([
-    api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path,daily_visit_target&id=eq.${mid}`),
+    api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path,daily_visit_target,branch_id&id=eq.${mid}`),
     api.select('attendance', `select=id,kind,happened_at,late_minutes,distance_m,photo_path,flags&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
   ]);
   if (!p) return go('#/team');
-  const isRep = p.role === 'rep';
+  const isRep = p.role === 'rep', isStaff = p.role === 'staff', seesPay = me.role === 'owner' && (isRep || isStaff);
+  const [offices, pay] = await Promise.all([
+    isStaff ? api.select('branches', `select=id,name&company_id=eq.${me.company_id}&order=name`) : [],
+    seesPay ? api.select('pay_rates', `select=monthly_naira&member_id=eq.${mid}`) : [],
+  ]);
+  const monthly = pay[0]?.monthly_naira;
   const [assigned, visits, stores] = isRep ? await Promise.all([
     api.select('store_assignments', `select=store_id&member_id=eq.${mid}`),
     api.select('visits', `select=id,store_id,happened_at,distance_m,selfie_path,shelf_photo_path,note,flags&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
@@ -107,15 +116,19 @@ async function person(me, id) {
           ${v.flags.length ? '<br>' + v.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'store'))}${f === 'outside_radius' && v.distance_m != null ? ` (${fmtDistance(v.distance_m)})` : ''}</span>`).join(' ') : ''}</span>
         ${v.shelf_photo_path ? `<img class="thumb" data-photo="${esc(v.shelf_photo_path)}" alt="Shelf photo">` : ''}
       </li>`;
-  const repSection = isRep ? `
-      <h2 class="section">Store visits</h2>
+  const details = isRep || isStaff ? `
+      <h2 class="section">Details</h2>
       <div class="card stack">
-        <form class="inline-form">
-          <label>Visits per day<input name="target" type="number" min="0" max="50" value="${p.daily_visit_target ?? 4}" required></label>
-          <button type="submit" class="secondary">Save</button>
+        <form class="stack details">
+          ${isRep ? `<label>Visits per day<input name="target" type="number" min="0" max="50" value="${p.daily_visit_target ?? 4}" required></label>` : ''}
+          ${isStaff ? `<label>Home office<select name="branch"><option value="">Not set</option>${offices.map((o) => `<option value="${o.id}"${o.id === p.branch_id ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
+            <span class="hint muted">Used on the owner's dashboard when they haven't clocked in yet.</span></label>` : ''}
+          ${seesPay ? `<label><span>Monthly pay (₦) <span class="muted">(optional)</span></span><input name="pay" type="number" min="0" step="1" inputmode="numeric" value="${monthly ?? ''}" placeholder="e.g. 150000">
+            <span class="hint muted">Only you (the owner) can see this. Used to show the cost of lost time.</span></label>` : ''}
           <p class="error" role="alert"></p>
+          <button type="submit" class="secondary">Save</button>
         </form>
-        <a class="row link-row" href="#/assign/${p.id}"><span>Assigned stores</span><span><b>${assigned.length}</b> <span class="chev">›</span></span></a>
+        ${isRep ? `<a class="row link-row" href="#/assign/${p.id}"><span>Assigned stores</span><span><b>${assigned.length}</b> <span class="chev">›</span></span></a>` : ''}
       </div>
       ${visits.length ? `<h2 class="section">Recent visits</h2><ul class="list">${visits.map(visitRow).join('')}</ul>` : ''}` : '';
   const first = p.full_name.split(' ')[0];
@@ -153,11 +166,16 @@ async function person(me, id) {
           : p.invite_token ? share(p.invite_token)
           : `<p>${esc(first)} has joined.</p><button class="secondary" id="reset">Forgot PIN? Create a new PIN link</button>`}
       </div>
-      ${repSection}
+      ${details}
       ${records.length ? `<h2 class="section">Recent clock-ins</h2><ul class="list">${records.map(row).join('')}</ul>` : ''}
-    </main>`, isRep ? async ({ target }) => {
-    await api.update('members', `id=eq.${p.id}`, { daily_visit_target: Number(target) });
-    toast(`Target saved: ${Number(target)} visits a day`);
+    </main>`, isRep || isStaff ? async ({ target, branch, pay: newPay }) => {
+    const changes = isRep ? { daily_visit_target: Number(target) } : { branch_id: branch || null };
+    await api.update('members', `id=eq.${p.id}`, changes);
+    if (seesPay) {
+      if (newPay === '' || newPay === undefined) await api.remove('pay_rates', `member_id=eq.${p.id}`);
+      else await api.upsert('pay_rates', { member_id: p.id, company_id: me.company_id, monthly_naira: Number(newPay) });
+    }
+    toast(isRep ? `Target saved: ${Number(target)} visits a day` : 'Saved');
   } : undefined);
   loadPhotos();
   const wireCopy = () => {
@@ -209,7 +227,8 @@ async function places(me, k) {
   show(`
     <main class="page">
       ${header(me, k.plural)}
-      ${tabs(k.plural)}
+      ${tabs('Setup')}
+      <a class="back" href="#/setup">‹ Setup</a>
       <a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>
       ${list.length ? '' : `<p class="muted center empty">${k.empty}</p>`}
       <ul class="list">
@@ -314,6 +333,36 @@ async function assign(me, id) {
   if (sq) sq.oninput = () => app.querySelectorAll('[data-name]').forEach((l) => { l.hidden = !l.dataset.name.includes(sq.value.toLowerCase()); });
 }
 
+// ── Setup ───────────────────────────────────────────────────
+
+async function setup(me) {
+  const isOwner = me.role === 'owner';
+  const [co] = isOwner ? await api.select('companies', `select=summary_email&id=eq.${me.company_id}`) : [{}];
+  show(`
+    <main class="page">
+      ${header(me, 'Setup')}
+      ${tabs('Setup')}
+      <ul class="list">
+        <li><a class="card row" href="#/offices"><span><strong>Offices</strong><br><span class="muted">Where office staff clock in</span></span><span class="chev">›</span></a></li>
+        <li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span><span class="chev">›</span></a></li>
+        <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span><span class="chev">›</span></a></li>
+        <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span><span class="chev">›</span></a></li>
+        ${isOwner ? `<li class="card row"><span><strong>Evening summary email</strong><br><span class="muted">A short summary of the day, around 7 pm</span></span>
+          <label class="switch"><input type="checkbox" id="summary"${co.summary_email ? ' checked' : ''} aria-label="Evening summary email"><span></span></label></li>` : ''}
+      </ul>
+    </main>`);
+  wireSignOut();
+  const sw = document.getElementById('summary');
+  if (sw) {
+    sw.onchange = async () => {
+      try {
+        await api.update('companies', `id=eq.${me.company_id}`, { summary_email: sw.checked });
+        toast(sw.checked ? 'Evening summary on' : 'Evening summary off');
+      } catch (x) { sw.checked = !sw.checked; toast(friendly(x)); }
+    };
+  }
+}
+
 // ── Working hours ───────────────────────────────────────────
 
 function hours(me) {
@@ -322,7 +371,8 @@ function hours(me) {
   show(`
     <main class="page">
       ${header(me, 'Working hours')}
-      ${tabs('Hours')}
+      ${tabs('Setup')}
+      <a class="back" href="#/setup">‹ Setup</a>
       <form class="stack narrow-form">
         <div class="pair">
           <label>Work starts<input name="work_starts" type="time" value="${c.work_starts.slice(0, 5)}" required></label>

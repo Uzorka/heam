@@ -61,6 +61,25 @@ Managers land on **Today**: everyone (office staff and sales reps) with their st
 - **Bulk actions:** tick people (or "Select all shown") and tap Present, Absent, Leave or Off. With more than one person it asks first. **Clear** removes only statuses a manager set; clock-ins and visits are never changed.
 - **Fix past dates:** pick any past date (not future ones). People aren't counted absent for days before they were added.
 
+## Owner dashboard (Overview)
+
+Owners land on **Overview**, the day in 10 seconds:
+
+- **Right now:** present, late, not in, leave/off, and per office (staff are grouped by the office they clocked in at, otherwise their home office).
+- **Field visits:** planned vs done, and assigned stores on a street map (green visited, grey not yet). The map (Leaflet 1.9.4, BSD licence, in `web/vendor/`) loads only on this screen; staff phones never download it.
+- **Needs your attention:** staff late 3+ times in 2 weeks; reps whose visits dropped 30%+ week on week; flagged check-ins.
+- **Lost time this month:** hours lost to lateness and absence, and in naira for people whose monthly pay is entered. **Pay is visible only to owners** (not managers, not staff).
+
+**Setup** holds Offices, Stores, Working hours, Export register, and the evening email switch.
+
+**Export register:** any period up to 3 months, as a real Excel file (written by `web/js/xlsx.js`, no library) or a printable page to save as PDF.
+
+## Evening summary email
+
+Every hour Supabase's scheduler calls the `daily-summary` function; after 7 pm (company time) each company's owner gets one short email: who was present, late, not in, store visits vs target, and flagged check-ins. A log stops it ever sending twice in a day. Owners can turn it off in Setup.
+
+To switch sending on: create a free account at resend.com, make an API key, and add it in **Supabase → Edge Functions → Secrets** as `RESEND_API_KEY` (staging first, then live). Until a sending domain (e.g. usepinga.com) is verified in Resend, emails go from `onboarding@resend.dev` and only to the Resend account's own email address. Optional secret `SUMMARY_FROM` (e.g. `Pinga <summary@usepinga.com>`) once the domain is verified.
+
 ## Who can see what (enforced by the database)
 
 | | Own company | Other companies |
@@ -92,7 +111,14 @@ CONFIRM_LIVE=yes npm run deploy:live         # only after staging is checked
 
 Only new files in `supabase/migrations` are applied; each is recorded in `supabase_migrations.schema_migrations`.
 
-App: run `npm run stamp` (tells phones a new version exists; the tests fail if you forget), then upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build. The app uses the live project only on the live web addresses listed in `web/js/config.js`; anywhere else it uses staging.
+App (staging is at https://staging.elvisuzorka.com, on Hostinger): get an upload pass from Hostinger (`hosting_files_generate-upload-url` for the site; it lasts a few hours and is never stored), then
+
+```
+npm run stamp && npm test
+UPLOAD_URL=... X_AUTH=... X_AUTH_REST=... NODE_USE_ENV_PROXY=1 node scripts/publish.js
+```
+
+Server settings (https only, security headers, fresh app shell) are in `hosting/htaccess`. Before that, run `npm run stamp` (tells phones a new version exists; the tests fail if you forget), then upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build. The app uses the live project only on the live web addresses listed in `web/js/config.js`; anywhere else it uses staging.
 
 Still to set per project (Dashboard → Authentication → URL Configuration): Site URL = the app's web address, once hosting is chosen, so the owner's email confirmation link opens the app.
 

@@ -3,6 +3,7 @@
 // Also measures the first load with a 4x slower CPU and slow 3G, and opening the app with no signal.
 import { createRequire } from 'node:module';
 import { mkdirSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { server } from '../../scripts/serve.js';
 
@@ -13,10 +14,10 @@ mkdirSync(out, { recursive: true });
 
 // ── Pretend Supabase ────────────────────────────────────────
 const YABA = { lat: 6.5095, lng: 3.3711 };
-const company = { id: 'c1', name: 'CHF Heron', timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
+const company = { id: 'c1', name: 'CHF Heron', summary_email: true, timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
 const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '12 Herbert Macaulay Way', radius_m: 100, ...YABA }];
 const people = [
-  { id: 'm0', user: 'u-owner', full_name: 'Elvis Uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
+  { id: 'm0', user: 'u-owner', full_name: 'Elvis Uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null, branch_id: null },
   { id: 'm1', user: 'u-sade', full_name: 'Sade Bello', role: 'staff', phone: '+2348031234567', joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
   { id: 'm3', user: null, full_name: 'Tunde Ade', role: 'staff', phone: '+2348125550101', joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
   { id: 'm2', user: null, full_name: 'Remi Okafor', role: 'rep', phone: '+2348059876543', joined_at: null, invite_token: 'f'.repeat(32), reference_photo_path: null, daily_visit_target: 4 },
@@ -29,6 +30,7 @@ const stores = [
 const assignments = [];
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
+const payRates = new Map();
 const photos = new Map();
 let networkDown = false;
 let signedInAs = null;
@@ -37,6 +39,23 @@ const json = (route, body, status = 200) => route.fulfill({ status, contentType:
 const dist = (a, b) => { const r = (d) => (d * Math.PI) / 180; const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2; return 2 * 6371000 * Math.asin(Math.sqrt(h)); };
 const lagosDate = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date(iso));
 const param = (q, k) => new URLSearchParams(q).get(k)?.replace(/^(eq|is)\./, '');
+
+function board(day) {
+  const today = lagosDate(new Date().toISOString());
+    const rows = people.filter((x) => x.role === 'staff' || x.role === 'rep').map((x) => {
+      const att = attendance.filter((a) => a.member_id === x.id && a.local_date === day);
+      const vis = visits.filter((v) => v.member_id === x.id && lagosDate(v.happened_at) === day);
+      const set = dayStatus.get(x.id + '|' + day);
+      const firstIn = att.find((a) => a.kind === 'in');
+      const late = firstIn?.late_minutes || 0;
+      const computed = firstIn || vis.length ? (x.role === 'staff' && late > 0 ? 'late' : 'present') : day < today ? 'absent' : 'none';
+      return { member_id: x.id, full_name: x.full_name, role: x.role, status: set || computed, set_by_manager: !!set,
+        first_in: firstIn?.happened_at || null, last_out: att.filter((a) => a.kind === 'out').pop()?.happened_at || null, late_minutes: late || null,
+        visits: new Set(vis.map((v) => v.store_id)).size, visit_target: x.role === 'rep' ? x.daily_visit_target ?? 4 : null,
+        to_review: [...att, ...vis].filter((r) => r.flags.length && r.flags.join() !== 'store_located').length };
+    });
+  return rows.sort((a, b) => a.full_name.localeCompare(b.full_name));
+}
 
 async function fakeSupabase(route) {
   if (networkDown) return route.abort('internetdisconnected');
@@ -69,7 +88,7 @@ async function fakeSupabase(route) {
     people.push(row);
     return json(route, [row]);
   }
-  if (p === '/rest/v1/companies' && m === 'PATCH') { Object.assign(company, body, { work_starts: body.work_starts + ':00' }); return json(route, [company]); }
+  if (p === '/rest/v1/companies' && m === 'PATCH') { Object.assign(company, body, body.work_starts ? { work_starts: body.work_starts + ':00' } : {}); return json(route, [company]); }
   if (p === '/rest/v1/branches' && m === 'GET') return json(route, param(q, 'id') ? branches.filter((b) => b.id === param(q, 'id')) : branches);
   if (p === '/rest/v1/branches' && m === 'POST') { const b = { id: 'b' + (branches.length + 1), ...body }; branches.push(b); return json(route, [b]); }
   if (p === '/rest/v1/attendance' && m === 'GET') {
@@ -121,22 +140,38 @@ async function fakeSupabase(route) {
     visits.push(row);
     return json(route, row);
   }
-  if (p === '/rest/v1/rpc/day_board') {
-    const day = body.p_day, today = lagosDate(new Date().toISOString());
-    const rows = people.filter((x) => x.role === 'staff' || x.role === 'rep').map((x) => {
-      const att = attendance.filter((a) => a.member_id === x.id && a.local_date === day);
-      const vis = visits.filter((v) => v.member_id === x.id && lagosDate(v.happened_at) === day);
-      const set = dayStatus.get(x.id + '|' + day);
-      const firstIn = att.find((a) => a.kind === 'in');
-      const late = firstIn?.late_minutes || 0;
-      const computed = firstIn || vis.length ? (x.role === 'staff' && late > 0 ? 'late' : 'present') : day < today ? 'absent' : 'none';
-      return { member_id: x.id, full_name: x.full_name, role: x.role, status: set || computed, set_by_manager: !!set,
-        first_in: firstIn?.happened_at || null, last_out: att.filter((a) => a.kind === 'out').pop()?.happened_at || null, late_minutes: late || null,
-        visits: new Set(vis.map((v) => v.store_id)).size, visit_target: x.role === 'rep' ? x.daily_visit_target ?? 4 : null,
-        to_review: [...att, ...vis].filter((r) => r.flags.length && r.flags.join() !== 'store_located').length };
-    });
-    return json(route, rows.sort((a, b) => a.full_name.localeCompare(b.full_name)));
+  if (p === '/rest/v1/rpc/day_board') return json(route, board(body.p_day));
+  if (p === '/rest/v1/rpc/register') {
+    const rows = [];
+    for (let d = new Date(body.p_from + 'T12:00:00Z'); d <= new Date(body.p_to + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
+      const day = d.toISOString().slice(0, 10);
+      rows.push(...board(day).map((r) => ({ day, ...r })));
+    }
+    return json(route, rows);
   }
+  if (p === '/rest/v1/rpc/owner_overview') {
+    const b = board(body.p_day);
+    const reps = b.filter((r) => r.role === 'rep');
+    const paid = payRates.size;
+    return json(route, {
+      day: body.p_day,
+      now: { people: b.length, present: b.filter((r) => r.status === 'present').length, late: b.filter((r) => r.status === 'late').length,
+        absent: b.filter((r) => ['absent', 'none'].includes(r.status)).length, away: b.filter((r) => ['leave', 'off'].includes(r.status)).length,
+        to_review: b.reduce((n, r) => n + r.to_review, 0) },
+      offices: [{ name: 'Yaba office', present: 0, late: b.filter((r) => r.role === 'staff' && r.status === 'late').length, absent: b.filter((r) => r.role === 'staff' && ['absent', 'none'].includes(r.status)).length, away: 0 }],
+      field: { planned: reps.reduce((n, r) => n + r.visit_target, 0), done: reps.reduce((n, r) => n + Math.min(r.visits, r.visit_target), 0),
+        reps: reps.map((r) => ({ name: r.full_name, visits: r.visits, target: r.visit_target, status: r.status })) },
+      stores: stores.filter((x) => x.lat != null && assignments.some((a) => a.store_id === x.id))
+        .map((x) => ({ name: x.name, lat: x.lat, lng: x.lng, visited: visits.some((v) => v.store_id === x.id && lagosDate(v.happened_at) === body.p_day) })),
+      repeat_late: [{ name: 'Sade Bello', times: 3 }],
+      visits_dropping: [],
+      lost: me.role === 'owner' ? { hours: 31.5, naira: paid ? 48500 : 0, with_pay: paid, people: b.length } : null,
+    });
+  }
+  if (p === '/rest/v1/pay_rates' && m === 'GET') { const v = payRates.get(param(q, 'member_id')); return json(route, v == null ? [] : [{ monthly_naira: v }]); }
+  if (p === '/rest/v1/pay_rates' && m === 'POST') { payRates.set(body.member_id, body.monthly_naira); return route.fulfill({ status: 201 }); }
+  if (p === '/rest/v1/pay_rates' && m === 'DELETE') { payRates.delete(param(q, 'member_id')); return route.fulfill({ status: 204 }); }
+  if (p === '/rest/v1/companies' && m === 'GET') return json(route, [company]);
   if (p === '/rest/v1/rpc/set_day_status') {
     let n = 0;
     for (const id of body.p_members) {
@@ -179,6 +214,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e));
 await page.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
+await page.route(/tile\.openstreetmap\.org/, (r) => r.abort()); // no map tiles in tests; pins still draw
 
 let n = 0;
 const shot = async (name) => page.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-${name}.png` });
@@ -274,15 +310,19 @@ await page.getByRole('link', { name: 'Business owner? Sign in with email' }).cli
 await page.getByLabel('Email').fill('elvis@chfheron.com');
 await page.getByLabel('Password').fill('password1');
 await page.getByRole('button', { name: 'Sign in' }).click();
-await page.getByRole('heading', { name: 'Today' }).waitFor();
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+step('owner signs in and lands on Overview');
+await page.getByRole('link', { name: 'Today', exact: true }).click();
 await page.getByText('Late · 12 min').waitFor();
-step('owner signs in and lands on Today');
+step('Today shows Sade late');
 await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('heading', { name: 'Team' }).waitFor();
 step('Team is its own tab');
 await shot('owner-team');
 
-await page.getByRole('link', { name: 'Offices' }).click();
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await shot('owner-setup');
+await page.getByRole('link', { name: /^Offices/ }).click();
 await page.getByRole('link', { name: 'Add office' }).click();
 await page.getByLabel('Name').fill('Ikeja office');
 await page.getByRole('button', { name: 'Use my current location' }).click();
@@ -294,7 +334,8 @@ await page.getByText('Ikeja office').waitFor();
 step('owner adds an office by standing in it and tapping "Use my current location"');
 await shot('owner-offices');
 
-await page.getByRole('link', { name: 'Hours' }).click();
+await page.getByRole('link', { name: '‹ Setup' }).click();
+await page.getByRole('link', { name: /^Working hours/ }).click();
 await page.getByLabel('Work starts').fill('08:30');
 await shot('owner-hours');
 await page.getByRole('button', { name: 'Save' }).click();
@@ -312,7 +353,8 @@ await shot('owner-person-clock-ins');
 await page.getByRole('link', { name: '‹ Team' }).click();
 
 // ── Owner: stores and a rep's stores ────────────────────────
-await page.getByRole('link', { name: 'Stores' }).click();
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await page.getByRole('link', { name: /^Stores/ }).click();
 await page.getByRole('link', { name: 'Add store' }).click();
 await page.getByLabel('Name').fill('Spar Lekki');
 await page.getByLabel('Address (optional)').fill('Admiralty Way, Lekki');
@@ -323,7 +365,7 @@ step('owner adds a store with just a name and address');
 await shot('owner-stores');
 await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Remi Okafor/ }).click();
-await page.getByRole('heading', { name: 'Store visits' }).waitFor();
+await page.getByRole('heading', { name: 'Details' }).waitFor();
 await page.getByLabel('Visits per day').fill('3');
 await page.getByRole('button', { name: 'Save', exact: true }).click();
 await page.getByText('Target saved: 3 visits a day').waitFor();
@@ -424,7 +466,19 @@ await page.getByLabel('Email').fill('elvis@chfheron.com');
 await page.getByLabel('Password').fill('password1');
 await page.getByRole('button', { name: 'Sign in' }).click();
 
+// ── Owner dashboard ─────────────────────────────────────────
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+assert.match(await page.locator('.stats').innerText(), /1\s*Present\s*1\s*Late\s*1\s*Not in\s*0\s*Leave · Off/);
+await page.getByText('3 of 3 planned visits done').waitFor();
+await page.locator('.map .leaflet-interactive').first().waitFor();
+assert.equal(await page.locator('.map .leaflet-interactive').count(), 3, 'three stores on the map');
+await page.getByText('was late 3 times in the last 2 weeks').waitFor();
+await page.getByText('hours lost to lateness and absence').waitFor();
+step('Overview: present/late/not in, field visits 3 of 3 with stores on a map, patterns, lost time');
+await shot('owner-overview');
+
 // ── Manager's Today page ────────────────────────────────────
+await page.getByRole('link', { name: 'Today', exact: true }).click();
 await page.getByRole('heading', { name: 'Today' }).waitFor();
 const statusOf = (name) => page.locator('.brow', { hasText: name }).locator('.right').innerText();
 assert.match(await statusOf('Sade Bello'), /Late · 12 min\n1 to check/);
@@ -476,6 +530,41 @@ assert.ok(dayStatus.has('m3|' + yesterday));
 step('fix a past date: yesterday shows Absent; marked Off');
 await shot('owner-fix-past-date');
 await page.getByRole('link', { name: 'Back to today' }).click();
+await page.getByRole('heading', { name: 'Today' }).waitFor();
+
+// Pay (owner only) and the cost of lost time.
+await page.getByRole('link', { name: 'Team', exact: true }).click();
+await page.getByRole('link', { name: /Sade Bello/ }).click();
+await page.getByLabel('Home office').selectOption({ label: 'Yaba office' });
+await page.getByLabel('Monthly pay (₦) (optional)').fill('150000');
+await shot('owner-person-pay');
+await page.getByRole('button', { name: 'Save', exact: true }).click();
+await page.getByText('Saved', { exact: true }).waitFor();
+assert.equal(payRates.get('m1'), 150000);
+assert.equal(people.find((x) => x.id === 'm1').branch_id, 'b1');
+await page.getByRole('link', { name: '‹ Team' }).click();
+await page.getByRole('link', { name: 'Overview', exact: true }).click();
+await page.getByText('₦48,500').waitFor();
+step('owner sets monthly pay and home office; Overview shows lost time in naira');
+await shot('owner-overview-naira');
+
+// Export the register (real Excel file) and the evening email switch.
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await page.getByRole('switch', { name: 'Evening summary email' }).or(page.getByLabel('Evening summary email')).uncheck();
+await page.getByText('Evening summary off').waitFor();
+assert.equal(company.summary_email, false);
+step('owner can turn the evening email off');
+await page.getByRole('link', { name: /^Export register/ }).click();
+await shot('owner-export');
+const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download Excel file' }).click()]);
+const xlsxPath = out + 'register.xlsx';
+await dl.saveAs(xlsxPath);
+const sheet = JSON.parse(execFileSync('python3', ['-I', '-c', 'import json,sys,openpyxl; ws=openpyxl.load_workbook(sys.argv[1]).active; print(json.dumps([list(r) for r in ws.iter_rows(values_only=True)]))', xlsxPath]).toString());
+assert.deepEqual(sheet[0].slice(0, 4), ['Date', 'Name', 'Role', 'Status']);
+assert.ok(sheet.length > 3 && sheet.some((r) => r[1] === 'Sade Bello'), 'register rows for this month');
+step(`Excel export downloads a real .xlsx (${sheet.length - 1} rows) that a spreadsheet program opens`);
+
+await page.getByRole('link', { name: '‹ Setup' }).click();
 await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Remi Okafor/ }).click();
 await page.getByRole('heading', { name: 'Recent visits' }).waitFor();

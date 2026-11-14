@@ -113,6 +113,7 @@ export const insert = (table, row) =>
 export const update = (table, query, changes) =>
   data(`/rest/v1/${table}?${query}`, { method: 'PATCH', body: changes, extra: { prefer: 'return=representation' } });
 export const insertRows = (table, rows) => data(`/rest/v1/${table}`, { method: 'POST', body: rows, extra: { prefer: 'return=minimal' } });
+export const upsert = (table, row) => data(`/rest/v1/${table}`, { method: 'POST', body: row, extra: { prefer: 'resolution=merge-duplicates,return=minimal' } });
 export const remove = (table, query) => data(`/rest/v1/${table}?${query}`, { method: 'DELETE' });
 export const rpc = (fn, args = {}) => data(`/rest/v1/rpc/${fn}`, { method: 'POST', body: args });
 // Photos (private storage).

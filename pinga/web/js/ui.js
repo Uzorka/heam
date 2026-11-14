@@ -25,7 +25,10 @@ export const onLeave = (fn) => { leave = fn; };
 // Renders a screen. If it has a form, runs onSubmit with its values and shows any problem under it.
 export function show(html, onSubmit) {
   if (leave) { const fn = leave; leave = null; try { fn(); } catch (e) { report(e); } }
+  const sameScreen = app.dataset.hash === location.hash;
+  app.dataset.hash = location.hash;
   app.innerHTML = html;
+  if (!sameScreen) scrollTo(0, 0);   // a new screen starts at the top
   const form = app.querySelector('form');
   if (form && onSubmit) {
     form.addEventListener('submit', async (e) => {

@@ -1,6 +1,6 @@
 // Keeps the app's own files on the phone so Pinga opens with no signal.
 // VERSION and FILES are written by `npm run stamp`; a new version replaces the old one in full.
-const VERSION = '6203c1c56123';
+const VERSION = '4a10ae682cff';
 const FILES = ["css/app.css","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png","index.html","js/admin.js","js/api.js","js/camera.js","js/config.js","js/gps.js","js/main.js","js/outbox.js","js/phone.js","js/report.js","js/staff.js","js/sync.js","js/ui.js","manifest.webmanifest"];
 
 const CACHE = 'pinga-' + VERSION;

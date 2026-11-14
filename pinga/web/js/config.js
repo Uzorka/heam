@@ -7,7 +7,7 @@
 const LIVE_HOSTS = ['app.usepinga.com', 'app.pinga.com.ng'];
 
 const PROJECTS = {
-  staging: { url: '', key: '', sentryDsn: '' },
+  staging: { url: 'https://ltizbbzhfmexwezjdszs.supabase.co', key: 'sb_publishable_E0iS1qxWtgJBuG4NoBpZyQ_-tIQmcXO', sentryDsn: '' },
   live: { url: '', key: '', sentryDsn: '' },
 };
 

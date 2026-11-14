@@ -112,6 +112,8 @@ await check('invite function refuses a bad link', fetch(`${base}/functions/v1/ac
   .then((r) => r.status === 400));
 await check('billing refuses unsigned or unset-up payment messages', fetch(`${base}/functions/v1/billing/webhook`, { method: 'POST', headers: pub, body: '{"event":"charge.success","data":{"reference":"PNG-X"}}' })
   .then((r) => r.status === 401 || r.status === 503));
+const payments = await fetch(`${base}/functions/v1/billing/status`, { method: 'POST', headers: pub, body: '{}' }).then((r) => r.json());
+console.log(`  payments: ${payments.enabled ? 'ON (Paystack test key found)' : 'switched OFF until PAYSTACK_SECRET_KEY (sk_test_…) is saved; app hides Pay and reminders'}`);
 await check('billing renewals refuse callers without the schedule key', fetch(`${base}/functions/v1/billing/renew`, { method: 'POST', headers: pub, body: '{}' })
   .then((r) => r.status === 401));
 await check('face-check function refuses callers without the schedule key', fetch(`${base}/functions/v1/face-check`, { method: 'POST', headers: pub, body: '{}' })

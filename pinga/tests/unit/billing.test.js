@@ -20,6 +20,7 @@ function fake({ verify = { status: 'success', reference: REF, amount: 550000, cu
     if (url.endsWith('/rpc/billing_confirm')) return ok(confirmResult);
     if (url.endsWith('/rpc/billing_due')) return ok(due);
     if (url.endsWith('/rpc/job_key_ok')) return ok(keyOk);
+    if (url.endsWith('/rpc/billing_report')) return ok(null);
     if (url === 'https://api.paystack.co/transaction/initialize') return ok({ status: true, data: { authorization_url: 'https://checkout.paystack.com/abc', reference: REF } });
     if (url.startsWith('https://api.paystack.co/transaction/verify/')) return ok({ status: true, data: verify });
     if (url === 'https://api.paystack.co/transaction/charge_authorization') return ok({ status: charge, data: { status: charge ? 'success' : 'failed' } }, charge ? 200 : 400);
@@ -117,4 +118,20 @@ test('renew: refuses callers without the schedule key, and does nothing before P
   const r = await (await handle(post('renew', { headers: { 'x-job-key': 'k' } }), { ...env, paystackKey: undefined }, f.fetchFn)).json();
   assert.match(r.skipped, /not set up yet/);
   assert.ok(!f.calls.some((c) => c.url.includes('billing_due')), 'nobody is marked as owing before billing is switched on');
+});
+
+test('status: tells the app whether payments are switched on, and records it', async () => {
+  const off = fake();
+  assert.deepEqual(await (await handle(post('status'), { ...env, paystackKey: undefined }, off.fetchFn)).json(), { enabled: false });
+  assert.deepEqual(off.calls.find((c) => c.url.endsWith('/rpc/billing_report')).body, { p_enabled: false });
+  const live = fake();
+  assert.deepEqual(await (await handle(post('status'), { ...env, paystackKey: 'sk_live_x' }, live.fetchFn)).json(), { enabled: false }, 'a live key counts as off');
+  const on = fake();
+  assert.deepEqual(await (await handle(post('status'), env, on.fetchFn)).json(), { enabled: true });
+});
+
+test('the daily job also records whether payments are on (so adding the key is noticed within a day)', async () => {
+  const f = fake({ due: [] });
+  await handle(post('renew', { headers: { 'x-job-key': 'k' } }), { ...env, paystackKey: undefined }, f.fetchFn);
+  assert.deepEqual(f.calls.find((c) => c.url.endsWith('/rpc/billing_report')).body, { p_enabled: false });
 });

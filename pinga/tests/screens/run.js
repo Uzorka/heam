@@ -31,7 +31,7 @@ const assignments = [];
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
 const payRates = new Map();
-const bill = { status: 'trial', paid_until: null, card: null, invoices: [] };
+const bill = { status: 'trial', paid_until: null, card: null, invoices: [], paymentsOn: false };
 const photos = new Map();
 let networkDown = false;
 let signedInAs = null;
@@ -190,6 +190,8 @@ async function fakeSupabase(route) {
         : { staff_seats: staff, rep_seats: reps, staff_price: 1500, rep_price: 2500, gross_kobo: (staff * 1500 + reps * 2500) * 100, discount_percent: 0, discount_min_people: null, amount_kobo: (staff * 1500 + reps * 2500) * 100 },
       card: bill.card, invoices: bill.invoices });
   }
+  if (p === '/rest/v1/rpc/app_flags') return json(route, { payments: bill.paymentsOn, face_check: false });
+  if (p === '/functions/v1/billing/status') return json(route, { enabled: bill.paymentsOn });
   if (p === '/functions/v1/billing/checkout') {
     assert.match(req.headers().authorization || '', /^Bearer at-u-owner$/, 'checkout is sent with the owner\'s login');
     // Pretend the owner paid on Paystack's page and was sent back.
@@ -600,8 +602,21 @@ step(`Excel export downloads a real .xlsx (${sheet.length - 1} rows) that a spre
 
 // ── Billing (Paystack, test mode) ───────────────────────────
 await page.getByRole('link', { name: '‹ Setup' }).click();
+await page.getByRole('heading', { name: 'Setup' }).waitFor();
+assert.equal(await page.getByText(/Your free trial ends/).count(), 0, 'no trial reminder while payments are switched off');
+await page.getByRole('link', { name: /^Billing/ }).click();
+await page.getByText("Online payment isn't switched on yet. Your trial continues and your team keeps working as normal.").waitFor();
+assert.equal(await page.getByRole('button', { name: /^Pay / }).count(), 0, 'no Pay button while switched off');
+step('payments switched off (no Paystack key yet): no Pay button, no reminders, trial continues');
+await shot('owner-billing-switched-off');
+
+// Switch payments on (as if PAYSTACK_SECRET_KEY had been saved).
+bill.paymentsOn = true;
+await page.evaluate(() => { location.hash = '#/'; });
+await page.reload();
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
 await page.getByText('Your free trial ends in 2 days. Set up payment ›').waitFor();
-step('owner sees "Your free trial ends in 2 days" (staff never see it)');
+step('once payments are on, the owner sees "Your free trial ends in 2 days" (staff never see it)');
 await page.getByRole('link', { name: /^Billing/ }).click();
 await page.getByText('Free trial', { exact: true }).waitFor();
 await page.getByText('Test mode: payments use Paystack test cards. No real money is taken.').waitFor();

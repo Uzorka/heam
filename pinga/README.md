@@ -103,6 +103,8 @@ Every few minutes the `face-check` function compares new clock-in and visit self
 - **Late payment never stops staff:** owners see "Payment due" (managers are asked to tell the owner).
 - **Test mode only:** the `billing` function refuses a live key (`sk_live_…`) unless `ALLOW_LIVE_PAYMENTS=yes` is set.
 
+**Built, but switched off until the key is saved.** Without `PAYSTACK_SECRET_KEY` nobody is charged, no company is ever marked "payment due", trials simply continue, and the app hides the Pay button and trial reminders (Billing says "Online payment isn't switched on yet"). The billing function reports on/off (`app_flags()`); the deploy script prints it.
+
 To switch on (staging): Paystack Dashboard (Test mode) → Settings → API Keys & Webhooks:
 1. Copy the **Test Secret Key** (`sk_test_…`) into Supabase → Pinga Staging → Edge Functions → Secrets as `PAYSTACK_SECRET_KEY`.
 2. Set **Test Webhook URL** to `https://zgwgszomktveikhecmiz.supabase.co/functions/v1/billing/webhook`.

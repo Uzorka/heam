@@ -3,6 +3,7 @@
 //   POST /billing/verify    app returns from Paystack → confirm that payment
 //   POST /billing/webhook   Paystack tells us about a payment (signed with our secret key)
 //   POST /billing/renew     daily job (schedule key): renew with saved cards
+//   POST /billing/status    is online payment switched on? (no secrets: just on/off)
 // Payments are confirmed with Paystack's own record before anything is marked paid.
 // TEST MODE ONLY unless ALLOW_LIVE_PAYMENTS=yes is set: a live key (sk_live_…) is refused.
 // Plain JS with no imports: runs on Supabase (Deno) and in our Node tests.
@@ -68,8 +69,17 @@ export async function handle(req, env, fetchFn = fetch) {
     });
   };
 
+  // Let the app know whether payments are switched on (hides "Pay" and reminders until then).
+  const report = () => rpc('billing_report', { p_enabled: !problem }).catch(() => {});
+
   try {
+    if (route === 'status') {
+      await report();
+      return json(200, { enabled: !problem });
+    }
+
     if (route === 'checkout') {
+      await report();
       if (problem) return json(503, { error: problem });
       const userToken = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
       if (!userToken || !env.anonKey) return json(401, { error: 'Please sign in again.' });
@@ -111,6 +121,7 @@ export async function handle(req, env, fetchFn = fetch) {
     if (route === 'renew') {
       const key = req.headers.get('x-job-key') || '';
       if (!key || !(await rpc('job_key_ok', { p_key: key }))) return json(401, { error: 'Not allowed' });
+      await report();
       if (problem) return json(200, { skipped: problem });
       const due = await rpc('billing_due');
       const out = { due: due.length, charged: 0, failed: 0, no_card: 0 };

@@ -5,6 +5,7 @@ import { watchBest, parseLatLng } from './gps.js';
 import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel } from './ui.js';
 
 let banner = '';
+let flags = null;   // what's switched on (payments, face check); loaded once per visit
 // A reminder for owners and managers when the trial is ending or payment is due. Staff never see it.
 function billingBanner(me) {
   const c = me.companies;
@@ -14,7 +15,7 @@ function billingBanner(me) {
       : '<p class="banner bad-banner">Payment due. Please ask the owner to pay so Pinga keeps running.</p>';
   }
   const left = Math.ceil((new Date(c.trial_ends_at) - Date.now()) / 864e5);
-  if (c.status === 'trial' && left <= 3 && owner) {
+  if (c.status === 'trial' && left <= 3 && owner && flags?.payments) {
     return `<a class="banner" href="#/billing">Your free trial ends ${left <= 0 ? 'today' : `in ${left} day${left === 1 ? '' : 's'}`}. Set up payment ›</a>`;
   }
   return '';
@@ -25,7 +26,8 @@ const tabs = (on) => `${banner}
     ${[['#/overview', 'Overview'], ['#/today', 'Today'], ['#/team', 'Team'], ['#/setup', 'Setup']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
   </nav>`;
 
-export function adminRoute(me, name, arg) {
+export async function adminRoute(me, name, arg) {
+  if (!flags) flags = await api.rpc('app_flags').catch(() => ({}));
   banner = billingBanner(me);
   if (name === 'billing') return import('./billing.js').then((m) => m.billing(me, arg));
   if (name === 'invite') return invite(me);

@@ -14,11 +14,15 @@ export async function billing(me, arg) {
   if (location.search) history.replaceState(null, '', location.pathname + '#/billing');   // don't re-check it on every visit
   if (reference) return returning(me, reference);
 
-  const b = await api.rpc('billing_overview');
+  const [b, payments] = await Promise.all([
+    api.rpc('billing_overview'),
+    api.callFunction('billing/status', {}).then((r) => !!r.enabled).catch(() => false),
+  ]);
   const q = b.quote;
   const paidAhead = b.paid_until && b.paid_until >= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const head = {
-    trial: ['Free trial', `${b.trial_days_left} day${b.trial_days_left === 1 ? '' : 's'} left · ends ${day(b.trial_ends, tz)}`, ''],
+    trial: ['Free trial', !payments && b.trial_days_left <= 0 ? 'Continues until online payment is switched on.'
+      : `${b.trial_days_left} day${b.trial_days_left === 1 ? '' : 's'} left · ends ${day(b.trial_ends, tz)}`, ''],
     active: ['Active', `Paid until ${b.paid_until ? day(b.paid_until, tz) : '—'}`, 'ok'],
     past_due: ['Payment due', 'Your team can still clock in and check in. Please pay to keep using Pinga.', 'bad'],
     cancelled: ['Cancelled', 'Contact Pinga to restart your subscription.', 'bad'],
@@ -28,7 +32,7 @@ export async function billing(me, arg) {
     <main class="page narrow">
       <a class="back" href="#/setup">‹ Setup</a>
       <h1>Billing</h1>
-      ${CONFIG.env !== 'live' ? '<p class="banner">Test mode: payments use Paystack test cards. No real money is taken.</p>' : ''}
+      ${CONFIG.env !== 'live' && payments ? '<p class="banner">Test mode: payments use Paystack test cards. No real money is taken.</p>' : ''}
       <section class="card block">
         <p class="plan-state ${head[2]}">${head[0]}</p>
         <p class="muted">${esc(head[1])}</p>
@@ -44,7 +48,8 @@ export async function billing(me, arg) {
         </ul>
         <p class="tiny muted">Counted from people who have joined and are active. Owners and managers are free.</p>
       </section>
-      ${q.amount_kobo && !paidAhead ? `
+      ${!payments ? `<p class="muted center">Online payment isn't switched on yet. Your trial continues and your team keeps working as normal.</p>`
+        : q.amount_kobo && !paidAhead ? `
         <button class="primary" id="pay">Pay ${naira(q.amount_kobo)} with Paystack</button>
         <p class="tiny muted center">${b.status === 'trial' ? 'Your first paid month starts when the free trial ends. ' : ''}Card, bank transfer or USSD. A card is saved for automatic monthly renewal.</p>
         <p class="error center" id="err" role="alert"></p>`

@@ -147,7 +147,9 @@ npm run stamp && npm test
 UPLOAD_URL=... X_AUTH=... X_AUTH_REST=... NODE_USE_ENV_PROXY=1 node scripts/publish.js
 ```
 
-Server settings (https only, security headers, fresh app shell) are in `hosting/htaccess`. Before that, run `npm run stamp` (tells phones a new version exists; the tests fail if you forget), then upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build. The app uses the live project only on the live web addresses listed in `web/js/config.js`; anywhere else it uses staging.
+Then clear Hostinger's cache for the site (hPanel → Website → Cache Manager → Clear all, or the Hostinger API `hosting_cache_clear`). Without this, Hostinger's CDN can keep serving old copies of some files for a while, and a phone could get a mix of old and new code.
+
+Server settings (https only, security headers; the app's code files are always re-checked so phones never mix versions) are in `hosting/htaccess`. Before that, run `npm run stamp` (tells phones a new version exists; the tests fail if you forget), then upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build. The app uses the live project only on the live web addresses listed in `web/js/config.js`; anywhere else it uses staging.
 
 Still to set per project (Dashboard → Authentication → URL Configuration): Site URL = the app's web address, once hosting is chosen, so the owner's email confirmation link opens the app.
 

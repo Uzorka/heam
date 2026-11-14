@@ -39,7 +39,10 @@ try {
     ignoreHTTPSErrors: !!proxy, permissions: ['geolocation', 'camera'], geolocation: { latitude: 6.5096, longitude: 3.3712, accuracy: 12 } });
   const page = await ctx.newPage();
   const errors = [];
-  page.on('pageerror', (e) => errors.push(e));
+  globalThis.__errors = errors;
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('requestfailed', (r) => errors.push('request failed: ' + r.url().replace(/\?.*/, '') + ' ' + (r.failure()?.errorText || '')));
 
   await page.goto(SITE);
   await page.getByRole('heading', { name: 'Sign in' }).waitFor();
@@ -79,6 +82,10 @@ try {
   await page.getByText(/Clocked in at/).first().waitFor();
   step('signs back in with phone number + PIN');
   assert.deepEqual(errors, [], 'no errors in the page');
+} catch (e) {
+  for (const p of browser.contexts().flatMap((c) => c.pages())) await p.screenshot({ path: out + 'failure.png' }).catch(() => {});
+  console.log('page errors:', JSON.stringify(globalThis.__errors || []));
+  throw e;
 } finally {
   await browser.close();
   await sql(`

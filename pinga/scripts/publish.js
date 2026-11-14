@@ -26,4 +26,4 @@ for (const [path, body] of files) {
   if (b.status !== 204) throw new Error(`${path}: upload failed ${b.status} ${await b.text()}`);
   console.log(`  uploaded ${path} (${(body.length / 1024).toFixed(1)} KB)`);
 }
-console.log(`Published ${files.length} files.`);
+console.log(`Published ${files.length} files. Now clear Hostinger's cache for this site (see README → Deploy).`);

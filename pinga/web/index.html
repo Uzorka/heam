@@ -3,16 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f5f5f7">
+  <meta name="theme-color" content="#FFF8EE">
   <title>Pinga</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/pin.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/nunito-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/nunito-800.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/app.css">
   <script type="module" src="js/main.js"></script>
 </head>
 <body>
-  <div id="app"><p class="loading">Loading…</p></div>
+  <div id="app"><div class="loading" role="status">
+    <img src="icons/pin.svg" width="64" height="64" alt="">
+    <span>Loading Pinga…</span>
+  </div></div>
   <noscript>Please turn on JavaScript to use Pinga.</noscript>
 </body>
 </html>

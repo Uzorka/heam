@@ -2,11 +2,18 @@
 // Same flow as the CHF Heron tracker's admin page. Pick a past date to fix it.
 import * as api from './api.js';
 import { show, go, esc, toast, header, wireSignOut, friendly, app, ROLE, fmtTime, fmtDay, localDate } from './ui.js';
+import { happyPin } from './icons.js';
+import { checklist } from './getstarted.js';
 
 const FILTERS = [
-  ['all', 'All'], ['none', 'No check-in'], ['late', 'Late'], ['absent', 'Absent'], ['present', 'Present'], ['away', 'Leave · Off'],
+  ['all', 'All'], ['none', 'No check-in'], ['late', 'Late'], ['absent', 'Absent'], ['present', 'Present'], ['away', 'Leave or off'],
 ];
-const matches = (f, r) => f === 'all' || (f === 'away' ? r.status === 'leave' || r.status === 'off' : r.status === f);
+// "Not in" (from the Overview tile) = no check-in or absent. Shown as a chip only while it is chosen.
+const NOT_IN = ['notin', 'Not in'];
+const matches = (f, r) => f === 'all'
+  || (f === 'away' ? r.status === 'leave' || r.status === 'off'
+    : f === 'notin' ? r.status === 'none' || r.status === 'absent'
+      : r.status === f);
 const WORD = { present: 'Present', absent: 'Absent', leave: 'On leave', off: 'Off' };
 let FILTER = 'all';
 
@@ -33,9 +40,15 @@ function detail(r, tz) {
 export async function today(me, arg, tabs) {
   const tz = me.companies.timezone;
   const now = localDate(api.serverNow(), tz);
+  // #/today/late (from an Overview tile) opens today filtered; #/day/2026-11-09 opens a past date.
+  if ([...FILTERS, NOT_IN].some(([k]) => k === arg)) FILTER = arg;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(arg) && arg <= now ? arg : now;
   const isToday = day === now;
   const rows = await api.rpc('day_board', { p_day: day });
+  // Nobody to show yet: the "Get started" checklist instead of empty filters.
+  const progress = rows.length ? null : await api.rpc('setup_progress').catch(() => null);
+  const filters = FILTER === 'notin' ? [FILTERS[0], NOT_IN, ...FILTERS.slice(1)] : FILTERS;
+  const allIn = isToday && rows.length > 0 && !rows.some((r) => ['none', 'absent', 'late'].includes(r.status));
   const count = (f) => rows.filter((r) => matches(f, r)).length;
   const sel = new Set();
 
@@ -43,18 +56,20 @@ export async function today(me, arg, tabs) {
     <main class="page has-bulk">
       ${header(me, isToday ? 'Today' : fmtDay(day + 'T12:00:00Z', tz))}
       ${tabs('Today')}
+      ${rows.length ? `
       <div class="dayrow">
         <label class="sr" for="day">Date</label>
         <input type="date" id="day" value="${day}" max="${now}">
         ${isToday ? '<span class="muted small">Pick a past date to fix it</span>' : '<a href="#/today" class="small">Back to today</a>'}
       </div>
       <div class="chips" role="group" aria-label="Show">
-        ${FILTERS.map(([k, t]) => `<button type="button" class="chip${FILTER === k ? ' on' : ''}" data-f="${k}" aria-pressed="${FILTER === k}">${t} <b>${count(k)}</b></button>`).join('')}
+        ${filters.map(([k, t]) => { const c = count(k); return `<button type="button" class="chip${FILTER === k ? ' on' : ''}${c ? '' : ' zero'}" data-f="${k}" aria-pressed="${FILTER === k}">${t} <b>${c}</b></button>`; }).join('')}
       </div>
+      ${allIn ? `<div class="happy-state">${happyPin(44)}<p>Everyone's in today.</p></div>` : ''}
       <input id="q" type="search" placeholder="Search name" aria-label="Search name"${rows.length > 8 ? '' : ' hidden'}>
-      ${rows.length ? `<label class="selall"><input type="checkbox" id="all"> <span>Select all shown</span></label>` : ''}
-      <ul class="board" id="list"></ul>
-      ${rows.length ? '' : '<p class="empty muted center">No office staff or sales reps yet. <a href="#/invite">Invite someone</a>.</p>'}
+      <label class="selall"><input type="checkbox" id="all"> <span>Select all shown</span></label>`
+      : progress ? checklist(progress) : '<p class="empty muted center">No office staff or sales reps yet. <a href="#/invite">Invite someone</a>.</p>'}
+      <ul class="board" id="list"${rows.length ? '' : ' hidden'}></ul>
     </main>
     <div class="bulkbar" id="bulk" hidden>
       <div class="bulk-top"><b id="bn"></b><button type="button" class="link" id="bx">Deselect</button></div>
@@ -67,6 +82,7 @@ export async function today(me, arg, tabs) {
       </div>
     </div>`);
   wireSignOut();
+  if (!rows.length) return;   // nothing to filter or select yet
 
   let shown = [];
   const refresh = () => {
@@ -89,7 +105,7 @@ export async function today(me, arg, tabs) {
         <label class="ck"><input type="checkbox" data-ck="${r.member_id}" aria-label="Select ${esc(r.full_name)}"${sel.has(r.member_id) ? ' checked' : ''}></label>
         <a class="grow" href="#/person/${r.member_id}"><b>${esc(r.full_name)}</b><span class="tiny muted">${detail(r, tz)}</span></a>
         <span class="right">${statusPill(r)}${r.to_review ? `<span class="pill warn">${r.to_review} to check</span>` : ''}</span>
-      </li>`).join('') || (rows.length ? '<li class="empty muted center">Nobody here.</li>' : '');
+      </li>`).join('') || '<li class="empty muted center">Nobody here.</li>';
     app.querySelectorAll('[data-ck]').forEach((c) => {
       c.onchange = () => { if (c.checked) sel.add(c.dataset.ck); else sel.delete(c.dataset.ck); refresh(); };
     });

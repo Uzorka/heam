@@ -5,12 +5,9 @@ import { sync, outbox, uuid, safeToSignOut } from './queue.js';
 import { watchBest, distanceM } from './gps.js';
 import { startCamera, capture } from './camera.js';
 import { report } from './report.js';
-import { show, go, esc, toast, wireSignOut, onLeave, app, fmtTime, fmtDay, localDate, fmtDistance, flagLabel } from './ui.js';
+import { show, go, esc, toast, wireSignOut, onLeave, app, fmtTime, fmtDay, localDate, fmtDistance, flagLabel, firstName } from './ui.js';
+import { ICON, logo } from './icons.js';
 
-const ICON = {
-  store: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/></svg>',
-  check: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
-};
 const SORT_KEY = 'pinga.sort';
 let SORT = 'near';
 try { SORT = localStorage.getItem(SORT_KEY) || 'near'; } catch { /* default */ }
@@ -44,14 +41,14 @@ async function allVisits(me) {
 
 const topBar = (me, sub, title) => `
   <header class="bar">
-    <div><div class="muted">${esc(sub)}</div><h1>${esc(title)}</h1></div>
+    <div><div class="company">${logo(18)}${esc(sub)}</div><h1>${esc(title)}</h1></div>
     <button class="link" id="signout">Sign out</button>
   </header>`;
 
 const tabBar = (on) => `
   <nav class="tabbar">
-    <a href="#/"${on === 'today' ? ' class="on" aria-current="page"' : ''}>Today</a>
-    <a href="#/history"${on === 'history' ? ' class="on" aria-current="page"' : ''}>History</a>
+    <a href="#/"${on === 'today' ? ' class="on" aria-current="page"' : ''}>${ICON.today}Today</a>
+    <a href="#/history"${on === 'history' ? ' class="on" aria-current="page"' : ''}>${ICON.history}History</a>
   </nav>`;
 
 // ── Today ───────────────────────────────────────────────────
@@ -72,7 +69,7 @@ async function today(me) {
 
   show(`
     <main class="page narrow has-tabs">
-      ${topBar(me, `${me.companies.name} · ${fmtDay(api.serverNow().toISOString(), tz)}`, `Hi, ${me.full_name.split(' ')[0]}`)}
+      ${topBar(me, `${me.companies.name} · ${fmtDay(api.serverNow().toISOString(), tz)}`, `Hi, ${firstName(me.full_name)}`)}
       <p class="banner" id="waiting"${waitingCount ? '' : ' hidden'}>${waitingCount} check-in${waitingCount > 1 ? 's' : ''} saved on this phone. They'll send when you have signal.</p>
       <div class="card prog">
         <div class="ring${n >= target ? ' done' : ''}" style="--p:${pct}"><div>${n}<small>of ${target}</small></div></div>
@@ -114,9 +111,9 @@ async function today(me) {
       if (s.d != null && SORT === 'near' && !done) pills.push(`<span class="pill">${fmtDistance(s.d)}</span>`);
       return `
         <button type="button" class="store${done ? ' done' : ''}${isNext ? ' next' : ''}" data-s="${s.id}">
-          <span class="ic">${done ? ICON.check : rk ? `<b>${rk}</b>` : ICON.store}</span>
+          <span class="ic-box">${done ? ICON.check : rk ? `<b>${rk}</b>` : ICON.store}</span>
           <span class="grow"><b>${esc(s.name)}</b>${s.address ? `<span class="tiny muted">${esc(s.address)}</span>` : ''}<span class="tiny">${pills.join(' ')}</span></span>
-          ${done ? '' : '<span class="chev">›</span>'}
+          ${done ? '' : `<span class="chev">${ICON.chevron}</span>`}
         </button>`;
     }).join('') || `<p class="empty muted">${stores.length ? 'No store matches your search.' : 'No stores on your list yet. Ask your manager to assign your stores.'}</p>`;
     list.querySelectorAll('[data-s]').forEach((el) => {
@@ -167,7 +164,7 @@ async function visit(me, storeId) {
   if (!store) return go('#/');
   show(`
     <main class="page narrow">
-      <a class="back" href="#/">‹ My stores</a>
+      <a class="back" href="#/">${ICON.back}My stores</a>
       <p class="muted eyebrow">Check in at</p>
       <h1>${esc(store.name)}</h1>
       ${store.address ? `<p class="muted">${esc(store.address)}</p>` : ''}
@@ -214,7 +211,7 @@ async function visit(me, storeId) {
     if (d <= store.radius_m + Math.min(pos.accuracy, 50)) {
       state = 'in';
       g.className = 'gps ok';
-      g.textContent = `✓ You're at the store (${fmtDistance(d)} away).`;
+      g.innerHTML = `${ICON.checkSmall}<span>You're at the store (${fmtDistance(d)} away).</span>`;
       btn.textContent = label;
       return;
     }

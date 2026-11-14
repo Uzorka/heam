@@ -2,7 +2,8 @@
 import * as api from './api.js';
 import { normalizePhone, loginEmailFor, validPin, PHONE_LOGIN_DOMAIN } from './phone.js';
 import { catchAll } from './report.js';
-import { show, go, esc, Say, friendly, toast } from './ui.js';
+import { show, go, esc, Say, friendly, toast, firstName } from './ui.js';
+import { wordmark } from './icons.js';
 
 const PENDING = 'pinga.pendingCompany';
 
@@ -13,7 +14,7 @@ let me = null; // { id, role, full_name, company_id, reference_photo_path, compa
 function phoneSignIn() {
   show(`
     <main class="page narrow">
-      <div class="brand">Pinga</div>
+      <div class="brand">${wordmark()}</div>
       <h1>Sign in</h1>
       <form class="stack">
         <label>Phone number<input name="phone" type="tel" autocomplete="tel" placeholder="0803 123 4567" required></label>
@@ -37,7 +38,7 @@ function phoneSignIn() {
 function ownerSignIn() {
   show(`
     <main class="page narrow">
-      <div class="brand">Pinga</div>
+      <div class="brand">${wordmark()}</div>
       <h1>Owner sign in</h1>
       <form class="stack">
         <label>Email<input name="email" type="email" autocomplete="email" required></label>
@@ -60,7 +61,7 @@ function ownerSignIn() {
 function ownerSignUp() {
   show(`
     <main class="page narrow">
-      <div class="brand">Pinga</div>
+      <div class="brand">${wordmark()}</div>
       <h1>Start free trial</h1>
       <p class="muted">14 days free. No card needed.</p>
       <form class="stack">
@@ -83,7 +84,7 @@ function ownerSignUp() {
     if (signedIn) return go('#/');
     show(`
       <main class="page narrow">
-        <div class="brand">Pinga</div>
+        <div class="brand">${wordmark()}</div>
         <h1>Check your email</h1>
         <p>We sent a link to <strong>${esc(email)}</strong>. Open it on this device to finish setting up.</p>
       </main>`);
@@ -97,7 +98,7 @@ async function join(token) {
   if (!rows.length) {
     return show(`
       <main class="page narrow">
-        <div class="brand">Pinga</div>
+        <div class="brand">${wordmark()}</div>
         <h1>This link has expired</h1>
         <p>Ask your manager to send you a new one.</p>
         <p class="foot"><a href="#/">Go to sign in</a></p>
@@ -106,8 +107,8 @@ async function join(token) {
   const { first_name, company_name } = rows[0];
   show(`
     <main class="page narrow">
-      <div class="brand">Pinga</div>
-      <h1>Welcome, ${esc(first_name)}</h1>
+      <div class="brand">${wordmark()}</div>
+      <h1>Welcome, ${esc(firstName(first_name))}</h1>
       <p>${esc(company_name)} uses Pinga for attendance. Choose a 6-digit PIN. You'll use it with your phone number to sign in.</p>
       <form class="stack">
         <label>New PIN<input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="6 digits" required></label>
@@ -133,7 +134,7 @@ function createCompany() {
   try { pending = JSON.parse(localStorage.getItem(PENDING)) || {}; } catch { /* none */ }
   show(`
     <main class="page narrow">
-      <div class="brand">Pinga</div>
+      <div class="brand">${wordmark()}</div>
       <h1>Set up your company</h1>
       <form class="stack">
         <label>Your name<input name="name" value="${esc(pending.name)}" autocomplete="name" required></label>
@@ -152,7 +153,7 @@ function createCompany() {
 function noCompany() {
   show(`
     <main class="page narrow">
-      <div class="brand">Pinga</div>
+      <div class="brand">${wordmark()}</div>
       <h1>No access</h1>
       <p>Your account is not active in any company. Please speak to your manager.</p>
       <button class="secondary" id="signout">Sign out</button>
@@ -197,7 +198,7 @@ function start() {
   route().catch((x) => {
     show(`
       <main class="page narrow">
-        <div class="brand">Pinga</div>
+        <div class="brand">${wordmark()}</div>
         <h1>Can't load right now</h1>
         <p>${esc(friendly(x))}</p>
         <button class="primary" id="retry">Try again</button>

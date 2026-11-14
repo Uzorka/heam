@@ -1,6 +1,7 @@
 // Shared screen helpers.
 import * as api from './api.js';
 import { report } from './report.js';
+import { logo, ICON } from './icons.js';
 
 export const app = document.getElementById('app');
 export const ROLE = { owner: 'Owner', admin: 'Manager', staff: 'Office staff', rep: 'Sales rep' };
@@ -60,7 +61,7 @@ export function toast(text) {
 
 export const header = (me, title) => `
   <header class="bar">
-    <div><div class="muted">${esc(me.companies.name)}</div><h1>${esc(title)}</h1></div>
+    <div><div class="company">${logo(18)}${esc(me.companies.name)}</div><h1>${esc(title)}</h1></div>
     <button class="link" id="signout">Sign out</button>
   </header>`;
 
@@ -74,6 +75,13 @@ export function wireSignOut(guard) {
     go('#/');
   };
 }
+
+// "elvis uzorka" → "Elvis". Names are shown the way people expect, whatever was typed.
+export const firstName = (full) => { const f = String(full || '').trim().split(/\s+/)[0] || ''; return f.charAt(0).toUpperCase() + f.slice(1); };
+
+// A back link: arrow icon + label; screen readers hear "Back to Team".
+export const backLink = (href, label) => `<a class="back" href="${href}" aria-label="Back to ${esc(label)}">${ICON.back}${esc(label)}</a>`;
+export const chev = `<span class="chev">${ICON.chevron}</span>`;
 
 export const fmtTime = (iso, tz) => new Date(iso).toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
 export const fmtDay = (iso, tz) => new Date(iso).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz });

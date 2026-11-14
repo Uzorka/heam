@@ -61,7 +61,7 @@ try {
   step('reference photo uploaded to real storage');
 
   await page.getByRole('link', { name: 'Clock in' }).click();
-  await page.getByText('At Yaba office ✓').waitFor();
+  await page.getByText('At Yaba office', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Take photo and clock in' }).click();
   await page.getByText(/Clocked in at/).first().waitFor();
   let rows = [];

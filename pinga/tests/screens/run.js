@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { server } from '../../scripts/serve.js';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
-const out = new URL('./output/', import.meta.url).pathname;
+const out = process.env.SHOTS_DIR || new URL('./output/', import.meta.url).pathname;   // SHOTS_DIR / SHOTS_WIDTH: for before/after comparisons
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
@@ -17,7 +17,7 @@ const YABA = { lat: 6.5095, lng: 3.3711 };
 const company = { id: 'c1', name: 'CHF Heron', summary_email: true, status: 'trial', trial_ends_at: new Date(Date.now() + 2 * 864e5 - 3600e3).toISOString(), timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
 const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '12 Herbert Macaulay Way', radius_m: 100, ...YABA }];
 const people = [
-  { id: 'm0', user: 'u-owner', full_name: 'Elvis Uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null, branch_id: null },
+  { id: 'm0', user: 'u-owner', full_name: 'elvis uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null, branch_id: null },
   { id: 'm1', user: 'u-sade', full_name: 'Sade Bello', role: 'staff', phone: '+2348031234567', joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
   { id: 'm3', user: null, full_name: 'Tunde Ade', role: 'staff', phone: '+2348125550101', joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
   { id: 'm2', user: null, full_name: 'Remi Okafor', role: 'rep', phone: '+2348059876543', joined_at: null, invite_token: 'f'.repeat(32), reference_photo_path: null, daily_visit_target: 4 },
@@ -190,6 +190,8 @@ async function fakeSupabase(route) {
         : { staff_seats: staff, rep_seats: reps, staff_price: 1500, rep_price: 2500, gross_kobo: (staff * 1500 + reps * 2500) * 100, discount_percent: 0, discount_min_people: null, amount_kobo: (staff * 1500 + reps * 2500) * 100 },
       card: bill.card, invoices: bill.invoices });
   }
+  if (p === '/rest/v1/rpc/setup_progress') return json(route, { offices: branches.length > 0, stores: stores.length > 0,
+    people: people.filter((x) => ['staff', 'rep'].includes(x.role)).length, first_check_in: attendance.length + visits.length > 0 });
   if (p === '/rest/v1/rpc/app_flags') return json(route, { payments: bill.paymentsOn, face_check: false });
   if (p === '/functions/v1/billing/status') return json(route, { enabled: bill.paymentsOn });
   if (p === '/functions/v1/billing/checkout') {
@@ -233,7 +235,7 @@ async function fakeSupabase(route) {
 await new Promise((r) => server.listen(0, r));
 const base = `http://localhost:${server.address().port}/`;
 const browser = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
-const phone = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+const phone = { viewport: { width: Number(process.env.SHOTS_WIDTH) || 360, height: 740 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 const ctx = await browser.newContext({ ...phone, serviceWorkers: 'block', permissions: ['geolocation', 'camera'],
   geolocation: { latitude: 6.5096, longitude: 3.3712, accuracy: 12 } });
 const page = await ctx.newPage();
@@ -243,8 +245,14 @@ await page.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
 await page.route(/tile\.openstreetmap\.org/, (r) => r.abort()); // no map tiles in tests; pins still draw
 
 let n = 0;
-const shot = async (name) => page.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-${name}.png` });
+const shot = async (name) => {
+  // Guard: no unfilled \${…} placeholders may ever reach the screen.
+  const text = await page.locator('body').innerText();
+  assert.ok(!text.includes('${'), `unfilled placeholder on screen "${name}": ${text.slice(text.indexOf('${'), text.indexOf('${') + 40)}`);
+  return page.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-${name}.png` });
+};
 const step = (name) => console.log('ok -', name);
+let EMPTY_CHECKS = () => {};   // replaced below
 const until = async (fn, what) => { for (let i = 0; i < 100; i++) { if (fn()) return; await new Promise((r) => setTimeout(r, 100)); } throw new Error('Timed out waiting for ' + what); };
 const goOnline = () => page.evaluate(() => dispatchEvent(new Event('online')));
 
@@ -283,7 +291,7 @@ await shot('staff-home');
 
 // ── Clock in at the office ──────────────────────────────────
 await page.getByRole('link', { name: 'Clock in' }).click();
-await page.getByText('At Yaba office ✓').waitFor();
+await page.getByText('At Yaba office', { exact: true }).waitFor();
 await page.getByRole('button', { name: 'Take photo and clock in' }).waitFor();
 await shot('staff-clock-in');
 await page.getByRole('button', { name: 'Take photo and clock in' }).click();
@@ -362,7 +370,7 @@ await page.getByText('Ikeja office').waitFor();
 step('owner adds an office by standing in it and tapping "Use my current location"');
 await shot('owner-offices');
 
-await page.getByRole('link', { name: '‹ Setup' }).click();
+await page.getByRole('link', { name: 'Back to Setup' }).click();
 await page.getByRole('link', { name: /^Working hours/ }).click();
 await page.getByLabel('Work starts').fill('08:30');
 await shot('owner-hours');
@@ -386,7 +394,7 @@ await page.getByRole('button', { name: 'Ask for a new reference photo' }).click(
 await page.getByText('Sade will be asked for a reference photo next time they open Pinga.').waitFor();
 assert.equal(people.find((x) => x.id === 'm1').reference_photo_path, null);
 step('owner asks for a new reference photo');
-await page.getByRole('link', { name: '‹ Team' }).click();
+await page.getByRole('link', { name: 'Back to Team' }).click();
 
 // ── Owner: stores and a rep's stores ────────────────────────
 await page.getByRole('link', { name: 'Setup', exact: true }).click();
@@ -414,7 +422,7 @@ await page.getByRole('button', { name: 'Save' }).click();
 await page.getByText('Remi now covers 3 stores').waitFor();
 assert.equal(assignments.length, 3);
 step('owner sets a daily target and ticks the stores a rep covers');
-await page.getByRole('link', { name: '‹ Team' }).click();
+await page.getByRole('link', { name: 'Back to Team' }).click();
 await page.getByRole('button', { name: 'Sign out' }).click();
 
 // ── New sales rep joins from their WhatsApp link ────────────
@@ -443,7 +451,7 @@ step('rep sees "0 of 3", their stores nearest first, the nearest highlighted');
 await shot('rep-today');
 
 await page.getByRole('button', { name: /Shoprite Ikeja/ }).click();
-await page.getByText("✓ You're at the store").waitFor();
+await page.getByText(/^You're at the store/).waitFor();
 await shot('rep-check-in');
 await page.getByRole('button', { name: 'Add shelf photo (optional)' }).click();
 await page.getByRole('button', { name: 'Take shelf photo' }).click();
@@ -504,7 +512,7 @@ await page.getByRole('button', { name: 'Sign in' }).click();
 
 // ── Owner dashboard ─────────────────────────────────────────
 await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
-assert.match(await page.locator('.stats').innerText(), /1\s*Present\s*1\s*Late\s*1\s*Not in\s*0\s*Leave · Off/);
+assert.match(await page.locator('.tiles').innerText(), /1\s*Present\s*1\s*Late\s*1\s*Not in\s*0\s*Leave or off/);
 await page.getByText('3 of 3 planned visits done').waitFor();
 await page.locator('.map .leaflet-interactive').first().waitFor();
 assert.equal(await page.locator('.map .leaflet-interactive').count(), 3, 'three stores on the map');
@@ -512,6 +520,26 @@ await page.getByText('was late 3 times in the last 2 weeks').waitFor();
 await page.getByText('hours lost to lateness and absence').waitFor();
 step('Overview: present/late/not in, field visits 3 of 3 with stores on a map, patterns, lost time');
 await shot('owner-overview');
+assert.ok(await page.locator('.tabbar.manager').isVisible(), 'phones get the bottom tab bar');
+assert.ok(!(await page.locator('nav.tabs').isVisible()), '...and not the top segmented control');
+assert.equal(await page.locator('.tabbar.manager a').count(), 4);
+step('greeting capitalises the name ("elvis uzorka" → "Good …, Elvis"); bottom tab bar on phones');
+await page.getByRole('link', { name: '1 Late: show on Today' }).click();
+await page.getByRole('heading', { name: 'Today' }).waitFor();
+const chipOn = async () => (await page.locator('.chip.on').textContent()).replace(/\s+/g, ' ').trim();
+assert.equal(await chipOn(), 'Late 1');
+assert.deepEqual(await page.locator('.brow b').allTextContents(), ['Sade Bello']);
+const chipTops = await page.locator('.chip').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top));
+assert.equal(new Set(chipTops).size, 1, 'filter chips stay in one scrollable row');
+assert.ok(await page.locator('.chip.zero').count() > 0, 'chips with 0 are faded');
+step('tapping the Late tile opens Today filtered to late people; chips in one row, zeros faded');
+await page.goto(base + '#/today/notin');
+await page.waitForFunction(() => document.querySelector('.chip.on')?.textContent.replace(/\s+/g, ' ').trim() === 'Not in 1');
+assert.deepEqual(await page.locator('.brow b').allTextContents(), ['Tunde Ade']);
+step('the "Not in" tile shows people with no check-in or absent');
+await page.goto(base + '#/today/all');
+await page.getByRole('link', { name: 'Overview', exact: true }).click();
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 
 // ── Manager's Today page ────────────────────────────────────
 await page.getByRole('link', { name: 'Today', exact: true }).click();
@@ -578,7 +606,7 @@ await page.getByRole('button', { name: 'Save', exact: true }).click();
 await page.getByText('Saved', { exact: true }).waitFor();
 assert.equal(payRates.get('m1'), 150000);
 assert.equal(people.find((x) => x.id === 'm1').branch_id, 'b1');
-await page.getByRole('link', { name: '‹ Team' }).click();
+await page.getByRole('link', { name: 'Back to Team' }).click();
 await page.getByRole('link', { name: 'Overview', exact: true }).click();
 await page.getByText('₦48,500').waitFor();
 step('owner sets monthly pay and home office; Overview shows lost time in naira');
@@ -601,7 +629,7 @@ assert.ok(sheet.length > 3 && sheet.some((r) => r[1] === 'Sade Bello'), 'registe
 step(`Excel export downloads a real .xlsx (${sheet.length - 1} rows) that a spreadsheet program opens`);
 
 // ── Billing (Paystack, test mode) ───────────────────────────
-await page.getByRole('link', { name: '‹ Setup' }).click();
+await page.getByRole('link', { name: 'Back to Setup' }).click();
 await page.getByRole('heading', { name: 'Setup' }).waitFor();
 assert.equal(await page.getByText(/Your free trial ends/).count(), 0, 'no trial reminder while payments are switched off');
 await page.getByRole('link', { name: /^Billing/ }).click();
@@ -642,7 +670,7 @@ await shot('owner-billing-volume-discount');
 bill.bigTeam = false;
 
 // Face-match threshold (owner only).
-await page.getByRole('link', { name: '‹ Setup' }).click();
+await page.getByRole('link', { name: 'Back to Setup' }).click();
 await page.getByRole('link', { name: /^Face check/ }).click();
 await page.getByLabel('Match needed (%)').fill('80');
 await shot('owner-face-setting');
@@ -659,7 +687,7 @@ await page.getByText('“Low stock on Sebamed, met the store manager”').waitFo
 await page.getByText('Store location saved from this visit').waitFor();
 step('owner sees each visit with selfie, shelf photo, note and flags');
 await shot('owner-rep-visits');
-await page.getByRole('link', { name: '‹ Team' }).click();
+await page.getByRole('link', { name: 'Back to Team' }).click();
 await page.getByRole('button', { name: 'Sign out' }).click();
 
 await page.goto(base + '#/join/' + 'f'.repeat(32));
@@ -675,6 +703,52 @@ networkDown = false;
 
 assert.deepEqual(errors, [], 'no uncaught errors in the page');
 step('no uncaught errors');
+
+// ── A brand-new company: nobody invited yet ─────────────────
+people.splice(0, people.length, people.find((x) => x.role === 'owner'));
+for (const a of [attendance, visits, stores, assignments, branches]) a.splice(0, a.length);
+dayStatus.clear();
+await page.goto(base + '#/owner');
+await page.getByLabel('Email').fill('elvis@chfheron.com');
+await page.getByLabel('Password').fill('password1');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+await page.waitForTimeout(300);
+await shot('owner-overview-empty');
+await page.getByRole('heading', { name: 'Get started' }).waitFor();
+assert.equal(await page.locator('.tiles').count(), 0, 'no wall of zeros on Overview');
+assert.equal(await page.locator('.checklist li.done').count(), 0, 'nothing ticked yet');
+step('new company: Overview shows "Get started" (office, stores, invite, first clock-in), no zeros');
+await page.goto(base + '#/today');
+await page.getByRole('heading', { name: 'Today' }).waitFor();
+await page.waitForTimeout(300);
+await shot('owner-today-empty');
+await page.getByRole('heading', { name: 'Get started' }).waitFor();
+assert.equal(await page.locator('.chip').count(), 0, 'no filter chips until there is at least one person');
+// Add an office: its step gets ticked.
+branches.push({ id: 'b9', company_id: 'c1', name: 'Head office', radius_m: 100, lat: 6.5, lng: 3.37 });
+await page.getByRole('link', { name: 'Overview', exact: true }).click();
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+await page.waitForFunction(() => document.querySelectorAll('.checklist li.done').length === 1);
+assert.equal(await page.locator('.checklist li.done .label').innerText().then((t) => t.split('\n')[0]), 'Add an office or branch', 'adding an office ticks it');
+step('new company: Today shows the checklist and no filter chips; steps tick as they are done');
+await shot('owner-overview-getting-started');
+await page.getByRole('button', { name: 'Sign out' }).click();
+
+// Desktop: top segmented control, no bottom tab bar.
+const desk = await browser.newContext({ viewport: { width: 1100, height: 800 }, serviceWorkers: 'block' });
+const dp = await desk.newPage();
+await dp.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
+await dp.goto(base + '#/owner');
+await dp.getByLabel('Email').fill('elvis@chfheron.com');
+await dp.getByLabel('Password').fill('password1');
+await dp.getByRole('button', { name: 'Sign in' }).click();
+await dp.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+assert.ok(await dp.locator('nav.tabs').isVisible(), 'desktop shows the top segmented control');
+assert.ok(!(await dp.locator('.tabbar.manager').isVisible()), '...and no bottom tab bar');
+step('desktop keeps the top segmented control; no bottom tab bar');
+await dp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-owner-desktop.png` });
+await desk.close();
 
 // ── The app opens with no signal at all (service worker) ────
 const swCtx = await browser.newContext(phone);

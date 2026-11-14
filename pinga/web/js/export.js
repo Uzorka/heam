@@ -1,6 +1,6 @@
 // Export the attendance register for a period: real Excel (.xlsx), or a clean page to save as PDF.
 import * as api from './api.js';
-import { show, esc, Say, wireSignOut, app, ROLE, fmtTime, fmtDay, localDate } from './ui.js';
+import { show, esc, Say, wireSignOut, app, ROLE, fmtTime, fmtDay, localDate, backLink } from './ui.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
 
 const STATUS = { present: 'Present', late: 'Late', absent: 'Absent', none: 'No check-in', leave: 'Leave', off: 'Off' };
@@ -11,7 +11,7 @@ export function exportScreen(me) {
   const monthStart = today.slice(0, 8) + '01';
   show(`
     <main class="page narrow">
-      <a class="back" href="#/setup">‹ Setup</a>
+      ${backLink('#/setup', 'Setup')}
       <h1>Export register</h1>
       <p class="muted">Everyone's status for each day: present, late, absent, leave or off, with times and visits.</p>
       <form class="stack">

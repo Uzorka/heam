@@ -109,6 +109,14 @@ To switch on (staging): Paystack Dashboard (Test mode) → Settings → API Keys
 1. Copy the **Test Secret Key** (`sk_test_…`) into Supabase → Pinga Staging → Edge Functions → Secrets as `PAYSTACK_SECRET_KEY`.
 2. Set **Test Webhook URL** to `https://zgwgszomktveikhecmiz.supabase.co/functions/v1/billing/webhook`.
 
+## Brand and design
+
+- **Colours** are CSS variables at the top of `web/css/app.css`: mango `#FF8A1F` (primary), ink navy `#14213D` (text), cream `#FFF8EE` (background), white cards; green, amber and red for statuses only. Buttons use ink text on mango (white on mango is too faint to read). Orange *text* uses a deeper `--mango-ink` so it stays readable on cream.
+- **Font:** Nunito 400/700/800, self-hosted in `web/fonts/` and slimmed to the characters Pinga uses (including ₦): about 37 KB for all three. Licence: `web/fonts/OFL.txt`.
+- **Logo** (map pin with a check cut out), the **happy pin** and all **icons** are inline SVG in `web/js/icons.js`. App icons in `web/icons/` are drawn from the same logo.
+- **Navigation:** bottom tab bar with icons on phones; top segmented control on desktop (700 px and wider).
+- New companies see a **Get started** checklist (office, stores, invite, first clock-in) instead of zeros.
+
 ## Who can see what (enforced by the database)
 
 | | Own company | Other companies |

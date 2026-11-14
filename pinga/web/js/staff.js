@@ -4,7 +4,8 @@ import { sync, outbox, setMember, uuid, safeToSignOut, waitingText } from './que
 import { watchBest, nearest } from './gps.js';
 import { startCamera, capture } from './camera.js';
 import { report } from './report.js';
-import { show, go, esc, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, fmtTime, localDate, fmtDistance } from './ui.js';
+import { show, go, esc, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, fmtTime, localDate, fmtDistance, firstName } from './ui.js';
+import { wordmark, ICON, happyPin } from './icons.js';
 
 export async function staffRoute(me, name, arg) {
   setMember(me);
@@ -49,11 +50,12 @@ async function home(me) {
   show(`
     <main class="page narrow">
       ${header(me, greeting())}
-      <div class="card hero">
-        <h2>${esc(me.full_name.split(' ')[0])}</h2>
-        <p class="status">${status}</p>
+      <div class="card hero staff-hero">
+        ${happyPin(64)}
+        <div><h2>${esc(firstName(me.full_name))}</h2>
+        <p class="status">${status}</p></div>
       </div>
-      <a class="primary button big" href="#/clock/${next}">${next === 'in' ? 'Clock in' : 'Clock out'}</a>
+      <a class="primary button big" href="#/clock/${next}">${ICON.clock}${next === 'in' ? 'Clock in' : 'Clock out'}</a>
       <p class="waiting" id="waiting" role="status">${waitingText(n)}</p>
     </main>`);
   wireSignOut(safeToSignOut);
@@ -70,7 +72,7 @@ async function home(me) {
 export function cameraScreen({ title, intro = '', back = true }) {
   show(`
     <main class="page narrow">
-      ${back ? '<a class="back" href="#/">‹ Back</a>' : '<div class="brand">Pinga</div>'}
+      ${back ? `<a class="back" href="#/">${ICON.back}Back</a>` : `<div class="brand">${wordmark()}</div>`}
       <h1>${title}</h1>
       ${intro}
       <div class="camera"><video class="mirror" playsinline muted></video></div>
@@ -141,8 +143,8 @@ async function clock(me, kind) {
     if (!n) { where.textContent = `Location found (within ${Math.round(pos.accuracy)} m)`; where.className = 'where'; return; }
     const inside = n.distance <= n.place.radius_m + Math.min(pos.accuracy, 50);
     where.className = 'where ' + (inside ? 'good' : 'warn');
-    where.textContent = inside ? `At ${n.place.name} ✓`
-      : `You're ${fmtDistance(n.distance)} from ${n.place.name}. You can still ${verb}; your manager will see this.`;
+    where.innerHTML = inside ? `${ICON.checkSmall}<span>At ${esc(n.place.name)}</span>`
+      : `You're ${fmtDistance(n.distance)} from ${esc(n.place.name)}. You can still ${verb}; your manager will see this.`;
   };
 
   const stopGps = watchBest((p) => { pos = p; update(); }, (why) => {

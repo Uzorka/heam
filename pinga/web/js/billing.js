@@ -1,7 +1,7 @@
 // Owner's billing page: plan, price for the current team, pay with Paystack, saved card, history.
 import * as api from './api.js';
 import { CONFIG } from './config.js';
-import { show, go, esc, toast, friendly, app, fmtDay } from './ui.js';
+import { show, go, esc, toast, friendly, app, fmtDay, backLink } from './ui.js';
 
 const naira = (kobo) => '₦' + Math.round(kobo / 100).toLocaleString('en-NG');
 const day = (d, tz) => fmtDay(d + 'T12:00:00Z', tz);
@@ -30,7 +30,7 @@ export async function billing(me, arg) {
 
   show(`
     <main class="page narrow">
-      <a class="back" href="#/setup">‹ Setup</a>
+      ${backLink('#/setup', 'Setup')}
       <h1>Billing</h1>
       ${CONFIG.env !== 'live' && payments ? '<p class="banner">Test mode: payments use Paystack test cards. No real money is taken.</p>' : ''}
       <section class="card block">
@@ -80,7 +80,7 @@ export async function billing(me, arg) {
 async function returning(me, reference) {
   show(`
     <main class="page narrow">
-      <a class="back" href="#/billing">‹ Billing</a>
+      ${backLink('#/billing', 'Billing')}
       <h1>Confirming payment…</h1>
       <p class="muted">This takes a few seconds.</p>
     </main>`);
@@ -89,8 +89,7 @@ async function returning(me, reference) {
   const done = result === 'paid' || result === 'already paid';
   show(`
     <main class="page narrow">
-      <a class="back" href="#/billing">‹ Billing</a>
-      <h1>${done ? 'Payment received' : "Payment not completed"}</h1>
+      <h1>${done ? 'Payment received' : 'Payment not completed'}</h1>
       <p>${done ? 'Thank you. Your subscription is active.' : 'No money was taken. You can try again from Billing.'}</p>
       <a class="primary button" href="#/billing">Back to Billing</a>
     </main>`);

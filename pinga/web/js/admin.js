@@ -2,7 +2,8 @@
 import * as api from './api.js';
 import { normalizePhone, displayPhone } from './phone.js';
 import { watchBest, parseLatLng } from './gps.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel } from './ui.js';
+import { ICON } from './icons.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName } from './ui.js';
 
 let banner = '';
 let flags = null;   // what's switched on (payments, face check); loaded once per visit
@@ -21,9 +22,14 @@ function billingBanner(me) {
   return '';
 }
 
+const NAV = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
+// Top segmented control on desktop; bottom tab bar with icons on phones (like iPhone apps).
 const tabs = (on) => `${banner}
-  <nav class="tabs">
-    ${[['#/overview', 'Overview'], ['#/today', 'Today'], ['#/team', 'Team'], ['#/setup', 'Setup']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
+  <nav class="tabs" aria-label="Sections">
+    ${NAV.map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
+  </nav>
+  <nav class="tabbar manager" aria-label="Sections">
+    ${NAV.map(([h, t, i]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${ICON[i]}${t}</a>`).join('')}
   </nav>`;
 
 export async function adminRoute(me, name, arg) {
@@ -72,7 +78,7 @@ function invite(me) {
   const roles = [['staff', 'Office staff', 'Clocks in at the office'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
   show(`
     <main class="page narrow">
-      <a class="back" href="#/team">‹ Team</a>
+      ${backLink('#/team', 'Team')}
       <h1>Invite someone</h1>
       <form class="stack">
         <label>Full name<input name="full_name" autocomplete="off" required></label>
@@ -149,10 +155,10 @@ async function person(me, id) {
           <p class="error" role="alert"></p>
           <button type="submit" class="secondary">Save</button>
         </form>
-        ${isRep ? `<a class="row link-row" href="#/assign/${p.id}"><span>Assigned stores</span><span><b>${assigned.length}</b> <span class="chev">›</span></span></a>` : ''}
+        ${isRep ? `<a class="row link-row" href="#/assign/${p.id}"><span>Assigned stores</span><span><b>${assigned.length}</b> ${chev}</span></a>` : ''}
       </div>
       ${visits.length ? `<h2 class="section">Recent visits</h2><ul class="list">${visits.map(visitRow).join('')}</ul>` : ''}` : '';
-  const first = p.full_name.split(' ')[0];
+  const first = firstName(p.full_name);
   const share = (token) => {
     const link = `${location.origin}${location.pathname}#/join/${token}`;
     const text = `Hi ${first}, ${me.companies.name} uses Pinga${isRep ? ' for store visits' : ' for attendance'}. Open this link to set your PIN: ${link}`;
@@ -176,7 +182,7 @@ async function person(me, id) {
   };
   show(`
     <main class="page narrow">
-      <a class="back" href="#/team">‹ Team</a>
+      ${backLink('#/team', 'Team')}
       <div class="person">
         ${p.reference_photo_path ? `<img class="face" data-photo="${esc(p.reference_photo_path)}" alt="Reference photo">` : ''}
         <div><h1>${esc(p.full_name)}</h1>
@@ -263,14 +269,14 @@ async function places(me, k) {
     <main class="page">
       ${header(me, k.plural)}
       ${tabs('Setup')}
-      <a class="back" href="#/setup">‹ Setup</a>
+      ${backLink('#/setup', 'Setup')}
       <a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>
       ${list.length ? '' : `<p class="muted center empty">${k.empty}</p>`}
       <ul class="list">
         ${list.map((b) => `
           <li><a class="card row" href="#/${k.path}/${b.id}">
             <span><strong>${esc(b.name)}</strong><br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span></span>
-            <span class="chev">›</span>
+            ${chev}
           </a></li>`).join('')}
       </ul>
     </main>`);
@@ -283,7 +289,7 @@ async function placeForm(me, k, id) {
   if (!b) return go(k.back);
   show(`
     <main class="page narrow">
-      <a class="back" href="${k.back}">‹ ${k.plural}</a>
+      ${backLink(k.back, k.plural)}
       <h1>${isNew ? `Add ${k.one}` : esc(b.name)}</h1>
       <form class="stack">
         <label>Name<input name="name" value="${esc(b.name)}" placeholder="${k.example}" required></label>
@@ -337,11 +343,11 @@ async function assign(me, id) {
     api.select('store_assignments', `select=store_id&member_id=eq.${encodeURIComponent(id)}`),
   ]);
   if (!p) return go('#/team');
-  const first = p.full_name.split(' ')[0];
+  const first = firstName(p.full_name);
   const had = new Set(current.map((a) => a.store_id));
   show(`
     <main class="page narrow">
-      <a class="back" href="#/person/${p.id}">‹ ${esc(p.full_name)}</a>
+      ${backLink(`#/person/${p.id}`, p.full_name)}
       <h1>Stores for ${esc(first)}</h1>
       <p class="muted" id="count"></p>
       ${stores.length ? `<input id="sq" type="search" placeholder="Search stores" aria-label="Search stores"${stores.length > 8 ? '' : ' hidden'}>` : `<p class="empty">No stores yet. <a href="#/store/new">Add a store</a> first.</p>`}
@@ -381,15 +387,15 @@ async function setup(me) {
       ${header(me, 'Setup')}
       ${tabs('Setup')}
       <ul class="list">
-        <li><a class="card row" href="#/offices"><span><strong>Offices</strong><br><span class="muted">Where office staff clock in</span></span><span class="chev">›</span></a></li>
-        <li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span><span class="chev">›</span></a></li>
-        <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span><span class="chev">›</span></a></li>
-        ${isOwner ? '<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">Plan, price for your team, payments</span></span><span class="chev">›</span></a></li>' : ''}
-        <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span><span class="chev">›</span></a></li>
+        <li><a class="card row" href="#/offices"><span><strong>Offices</strong><br><span class="muted">Where office staff clock in</span></span>${chev}</a></li>
+        <li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span>${chev}</a></li>
+        <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span>${chev}</a></li>
+        ${isOwner ? `<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">Plan, price for your team, payments</span></span>${chev}</a></li>` : ''}
+        <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span>${chev}</a></li>
         ${face ? `<li><${isOwner ? 'a href="#/face"' : 'div'} class="card row"><span><strong>Face check</strong><br><span class="muted">${face.enabled
           ? `On. Selfies must be ${face.match_percent}% alike to the reference photo.${face.waiting ? ` ${face.waiting} waiting.` : ''}`
           : `Off until the AWS keys are added. Clock-ins work as normal.${face.waiting ? ` ${face.waiting} selfie${face.waiting === 1 ? '' : 's'} will be checked when it's switched on.` : ''}`}</span></span>
-          <span class="pill ${face.enabled ? 'ok' : ''}">${face.enabled ? 'On' : 'Off'}</span>${isOwner ? '<span class="chev">›</span>' : ''}</${isOwner ? 'a' : 'div'}></li>` : ''}
+          <span class="pill ${face.enabled ? 'ok' : ''}">${face.enabled ? 'On' : 'Off'}</span>${isOwner ? chev : ''}</${isOwner ? 'a' : 'div'}></li>` : ''}
         ${isOwner ? `<li class="card row"><span><strong>Evening summary email</strong><br><span class="muted">A short summary of the day, around 7 pm</span></span>
           <label class="switch"><input type="checkbox" id="summary"${co.summary_email ? ' checked' : ''} aria-label="Evening summary email"><span></span></label></li>` : ''}
       </ul>
@@ -413,7 +419,7 @@ async function faceSettings(me) {
   const f = await api.rpc('face_check_status');
   show(`
     <main class="page narrow">
-      <a class="back" href="#/setup">‹ Setup</a>
+      ${backLink('#/setup', 'Setup')}
       <h1>Face check</h1>
       <p class="muted">Each clock-in and store visit selfie is compared with the person's reference photo. If it isn't alike enough, it is flagged "Face didn't match" for you to look at. Nobody is ever blocked.</p>
       <form class="stack">
@@ -440,7 +446,7 @@ function hours(me) {
     <main class="page">
       ${header(me, 'Working hours')}
       ${tabs('Setup')}
-      <a class="back" href="#/setup">‹ Setup</a>
+      ${backLink('#/setup', 'Setup')}
       <form class="stack narrow-form">
         <div class="pair">
           <label>Work starts<input name="work_starts" type="time" value="${c.work_starts.slice(0, 5)}" required></label>

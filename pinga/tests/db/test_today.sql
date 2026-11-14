@@ -78,5 +78,16 @@ select tests.eq((select count(*) from public.day_board('2026-11-09')), 0::bigint
 select tests.eq((select count(*) from public.day_status), 0::bigint, 'and none of these statuses');
 reset role;
 
+-- "Get started" checklist.
+select tests.act_as('a0000000-0000-0000-0000-000000000002');
+select tests.eq(public.setup_progress(), '{"offices": true, "stores": true, "people": 4, "first_check_in": true}'::jsonb, 'checklist: office, stores, 4 people, first check-in all done');
+reset role;
+select tests.act_as('b0000000-0000-0000-0000-000000000001');
+select tests.eq(public.setup_progress(), '{"offices": false, "stores": false, "people": 0, "first_check_in": false}'::jsonb, 'a brand-new company has nothing ticked yet');
+reset role;
+select tests.act_as('a0000000-0000-0000-0000-000000000003');
+select tests.refused($$ select public.setup_progress() $$, 'staff don''t see the checklist');
+reset role;
+
 rollback;
 \echo 'All Today page database tests passed.'

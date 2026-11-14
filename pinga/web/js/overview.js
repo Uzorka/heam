@@ -1,6 +1,8 @@
 // Owner dashboard: the day in 10 seconds. Right now, field visits on a map, patterns, cost of lost time.
 import * as api from './api.js';
-import { show, esc, header, wireSignOut, onLeave, fmtDay, localDate } from './ui.js';
+import { show, esc, header, wireSignOut, onLeave, fmtDay, localDate, firstName } from './ui.js';
+import { happyPin } from './icons.js';
+import { checklist, setupDone } from './getstarted.js';
 
 const naira = (n) => '₦' + Math.round(n).toLocaleString('en-NG');
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
@@ -31,7 +33,7 @@ async function drawMap(el, stores) {
     maxZoom: 18, attribution: '© OpenStreetMap contributors',
   }).addTo(map);
   const points = stores.map((s) => L.circleMarker([s.lat, s.lng], {
-    radius: 8, weight: 2, color: '#fff', fillOpacity: 1, fillColor: s.visited ? '#0b7a5c' : '#9a9aa0',
+    radius: 8, weight: 2, color: '#fff', fillOpacity: 1, fillColor: s.visited ? '#1E7B45' : '#9A9AA0',
   }).bindTooltip(`${s.name}: ${s.visited ? 'visited' : 'not yet'}`).addTo(map));
   map.fitBounds(L.featureGroup(points).getBounds().pad(0.2), { maxZoom: 15 });
   return () => map.remove();
@@ -40,17 +42,24 @@ async function drawMap(el, stores) {
 export async function overview(me, tabs) {
   const tz = me.companies.timezone;
   const day = localDate(api.serverNow(), tz);
-  const d = await api.rpc('owner_overview', { p_day: day });
+  const [d, progress] = await Promise.all([
+    api.rpc('owner_overview', { p_day: day }),
+    api.rpc('setup_progress').catch(() => null),
+  ]);
   const h = new Date().getHours();
-  const hello = `${h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}, ${me.full_name.split(' ')[0]}`;
+  const hello = `${h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}, ${firstName(me.full_name)}`;
   const n = d.now, f = d.field, lost = d.lost;
   const visitPct = f.planned ? Math.min(100, Math.round((100 * f.done) / f.planned)) : 0;
+  const nobody = !n.people;                          // a new company: no wall of zeros
+  const allIn = n.people > 0 && !n.late && !n.absent;
 
   const attention = [
     ...d.repeat_late.map((x) => `<li><b>${esc(x.name)}</b> was late ${x.times} times in the last 2 weeks.</li>`),
     ...d.visits_dropping.map((x) => `<li><b>${esc(x.name)}</b> made ${plural(x.this_week, 'visit')} this week, down from ${x.last_week}.</li>`),
     ...(n.to_review ? [`<li><b>${plural(n.to_review, 'check-in')}</b> today ${n.to_review === 1 ? 'was' : 'were'} flagged. <a href="#/today">Review on Today</a></li>`] : []),
   ];
+  // Each tile opens Today, filtered to that group.
+  const tile = (cls, num, label, filter) => `<a class="tile ${cls}" href="#/today/${filter}" aria-label="${num} ${label}: show on Today"><b>${num}</b><span>${label}</span></a>`;
 
   show(`
     <main class="page">
@@ -58,17 +67,21 @@ export async function overview(me, tabs) {
       ${tabs('Overview')}
       <p class="muted dateline">${fmtDay(day + 'T12:00:00Z', tz)}</p>
 
+      ${progress && !setupDone(progress) ? checklist(progress) : ''}
+
+      ${nobody ? '' : `
       <section class="card block" aria-labelledby="now-h">
         <h2 id="now-h">Right now</h2>
-        <a class="stats" href="#/today">
-          <span><b>${n.present}</b>Present</span>
-          <span class="${n.late ? 'warn' : ''}"><b>${n.late}</b>Late</span>
-          <span class="${n.absent ? 'bad' : ''}"><b>${n.absent}</b>Not in</span>
-          <span><b>${n.away}</b>Leave · Off</span>
-        </a>
+        <div class="tiles">
+          ${tile('present', n.present, 'Present', 'present')}
+          ${tile('late', n.late, 'Late', 'late')}
+          ${tile('notin', n.absent, 'Not in', 'notin')}
+          ${tile('away', n.away, 'Leave or off', 'away')}
+        </div>
+        ${allIn ? `<div class="happy-state">${happyPin(48)}<p>Everyone's in today. Nice.</p></div>` : ''}
         ${d.offices.length ? `<ul class="offices">${d.offices.map((o) => `
           <li><span>${esc(o.name)}</span><span class="muted">${o.present} present${o.late ? ` · <span class="late">${o.late} late</span>` : ''}${o.absent ? ` · ${o.absent} not in` : ''}</span></li>`).join('')}</ul>` : ''}
-      </section>
+      </section>`}
 
       ${f.reps.length ? `
       <section class="card block" aria-labelledby="field-h">
@@ -80,20 +93,23 @@ export async function overview(me, tabs) {
           <li><span>${esc(r.name)}</span><span class="${r.visits >= r.target ? 'ok-text' : 'muted'}">${r.status === 'leave' || r.status === 'off' ? (r.status === 'leave' ? 'On leave' : 'Off') : `${r.visits} of ${r.target}`}</span></li>`).join('')}</ul>
       </section>` : ''}
 
+      ${nobody ? '' : `
       <section class="card block" aria-labelledby="att-h">
         <h2 id="att-h">Needs your attention</h2>
         ${attention.length ? `<ul class="notes">${attention.join('')}</ul>` : '<p class="muted">Nothing unusual.</p>'}
-      </section>
+      </section>`}
 
-      ${lost ? `
+      ${lost && !nobody ? `
       <section class="card block" aria-labelledby="lost-h">
         <h2 id="lost-h">Lost time this month</h2>
         ${lost.with_pay ? `<p class="money">${naira(lost.naira)}</p>` : ''}
         <p class="${lost.with_pay ? 'muted' : 'big-line'}">${lost.hours.toLocaleString('en-NG')} hours lost to lateness and absence</p>
-        <p class="tiny muted">${lost.with_pay ? `Based on pay for ${lost.with_pay} of ${plural(lost.people, 'person', 'people')}.` : 'To see this in naira,'} Add monthly pay on each person's page (Team).</p>
+        <p class="tiny muted">${lost.with_pay
+          ? `Based on pay for ${lost.with_pay} of ${plural(lost.people, 'person', 'people')}. To include everyone, add monthly pay on each person's page (Team).`
+          : "To see this in naira, add monthly pay on each person's page (Team)."}</p>
       </section>` : ''}
 
-      <a class="secondary button" href="#/export">Export register (Excel or PDF)</a>
+      ${nobody ? '' : '<a class="secondary button" href="#/export">Export register (Excel or PDF)</a>'}
     </main>`);
   wireSignOut();
 

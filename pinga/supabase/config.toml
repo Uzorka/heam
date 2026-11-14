@@ -8,3 +8,7 @@ verify_jwt = false
 [functions.daily-summary]
 # Called by the hourly schedule, which proves itself with a key (see scripts/deploy.js).
 verify_jwt = false
+
+[functions.face-check]
+# Called by the schedule, which proves itself with a key.
+verify_jwt = false

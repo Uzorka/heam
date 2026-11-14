@@ -53,7 +53,7 @@ try {
   await page.getByRole('heading', { name: 'Your photo' }).waitFor();
   step('invite link → PIN saved → signed in (real login service)');
 
-  await page.getByRole('button', { name: 'Take photo' }).click();
+  await page.getByRole('button', { name: 'I agree, take photo' }).click();
   await page.getByText("You haven't clocked in today.").waitFor();
   step('reference photo uploaded to real storage');
 

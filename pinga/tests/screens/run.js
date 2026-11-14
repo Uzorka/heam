@@ -180,6 +180,8 @@ async function fakeSupabase(route) {
     }
     return json(route, n);
   }
+  if (p === '/rest/v1/rpc/face_check_status') return json(route, { enabled: false, last_run: null, waiting: attendance.filter((a) => a.photo_path).length });
+  if (p === '/rest/v1/rpc/clear_reference_photo') { people.find((x) => x.id === body.p_member).reference_photo_path = null; return json(route, null); }
   if (p === '/rest/v1/rpc/set_reference_photo') { me.reference_photo_path = body.p_path; return json(route, null); }
   if (p.startsWith('/storage/v1/object/authenticated/photos/')) {
     const bytes = photos.get(p.replace('/storage/v1/object/authenticated/photos/', ''));
@@ -245,10 +247,10 @@ step('wrong PIN shows a plain message');
 await page.getByLabel('PIN').fill('482913');
 await page.getByRole('button', { name: 'Sign in' }).click();
 await page.getByRole('heading', { name: 'Your photo' }).waitFor();
-await page.getByRole('button', { name: 'Take photo' }).waitFor();
+await page.getByRole('button', { name: 'I agree, take photo' }).waitFor();
 await page.waitForTimeout(500);
 await shot('staff-reference-photo');
-await page.getByRole('button', { name: 'Take photo' }).click();
+await page.getByRole('button', { name: 'I agree, take photo' }).click();
 await page.getByText("You haven't clocked in today.").waitFor();
 const ref = [...photos.keys()].find((k) => k.includes('reference'));
 assert.ok(ref?.startsWith('c1/m1/'), 'reference photo saved in own folder');
@@ -321,6 +323,8 @@ step('Team is its own tab');
 await shot('owner-team');
 
 await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await page.getByText('Off until the AWS keys are added. Clock-ins work as normal.').waitFor();
+step('Setup shows face check is off (waiting for the AWS keys) and clock-ins work as normal');
 await shot('owner-setup');
 await page.getByRole('link', { name: /^Offices/ }).click();
 await page.getByRole('link', { name: 'Add office' }).click();
@@ -343,13 +347,21 @@ await page.getByText('Working hours saved').waitFor();
 assert.equal(company.work_starts, '08:30:00');
 step('owner changes working hours');
 
+// As if the face check had run: Sade's first clock-in didn't match her reference photo.
+Object.assign(attendance[0], { flags: [...attendance[0].flags, 'face_mismatch'], face_similarity: 41.2 });
 await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Sade Bello/ }).click();
 await page.getByRole('heading', { name: 'Recent clock-ins' }).waitFor();
 await page.waitForFunction(() => [...document.querySelectorAll('img[data-photo]')].every((i) => i.complete && i.naturalWidth > 0));
 await page.getByText(/Outside the office \(1\.0 km\)/).waitFor();
-step('owner sees each clock-in with its photo, lateness and any flags');
+await page.getByText("Face didn't match (41% alike)").waitFor();
+step('owner sees each clock-in with its photo, lateness and flags, including "Face didn\'t match (41% alike)"');
 await shot('owner-person-clock-ins');
+page.once('dialog', (d) => d.accept());
+await page.getByRole('button', { name: 'Ask for a new reference photo' }).click();
+await page.getByText('Sade will be asked for a reference photo next time they open Pinga.').waitFor();
+assert.equal(people.find((x) => x.id === 'm1').reference_photo_path, null);
+step('owner asks for a new reference photo');
 await page.getByRole('link', { name: '‹ Team' }).click();
 
 // ── Owner: stores and a rep's stores ────────────────────────
@@ -394,7 +406,7 @@ await page.getByLabel('Type it again').fill('482913');
 await page.getByRole('button', { name: 'Save PIN' }).click();
 await page.getByRole('heading', { name: 'Your photo' }).waitFor();
 step('new rep sets a PIN from the invite link and is signed in');
-await page.getByRole('button', { name: 'Take photo' }).click();
+await page.getByRole('button', { name: 'I agree, take photo' }).click();
 
 // ── Field visits ────────────────────────────────────────────
 await ctx.setGeolocation({ latitude: 6.6019, longitude: 3.3516, accuracy: 12 }); // standing at Shoprite Ikeja
@@ -481,7 +493,7 @@ await shot('owner-overview');
 await page.getByRole('link', { name: 'Today', exact: true }).click();
 await page.getByRole('heading', { name: 'Today' }).waitFor();
 const statusOf = (name) => page.locator('.brow', { hasText: name }).locator('.right').innerText();
-assert.match(await statusOf('Sade Bello'), /Late · 12 min\n1 to check/);
+assert.match(await statusOf('Sade Bello'), /Late · 12 min\n2 to check/);  // outside the office + face didn't match
 assert.match(await statusOf('Remi Okafor'), /Present\n1 to check/);
 assert.match(await page.locator('.brow', { hasText: 'Remi Okafor' }).innerText(), /3 of 3 visits/);
 assert.match(await statusOf('Tunde Ade'), /No check-in/);

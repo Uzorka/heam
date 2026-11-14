@@ -80,6 +80,17 @@ Every hour Supabase's scheduler calls the `daily-summary` function; after 7 pm (
 
 To switch sending on: create a free account at resend.com, make an API key, and add it in **Supabase → Edge Functions → Secrets** as `RESEND_API_KEY` (staging first, then live). Until a sending domain (e.g. usepinga.com) is verified in Resend, emails go from `onboarding@resend.dev` and only to the Resend account's own email address. Optional secret `SUMMARY_FROM` (e.g. `Pinga <summary@usepinga.com>`) once the domain is verified.
 
+## Face check (AWS Rekognition, EU Ireland)
+
+Every few minutes the `face-check` function compares new clock-in and visit selfies with each person's reference photo (AWS Rekognition CompareFaces, about $0.001 per check). **Nothing is ever blocked:** a clock-in or visit is saved straight away; the result arrives a few minutes later.
+
+- 90% similarity or more is a match. Below that: flag "Face didn't match (41% alike)". No face found: flag "No face in photo". Both count as "to check" on Today and face mismatches are listed in the owner's evening email.
+- No reference photo yet: no AWS call (no charge); checked once they take one. AWS errors retry up to 3 times, then stop. Only the last 3 days are checked, so switching on never bills for an old backlog.
+- Staff agree to the use of their photo on the reference photo screen (Nigeria Data Protection Act); the time is recorded. Managers can "Ask for a new reference photo".
+- Requests to AWS are signed by our own code (`signV4` in `supabase/functions/face-check/handler.js`), tested against AWS's published example and AWS's own signer. No AWS library.
+
+**Switched off until these Supabase secrets exist** (Pinga Staging → Edge Functions → Secrets): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` = `eu-west-1`. Setup shows "Face check: Off/On". Use an AWS key whose only permission is `rekognition:CompareFaces`.
+
 ## Who can see what (enforced by the database)
 
 | | Own company | Other companies |

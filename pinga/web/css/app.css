@@ -245,3 +245,4 @@ select { font: inherit; font-weight: 400; height: 52px; padding: 0 12px; width: 
   .print-only th, .print-only td { border-bottom: 1px solid #ccc; padding: 4px 6px; text-align: left; }
   .print-only thead { display: table-header-group; }
 }
+.consent { font-size: 14px; color: var(--muted); background: var(--card); border-radius: 12px; padding: 12px 14px; }

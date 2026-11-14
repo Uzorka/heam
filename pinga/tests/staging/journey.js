@@ -91,6 +91,24 @@ try {
   assert.equal(mine.data.length, 1);
   step(`clock-in recorded at the office with no flags (${rec.data.distance_m} m away); re-send saved once`);
 
+  // Face check: queued, and switched off until the AWS secrets exist (nothing blocked).
+  assert.equal(rec.data.face_status, 'pending', 'selfie queued for a face check');
+  const [{ id: callId }] = await sql(`select net.http_post(url := '${base}/functions/v1/face-check',
+    headers := jsonb_build_object('content-type','application/json','x-job-key',(select value from private.settings where key='summary_key')), body := '{}'::jsonb) as id`);
+  let answer = [];
+  for (let i = 0; i < 20 && !answer.length; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    answer = await sql(`select status_code, content from net._http_response where id = ${callId}`);
+  }
+  const awsOn = (await sql("select value from private.settings where key = 'face_check'"))[0]?.value?.includes('"enabled": true');
+  assert.equal(answer[0]?.status_code, 200, 'face-check job answers');
+  if (!awsOn) {
+    assert.match(answer[0].content, /off until AWS_ACCESS_KEY_ID/);
+    const [{ face_status }] = await sql(`select face_status from public.attendance where id = '${id}'`);
+    assert.equal(face_status, 'pending', 'still waiting, not failed');
+  }
+  step(`face check job runs; ${awsOn ? 'AWS keys found: checking is ON' : 'OFF until the AWS keys are added, selfie waits safely'}`);
+
   const stores = await call('/rest/v1/stores?select=id,name,lat', { token: t });
   assert.deepEqual(stores.data.map((x) => x.name), ['Check Store'], 'sees only assigned stores');
   const later = new Date(Date.now() + 1000).toISOString();

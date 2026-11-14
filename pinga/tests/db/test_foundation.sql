@@ -123,8 +123,10 @@ select tests.refused($$ select public.create_company('x', 'y') $$, 'anonymous vi
 reset role;
 
 -- ── Platform admin (Elvis) ──────────────────────────────────────
+create temp table all_companies as select count(*) as n from public.companies;  -- includes any real ones on staging
+grant all on all_companies to public;
 select tests.act_as('c0000000-0000-0000-0000-000000000000');
-select tests.eq((select count(*) from public.companies), 2::bigint, 'platform admin sees every company');
+select tests.eq((select count(*) from public.companies), (select n from all_companies), 'platform admin sees every company');
 select tests.no_rows($$ update public.stores set name = 'x' $$, 'platform admin cannot edit company data by accident');
 reset role;
 

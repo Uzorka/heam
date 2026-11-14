@@ -19,6 +19,8 @@ export function formatSummary(c, appUrl) {
     lines.push(`Store visits: ${c.visits_done} of ${c.visits_planned} done.`);
     if (c.below_target.length) lines.push(`Below target: ${list(c.below_target.map((x) => `${x.name} (${x.visits} of ${x.target})`))}.`);
   }
+  const faces = c.face_mismatches || [];
+  if (faces.length) lines.push(`Face didn't match: ${list(faces.map((x) => `${x.name} (${x.what})`))}. Please check the photos.`);
   if (c.to_review) lines.push(`${plural(c.to_review, 'check-in')} flagged for review.`);
   const subject = `${c.company} · ${day}: ${c.present} of ${c.people} present${c.late.length ? `, ${c.late.length} late` : ''}`;
   const text = [`${c.company}, ${day}`, '', ...lines, '', appUrl ? `Open Pinga: ${appUrl}` : '', '', 'You can turn this email off in Pinga under Setup.'].join('\n');

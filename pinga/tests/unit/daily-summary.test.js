@@ -18,6 +18,12 @@ test('the email gives the day at a glance', () => {
   assert.match(text, /Below target: Remi Okafor \(1 of 4\)\./);
   assert.match(text, /2 check-ins flagged for review\./);
   assert.match(html, /Open Pinga/);
+  assert.ok(!/Face didn't match/.test(text), 'no face line when there are no mismatches');
+});
+
+test('face mismatches are listed in the email', () => {
+  const { text } = formatSummary({ ...content, face_mismatches: [{ name: 'Sade Bello', what: 'clock-in' }, { name: 'Remi Okafor', what: 'visit to Shoprite Ikeja' }] });
+  assert.match(text, /Face didn't match: Sade Bello \(clock-in\), Remi Okafor \(visit to Shoprite Ikeja\)\. Please check the photos\./);
 });
 
 test('names are made safe in the email, and long lists are shortened', () => {

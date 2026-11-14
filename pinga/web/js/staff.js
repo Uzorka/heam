@@ -91,12 +91,14 @@ export function cameraScreen({ title, intro = '', back = true }) {
 
 function referencePhoto(me) {
   const s = cameraScreen({ title: 'Your photo', back: false,
-    intro: '<p>Take one clear photo of your face. Pinga uses it to check that it\'s really you when you clock in.</p>' });
+    intro: `<p>Take one clear photo of your face, in good light.</p>
+      <p class="consent">${esc(me.companies.name)} uses this photo only to check that it's really you when you clock in or check in at a store.
+      It is stored securely and only your managers can see it. By taking it, you agree to this.</p>` });
   const btn = s.el('go');
   onLeave(s.stop);
   s.camera.then((ok) => {
     if (!ok) { s.el('err').textContent = 'Pinga needs your camera. Allow the camera for this site in Chrome, then try again.'; btn.textContent = 'Try again'; btn.disabled = false; btn.onclick = () => go('#/'); return; }
-    btn.textContent = 'Take photo';
+    btn.textContent = 'I agree, take photo';
     btn.disabled = false;
     btn.onclick = async () => {
       btn.disabled = true;
@@ -112,7 +114,7 @@ function referencePhoto(me) {
       } catch (x) {
         s.el('err').textContent = x.status === 0 ? 'No connection. You need internet for this one-time step.' : friendly(x);
         btn.disabled = false;
-        btn.textContent = 'Take photo';
+        btn.textContent = 'I agree, take photo';
       }
     };
   });

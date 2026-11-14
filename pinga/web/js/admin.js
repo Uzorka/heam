@@ -92,7 +92,7 @@ async function person(me, id) {
   const mid = encodeURIComponent(id);
   const [[p], records] = await Promise.all([
     api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path,daily_visit_target,branch_id&id=eq.${mid}`),
-    api.select('attendance', `select=id,kind,happened_at,late_minutes,distance_m,photo_path,flags&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
+    api.select('attendance', `select=id,kind,happened_at,late_minutes,distance_m,photo_path,flags,face_similarity&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
   ]);
   if (!p) return go('#/team');
   const isRep = p.role === 'rep', isStaff = p.role === 'staff', seesPay = me.role === 'owner' && (isRep || isStaff);
@@ -103,7 +103,7 @@ async function person(me, id) {
   const monthly = pay[0]?.monthly_naira;
   const [assigned, visits, stores] = isRep ? await Promise.all([
     api.select('store_assignments', `select=store_id&member_id=eq.${mid}`),
-    api.select('visits', `select=id,store_id,happened_at,distance_m,selfie_path,shelf_photo_path,note,flags&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
+    api.select('visits', `select=id,store_id,happened_at,distance_m,selfie_path,shelf_photo_path,note,flags,face_similarity&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
     api.select('stores', `select=id,name&company_id=eq.${me.company_id}`),
   ]) : [[], [], []];
   const storeName = new Map(stores.map((s) => [s.id, s.name]));
@@ -113,7 +113,7 @@ async function person(me, id) {
         <span class="grow"><strong>${esc(storeName.get(v.store_id) || 'Store')}</strong><br>
           <span class="muted">${fmtDay(v.happened_at, tz)} · ${fmtTime(v.happened_at, tz)}</span>
           ${v.note ? `<br><span class="note">“${esc(v.note)}”</span>` : ''}
-          ${v.flags.length ? '<br>' + v.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'store'))}${f === 'outside_radius' && v.distance_m != null ? ` (${fmtDistance(v.distance_m)})` : ''}</span>`).join(' ') : ''}</span>
+          ${v.flags.length ? '<br>' + v.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'store'))}${f === 'outside_radius' && v.distance_m != null ? ` (${fmtDistance(v.distance_m)})` : ''}${f === 'face_mismatch' && v.face_similarity != null ? ` (${Math.round(v.face_similarity)}% alike)` : ''}</span>`).join(' ') : ''}</span>
         ${v.shelf_photo_path ? `<img class="thumb" data-photo="${esc(v.shelf_photo_path)}" alt="Shelf photo">` : ''}
       </li>`;
   const details = isRep || isStaff ? `
@@ -145,7 +145,7 @@ async function person(me, id) {
   };
   const row = (r) => {
     const late = r.kind === 'in' && r.late_minutes > 0 ? ` · <span class="late">${r.late_minutes} min late</span>` : '';
-    const flags = r.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'office'))}${f === 'outside_radius' && r.distance_m != null ? ` (${fmtDistance(r.distance_m)})` : ''}</span>`).join(' ');
+    const flags = r.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'office'))}${f === 'outside_radius' && r.distance_m != null ? ` (${fmtDistance(r.distance_m)})` : ''}${f === 'face_mismatch' && r.face_similarity != null ? ` (${Math.round(r.face_similarity)}% alike)` : ''}</span>`).join(' ');
     return `
       <li class="card row record">
         ${r.photo_path ? `<img class="thumb" data-photo="${esc(r.photo_path)}" alt="Photo at ${r.kind === 'in' ? 'clock-in' : 'clock-out'}">` : '<span class="thumb"></span>'}
@@ -165,6 +165,8 @@ async function person(me, id) {
         ${p.role === 'owner' ? '<p>Owners sign in with their email.</p>'
           : p.invite_token ? share(p.invite_token)
           : `<p>${esc(first)} has joined.</p><button class="secondary" id="reset">Forgot PIN? Create a new PIN link</button>`}
+        ${(isRep || isStaff) && p.reference_photo_path ? '<button class="link block" id="retake">Ask for a new reference photo</button>' : ''}
+        ${(isRep || isStaff) && p.joined_at && !p.reference_photo_path ? `<p class="muted small">${esc(first)} will be asked for a reference photo next time they open Pinga.</p>` : ''}
       </div>
       ${details}
       ${records.length ? `<h2 class="section">Recent clock-ins</h2><ul class="list">${records.map(row).join('')}</ul>` : ''}
@@ -188,6 +190,18 @@ async function person(me, id) {
     };
   };
   wireCopy();
+  const retake = document.getElementById('retake');
+  if (retake) {
+    retake.onclick = async () => {
+      if (!confirm(`Ask ${first} to take a new reference photo? Their current one will be replaced.`)) return;
+      retake.disabled = true;
+      try {
+        await api.rpc('clear_reference_photo', { p_member: p.id });
+        toast(`${first} will be asked for a new photo next time they open Pinga`);
+        person(me, id);
+      } catch (x) { retake.disabled = false; toast(friendly(x)); }
+    };
+  }
   const reset = document.getElementById('reset');
   if (reset) {
     reset.onclick = async () => {
@@ -337,7 +351,10 @@ async function assign(me, id) {
 
 async function setup(me) {
   const isOwner = me.role === 'owner';
-  const [co] = isOwner ? await api.select('companies', `select=summary_email&id=eq.${me.company_id}`) : [{}];
+  const [[co], face] = await Promise.all([
+    isOwner ? api.select('companies', `select=summary_email&id=eq.${me.company_id}`) : [{}],
+    api.rpc('face_check_status').catch(() => null),
+  ]);
   show(`
     <main class="page">
       ${header(me, 'Setup')}
@@ -347,6 +364,10 @@ async function setup(me) {
         <li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span><span class="chev">›</span></a></li>
         <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span><span class="chev">›</span></a></li>
         <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span><span class="chev">›</span></a></li>
+        ${face ? `<li class="card row"><span><strong>Face check</strong><br><span class="muted">${face.enabled
+          ? `On. Each selfie is compared with the person's reference photo.${face.waiting ? ` ${face.waiting} waiting.` : ''}`
+          : `Off until the AWS keys are added. Clock-ins work as normal.${face.waiting ? ` ${face.waiting} selfie${face.waiting === 1 ? '' : 's'} will be checked when it's switched on.` : ''}`}</span></span>
+          <span class="pill ${face.enabled ? 'ok' : ''}">${face.enabled ? 'On' : 'Off'}</span></li>` : ''}
         ${isOwner ? `<li class="card row"><span><strong>Evening summary email</strong><br><span class="muted">A short summary of the day, around 7 pm</span></span>
           <label class="switch"><input type="checkbox" id="summary"${co.summary_email ? ' checked' : ''} aria-label="Evening summary email"><span></span></label></li>` : ''}
       </ul>

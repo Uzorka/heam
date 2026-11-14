@@ -91,5 +91,7 @@ export const FLAG = {
   not_assigned: 'Store not assigned to them',
   store_located: 'Store location saved from this visit',
   no_store_location: 'Store location unknown',
+  face_mismatch: "Face didn't match",
+  no_face: 'No face in photo',
 };
 export const flagLabel = (f, place) => (f === 'outside_radius' ? `Outside the ${place}` : FLAG[f] || f);

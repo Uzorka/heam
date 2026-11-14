@@ -1,0 +1,6 @@
+# Supabase CLI settings. The project ref is supplied when linking:
+#   npx supabase link --project-ref <ref>
+
+[functions.accept-invite]
+# The invite page is used before the person has a login; the function checks the invite link itself.
+verify_jwt = false

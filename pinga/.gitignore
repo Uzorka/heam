@@ -1,0 +1,4 @@
+node_modules/
+tests/screens/output/
+supabase/.temp/
+.env

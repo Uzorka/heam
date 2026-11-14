@@ -52,6 +52,15 @@ Same layout and flow as the CHF Heron field sales tracker.
 - Saved on the phone first, like clock-ins. **History** shows the last 30 days.
 - Managers add **Stores** (a name and address is enough; the first visit with good GPS saves the location, flagged for checking), set each rep's **visits per day**, and tick the **stores each rep covers**. Each rep's page shows recent visits with selfie, shelf photo, note and flags.
 
+## Manager's Today page
+
+Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.
+
+- **Statuses:** Present, Late (office staff, with minutes), No check-in (today), Absent (a past work day with no check-in), Leave, Off (also non-work days). A status set by a manager always wins and is marked "set by manager".
+- **Filters:** All, No check-in, Late, Absent, Present, Leave · Off, with counts. Search when the list is long.
+- **Bulk actions:** tick people (or "Select all shown") and tap Present, Absent, Leave or Off. With more than one person it asks first. **Clear** removes only statuses a manager set; clock-ins and visits are never changed.
+- **Fix past dates:** pick any past date (not future ones). People aren't counted absent for days before they were added.
+
 ## Who can see what (enforced by the database)
 
 | | Own company | Other companies |

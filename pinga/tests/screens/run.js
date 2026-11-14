@@ -18,6 +18,7 @@ const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '1
 const people = [
   { id: 'm0', user: 'u-owner', full_name: 'Elvis Uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
   { id: 'm1', user: 'u-sade', full_name: 'Sade Bello', role: 'staff', phone: '+2348031234567', joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
+  { id: 'm3', user: null, full_name: 'Tunde Ade', role: 'staff', phone: '+2348125550101', joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
   { id: 'm2', user: null, full_name: 'Remi Okafor', role: 'rep', phone: '+2348059876543', joined_at: null, invite_token: 'f'.repeat(32), reference_photo_path: null, daily_visit_target: 4 },
 ];
 const attendance = [];
@@ -27,6 +28,7 @@ const stores = [
 ];
 const assignments = [];
 const visits = [];
+const dayStatus = new Map(); // `${member}|${day}` -> status
 const photos = new Map();
 let networkDown = false;
 let signedInAs = null;
@@ -63,7 +65,7 @@ async function fakeSupabase(route) {
   }
   if (p === '/rest/v1/members' && m === 'POST') {
     if (people.some((x) => x.phone === body.phone)) return json(route, { code: '23505', message: 'duplicate' }, 409);
-    const row = { id: 'm' + people.length, user: null, joined_at: null, invite_token: 'a1b2'.repeat(8), reference_photo_path: null, ...body };
+    const row = { id: 'm' + (people.length + 10), user: null, joined_at: null, invite_token: 'a1b2'.repeat(8), reference_photo_path: null, ...body };
     people.push(row);
     return json(route, [row]);
   }
@@ -118,6 +120,30 @@ async function fakeSupabase(route) {
       selfie_path: body.p_selfie_path, shelf_photo_path: body.p_shelf_path, note: body.p_note, flags };
     visits.push(row);
     return json(route, row);
+  }
+  if (p === '/rest/v1/rpc/day_board') {
+    const day = body.p_day, today = lagosDate(new Date().toISOString());
+    const rows = people.filter((x) => x.role === 'staff' || x.role === 'rep').map((x) => {
+      const att = attendance.filter((a) => a.member_id === x.id && a.local_date === day);
+      const vis = visits.filter((v) => v.member_id === x.id && lagosDate(v.happened_at) === day);
+      const set = dayStatus.get(x.id + '|' + day);
+      const firstIn = att.find((a) => a.kind === 'in');
+      const late = firstIn?.late_minutes || 0;
+      const computed = firstIn || vis.length ? (x.role === 'staff' && late > 0 ? 'late' : 'present') : day < today ? 'absent' : 'none';
+      return { member_id: x.id, full_name: x.full_name, role: x.role, status: set || computed, set_by_manager: !!set,
+        first_in: firstIn?.happened_at || null, last_out: att.filter((a) => a.kind === 'out').pop()?.happened_at || null, late_minutes: late || null,
+        visits: new Set(vis.map((v) => v.store_id)).size, visit_target: x.role === 'rep' ? x.daily_visit_target ?? 4 : null,
+        to_review: [...att, ...vis].filter((r) => r.flags.length && r.flags.join() !== 'store_located').length };
+    });
+    return json(route, rows.sort((a, b) => a.full_name.localeCompare(b.full_name)));
+  }
+  if (p === '/rest/v1/rpc/set_day_status') {
+    let n = 0;
+    for (const id of body.p_members) {
+      const k = id + '|' + body.p_day;
+      if (body.p_status) { dayStatus.set(k, body.p_status); n++; } else if (dayStatus.delete(k)) n++;
+    }
+    return json(route, n);
   }
   if (p === '/rest/v1/rpc/set_reference_photo') { me.reference_photo_path = body.p_path; return json(route, null); }
   if (p.startsWith('/storage/v1/object/authenticated/photos/')) {
@@ -237,6 +263,7 @@ await page.getByText("You're 1.0 km from Yaba office. You can still clock in; yo
 await shot('staff-clock-in-far');
 await page.getByRole('button', { name: 'Take photo and clock in' }).click();
 await page.getByText(/Clocked in at/).first().waitFor();
+await until(() => attendance.length === 3, 'the far clock-in to be sent');
 assert.deepEqual(attendance[2].flags, ['outside_radius']);
 step('clock-in 1 km away is allowed but flagged for the manager');
 await ctx.setGeolocation({ latitude: 6.5096, longitude: 3.3712, accuracy: 12 });
@@ -247,8 +274,12 @@ await page.getByRole('link', { name: 'Business owner? Sign in with email' }).cli
 await page.getByLabel('Email').fill('elvis@chfheron.com');
 await page.getByLabel('Password').fill('password1');
 await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('heading', { name: 'Today' }).waitFor();
+await page.getByText('Late · 12 min').waitFor();
+step('owner signs in and lands on Today');
+await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('heading', { name: 'Team' }).waitFor();
-step('owner signs in and sees the team');
+step('Team is its own tab');
 await shot('owner-team');
 
 await page.getByRole('link', { name: 'Offices' }).click();
@@ -271,7 +302,7 @@ await page.getByText('Working hours saved').waitFor();
 assert.equal(company.work_starts, '08:30:00');
 step('owner changes working hours');
 
-await page.getByRole('link', { name: 'Team' }).click();
+await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Sade Bello/ }).click();
 await page.getByRole('heading', { name: 'Recent clock-ins' }).waitFor();
 await page.waitForFunction(() => [...document.querySelectorAll('img[data-photo]')].every((i) => i.complete && i.naturalWidth > 0));
@@ -290,7 +321,7 @@ await page.getByRole('button', { name: 'Save' }).click();
 await page.getByText('No location yet · first visit will save it').waitFor();
 step('owner adds a store with just a name and address');
 await shot('owner-stores');
-await page.getByRole('link', { name: 'Team' }).click();
+await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Remi Okafor/ }).click();
 await page.getByRole('heading', { name: 'Store visits' }).waitFor();
 await page.getByLabel('Visits per day').fill('3');
@@ -392,6 +423,60 @@ await page.getByRole('link', { name: 'Business owner? Sign in with email' }).cli
 await page.getByLabel('Email').fill('elvis@chfheron.com');
 await page.getByLabel('Password').fill('password1');
 await page.getByRole('button', { name: 'Sign in' }).click();
+
+// ── Manager's Today page ────────────────────────────────────
+await page.getByRole('heading', { name: 'Today' }).waitFor();
+const statusOf = (name) => page.locator('.brow', { hasText: name }).locator('.right').innerText();
+assert.match(await statusOf('Sade Bello'), /Late · 12 min\n1 to check/);
+assert.match(await statusOf('Remi Okafor'), /Present\n1 to check/);
+assert.match(await page.locator('.brow', { hasText: 'Remi Okafor' }).innerText(), /3 of 3 visits/);
+assert.match(await statusOf('Tunde Ade'), /No check-in/);
+step('Today shows everyone: Late (12 min), Present with "3 of 3 visits", No check-in, and records to check');
+await shot('owner-today');
+
+await page.getByRole('button', { name: /^No check-in/ }).click();
+assert.equal(await page.locator('.brow').count(), 1);
+await page.getByRole('checkbox', { name: 'Select Tunde Ade' }).check();
+await page.getByText('1 selected').waitFor();
+await shot('owner-today-bulk-bar');
+await page.getByRole('button', { name: 'Leave', exact: true }).click();     // one person: no confirm needed
+await page.getByText('1 person marked On leave').waitFor();
+await page.getByRole('button', { name: /^All/ }).click();
+assert.match(await statusOf('Tunde Ade'), /Leave\nset by manager/);
+step('filter "No check-in", tick one, tap Leave: marked "set by manager" (no confirm for one person)');
+
+let asked = '';
+page.once('dialog', (d) => { asked = d.message(); d.accept(); });
+await page.getByRole('checkbox', { name: 'Select all shown' }).check();
+await page.getByText('3 selected').waitFor();
+await page.getByRole('button', { name: 'Present', exact: true }).click();
+await page.getByText('3 people marked Present').waitFor();
+assert.match(asked, /^Mark 3 people as Present on today\?$/);
+assert.match(await statusOf('Sade Bello'), /Present\nset by manager/);
+step('select all, Present: asks "Mark 3 people as Present on today?" first');
+
+page.once('dialog', (d) => { asked = d.message(); d.accept(); });
+await page.getByRole('checkbox', { name: 'Select all shown' }).check();
+await page.getByRole('button', { name: 'Clear' }).click();
+await page.getByText('Cleared 3 people').waitFor();
+assert.match(asked, /clock-ins and visits are not changed/);
+assert.match(await statusOf('Sade Bello'), /Late · 12 min/);
+assert.match(await statusOf('Tunde Ade'), /No check-in/);
+step('Clear removes only what managers set: Sade is back to Late from her clock-in');
+
+const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date(Date.now() - 864e5));
+await page.locator('#day').fill(yesterday);
+await page.getByRole('link', { name: 'Back to today' }).waitFor();
+assert.match(await statusOf('Tunde Ade'), /Absent/);
+await page.getByRole('checkbox', { name: 'Select Tunde Ade' }).check();
+await page.getByRole('button', { name: 'Off', exact: true }).click();
+await page.getByText('1 person marked Off').waitFor();
+assert.match(await statusOf('Tunde Ade'), /Off\nset by manager/);
+assert.ok(dayStatus.has('m3|' + yesterday));
+step('fix a past date: yesterday shows Absent; marked Off');
+await shot('owner-fix-past-date');
+await page.getByRole('link', { name: 'Back to today' }).click();
+await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Remi Okafor/ }).click();
 await page.getByRole('heading', { name: 'Recent visits' }).waitFor();
 await page.waitForFunction(() => [...document.querySelectorAll('img[data-photo]')].every((i) => i.complete && i.naturalWidth > 0));

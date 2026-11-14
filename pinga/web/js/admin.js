@@ -6,7 +6,7 @@ import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, relo
 
 const tabs = (on) => `
   <nav class="tabs">
-    ${[['#/', 'Team'], ['#/offices', 'Offices'], ['#/stores', 'Stores'], ['#/hours', 'Hours']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
+    ${[['#/', 'Today'], ['#/team', 'Team'], ['#/offices', 'Offices'], ['#/stores', 'Stores'], ['#/hours', 'Hours']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
   </nav>`;
 
 export function adminRoute(me, name, arg) {
@@ -17,8 +17,9 @@ export function adminRoute(me, name, arg) {
   if (name === 'stores') return places(me, PLACE.store);
   if (name === 'store') return placeForm(me, PLACE.store, arg);
   if (name === 'assign') return assign(me, arg);
+  if (name === 'team') return team(me);
   if (name === 'hours') return hours(me);
-  return team(me);
+  return import('./today.js').then((m) => m.today(me, arg, tabs));
 }
 
 // ── Team ────────────────────────────────────────────────────
@@ -46,7 +47,7 @@ function invite(me) {
   const roles = [['staff', 'Office staff', 'Clocks in at the office'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
   show(`
     <main class="page narrow">
-      <a class="back" href="#/">‹ Team</a>
+      <a class="back" href="#/team">‹ Team</a>
       <h1>Invite someone</h1>
       <form class="stack">
         <label>Full name<input name="full_name" autocomplete="off" required></label>
@@ -89,7 +90,7 @@ async function person(me, id) {
     api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path,daily_visit_target&id=eq.${mid}`),
     api.select('attendance', `select=id,kind,happened_at,late_minutes,distance_m,photo_path,flags&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
   ]);
-  if (!p) return go('#/');
+  if (!p) return go('#/team');
   const isRep = p.role === 'rep';
   const [assigned, visits, stores] = isRep ? await Promise.all([
     api.select('store_assignments', `select=store_id&member_id=eq.${mid}`),
@@ -141,7 +142,7 @@ async function person(me, id) {
   };
   show(`
     <main class="page narrow">
-      <a class="back" href="#/">‹ Team</a>
+      <a class="back" href="#/team">‹ Team</a>
       <div class="person">
         ${p.reference_photo_path ? `<img class="face" data-photo="${esc(p.reference_photo_path)}" alt="Reference photo">` : ''}
         <div><h1>${esc(p.full_name)}</h1>
@@ -281,7 +282,7 @@ async function assign(me, id) {
     api.select('stores', `select=id,name,address&company_id=eq.${me.company_id}&active=is.true&order=name`),
     api.select('store_assignments', `select=store_id&member_id=eq.${encodeURIComponent(id)}`),
   ]);
-  if (!p) return go('#/');
+  if (!p) return go('#/team');
   const first = p.full_name.split(' ')[0];
   const had = new Set(current.map((a) => a.store_id));
   show(`

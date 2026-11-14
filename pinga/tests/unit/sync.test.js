@@ -110,3 +110,25 @@ test('the "waiting to send" badge is told about changes', async () => {
   await t.sync.flush();
   assert.deepEqual(seen.slice(0, 2), [1, 0]);
 });
+
+test('a store visit sends its selfie and shelf photo, then the visit', async () => {
+  const t = setup();
+  await t.sync.add({ type: 'visit', id: 'v1', member_id: 'me', company_id: 'co', store_id: 's9', happened_at: '2026-11-16T09:00:00Z',
+    lat: 6.6, lng: 3.35, accuracy: 12, selfie: { size: 1 }, shelf: { size: 2 }, note: 'Low stock' });
+  await t.sync.flush();
+  assert.deepEqual(t.uploads, ['co/me/v1.jpg', 'co/me/v1-shelf.jpg']);
+  assert.equal(t.sent[0].p_store, 's9');
+  assert.equal(t.sent[0].p_selfie_path, 'co/me/v1.jpg');
+  assert.equal(t.sent[0].p_shelf_path, 'co/me/v1-shelf.jpg');
+  assert.equal(t.sent[0].p_note, 'Low stock');
+});
+
+test('a visit without a shelf photo or note sends neither', async () => {
+  const t = setup();
+  await t.sync.add({ type: 'visit', id: 'v2', member_id: 'me', company_id: 'co', store_id: 's9', happened_at: '2026-11-16T09:00:00Z',
+    lat: 6.6, lng: 3.35, accuracy: 12, selfie: { size: 1 }, shelf: null, note: '' });
+  await t.sync.flush();
+  assert.deepEqual(t.uploads, ['co/me/v2.jpg']);
+  assert.equal(t.sent[0].p_shelf_path, null);
+  assert.equal(t.sent[0].p_note, null);
+});

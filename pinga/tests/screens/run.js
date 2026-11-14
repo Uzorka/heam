@@ -18,9 +18,15 @@ const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '1
 const people = [
   { id: 'm0', user: 'u-owner', full_name: 'Elvis Uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
   { id: 'm1', user: 'u-sade', full_name: 'Sade Bello', role: 'staff', phone: '+2348031234567', joined_at: '2026-11-14', invite_token: null, reference_photo_path: null },
-  { id: 'm2', user: null, full_name: 'Remi Okafor', role: 'rep', phone: '+2348059876543', joined_at: null, invite_token: 'f'.repeat(32), reference_photo_path: null },
+  { id: 'm2', user: null, full_name: 'Remi Okafor', role: 'rep', phone: '+2348059876543', joined_at: null, invite_token: 'f'.repeat(32), reference_photo_path: null, daily_visit_target: 4 },
 ];
 const attendance = [];
+const stores = [
+  { id: 's1', company_id: 'c1', name: 'Shoprite Ikeja', address: 'Obafemi Awolowo Way, Ikeja', lat: 6.6018, lng: 3.3515, radius_m: 100, location_source: 'manager', active: true },
+  { id: 's3', company_id: 'c1', name: 'Ebeano Ikota', address: 'Ikota Shopping Complex, Lekki', lat: 6.4440, lng: 3.5560, radius_m: 100, location_source: 'manager', active: true },
+];
+const assignments = [];
+const visits = [];
 const photos = new Map();
 let networkDown = false;
 let signedInAs = null;
@@ -81,6 +87,38 @@ async function fakeSupabase(route) {
     attendance.push(row);
     return json(route, row);
   }
+  if (p === '/rest/v1/stores' && m === 'GET') {
+    const mine = me?.role === 'rep' ? stores.filter((x) => assignments.some((a) => a.member_id === me.id && a.store_id === x.id)) : stores;
+    return json(route, param(q, 'id') ? mine.filter((x) => x.id === param(q, 'id')) : [...mine].sort((a, b) => a.name.localeCompare(b.name)));
+  }
+  if (p === '/rest/v1/stores' && m === 'POST') { const x = { id: 's' + (stores.length + 10), active: true, ...body }; stores.push(x); return json(route, [x]); }
+  if (p === '/rest/v1/stores' && m === 'PATCH') { Object.assign(stores.find((x) => x.id === param(q, 'id')), body); return json(route, []); }
+  if (p === '/rest/v1/store_assignments' && m === 'GET') return json(route, assignments.filter((a) => a.member_id === param(q, 'member_id')).map((a) => ({ store_id: a.store_id })));
+  if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
+  if (p === '/rest/v1/store_assignments' && m === 'DELETE') {
+    const ids = /store_id=in\.\(([^)]*)\)/.exec(decodeURIComponent(q))[1].split(',');
+    for (const id of ids) assignments.splice(assignments.findIndex((a) => a.member_id === param(q, 'member_id') && a.store_id === id), 1);
+    return route.fulfill({ status: 204 });
+  }
+  if (p === '/rest/v1/members' && m === 'PATCH') { Object.assign(people.find((x) => x.id === param(q, 'id')), body); return json(route, []); }
+  if (p === '/rest/v1/visits' && m === 'GET') {
+    return json(route, visits.filter((v) => v.member_id === param(q, 'member_id')).sort((a, b) => b.happened_at.localeCompare(a.happened_at)));
+  }
+  if (p === '/rest/v1/rpc/record_visit') {
+    const existing = visits.find((v) => v.id === body.p_id);
+    if (existing) return json(route, existing);
+    const st = stores.find((x) => x.id === body.p_store);
+    const flags = [];
+    if (!assignments.some((a) => a.member_id === me.id && a.store_id === st.id)) flags.push('not_assigned');
+    let d = null;
+    if (st.lat == null) { if (body.p_accuracy <= 50) { Object.assign(st, { lat: body.p_lat, lng: body.p_lng, location_source: 'first_visit' }); d = 0; flags.push('store_located'); } else flags.push('no_store_location'); }
+    else { d = dist(st, { lat: body.p_lat, lng: body.p_lng }); if (d > st.radius_m + Math.min(body.p_accuracy, 50)) flags.push('outside_radius'); }
+    if (!body.p_selfie_path) flags.push('no_photo');
+    const row = { id: body.p_id, member_id: me.id, store_id: st.id, happened_at: body.p_happened_at, distance_m: d == null ? null : Math.round(d),
+      selfie_path: body.p_selfie_path, shelf_photo_path: body.p_shelf_path, note: body.p_note, flags };
+    visits.push(row);
+    return json(route, row);
+  }
   if (p === '/rest/v1/rpc/set_reference_photo') { me.reference_photo_path = body.p_path; return json(route, null); }
   if (p.startsWith('/storage/v1/object/authenticated/photos/')) {
     const bytes = photos.get(p.replace('/storage/v1/object/authenticated/photos/', ''));
@@ -119,6 +157,7 @@ await page.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
 let n = 0;
 const shot = async (name) => page.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-${name}.png` });
 const step = (name) => console.log('ok -', name);
+const until = async (fn, what) => { for (let i = 0; i < 100; i++) { if (fn()) return; await new Promise((r) => setTimeout(r, 100)); } throw new Error('Timed out waiting for ' + what); };
 const goOnline = () => page.evaluate(() => dispatchEvent(new Event('online')));
 
 // Slow phone + slow 3G: how long until the sign-in screen is usable?
@@ -180,7 +219,7 @@ await page.reload();
 await page.getByText('1 waiting to send').waitFor();
 step('closing and reopening the app with no signal keeps the waiting clock-out');
 await page.getByRole('button', { name: 'Sign out' }).click();
-await page.getByText("Some clock-ins haven't been sent yet").waitFor();
+await page.getByText("Some check-ins haven't been sent yet").waitFor();
 step('cannot sign out while clock-ins are waiting (they would be lost)');
 const tappedAt = Date.now();
 await page.waitForTimeout(1500);
@@ -240,6 +279,33 @@ await page.getByText(/Outside the office \(1\.0 km\)/).waitFor();
 step('owner sees each clock-in with its photo, lateness and any flags');
 await shot('owner-person-clock-ins');
 await page.getByRole('link', { name: '‹ Team' }).click();
+
+// ── Owner: stores and a rep's stores ────────────────────────
+await page.getByRole('link', { name: 'Stores' }).click();
+await page.getByRole('link', { name: 'Add store' }).click();
+await page.getByLabel('Name').fill('Spar Lekki');
+await page.getByLabel('Address (optional)').fill('Admiralty Way, Lekki');
+await shot('owner-add-store');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('No location yet · first visit will save it').waitFor();
+step('owner adds a store with just a name and address');
+await shot('owner-stores');
+await page.getByRole('link', { name: 'Team' }).click();
+await page.getByRole('link', { name: /Remi Okafor/ }).click();
+await page.getByRole('heading', { name: 'Store visits' }).waitFor();
+await page.getByLabel('Visits per day').fill('3');
+await page.getByRole('button', { name: 'Save', exact: true }).click();
+await page.getByText('Target saved: 3 visits a day').waitFor();
+await page.getByRole('link', { name: /Assigned stores/ }).click();
+await page.getByRole('heading', { name: 'Stores for Remi' }).waitFor();
+for (const n of ['Shoprite Ikeja', 'Spar Lekki', 'Ebeano Ikota']) await page.getByText(n, { exact: true }).click();
+await page.getByText('3 selected').waitFor();
+await shot('owner-assign-stores');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('Remi now covers 3 stores').waitFor();
+assert.equal(assignments.length, 3);
+step('owner sets a daily target and ticks the stores a rep covers');
+await page.getByRole('link', { name: '‹ Team' }).click();
 await page.getByRole('button', { name: 'Sign out' }).click();
 
 // ── New sales rep joins from their WhatsApp link ────────────
@@ -253,9 +319,89 @@ step('easy PINs are refused');
 await page.getByLabel('New PIN').fill('482913');
 await page.getByLabel('Type it again').fill('482913');
 await page.getByRole('button', { name: 'Save PIN' }).click();
-await page.getByText("You're all set up as sales rep at CHF Heron.").waitFor();
+await page.getByRole('heading', { name: 'Your photo' }).waitFor();
 step('new rep sets a PIN from the invite link and is signed in');
+await page.getByRole('button', { name: 'Take photo' }).click();
+
+// ── Field visits ────────────────────────────────────────────
+await ctx.setGeolocation({ latitude: 6.6019, longitude: 3.3516, accuracy: 12 }); // standing at Shoprite Ikeja
+await page.getByRole('heading', { name: 'Hi, Remi' }).waitFor();
+await page.getByText('No visits yet today').waitFor();
+await page.getByText('Nearest · go here next').waitFor();
+const order = await page.locator('.store b:not(.ic b)').allTextContents();
+assert.deepEqual(order.filter((x) => isNaN(x)), ['Shoprite Ikeja', 'Ebeano Ikota', 'Spar Lekki'], 'nearest first; stores with no location last');
+step('rep sees "0 of 3", their stores nearest first, the nearest highlighted');
+await shot('rep-today');
+
+await page.getByRole('button', { name: /Shoprite Ikeja/ }).click();
+await page.getByText("✓ You're at the store").waitFor();
+await shot('rep-check-in');
+await page.getByRole('button', { name: 'Add shelf photo (optional)' }).click();
+await page.getByRole('button', { name: 'Take shelf photo' }).click();
+await page.getByRole('img', { name: 'Shelf photo' }).waitFor();
+await page.getByLabel('Note (optional)').fill('Low stock on Sebamed, met the store manager');
+await page.getByRole('button', { name: 'Take selfie and check in' }).waitFor();
+await shot('rep-check-in-with-shelf-photo');
+await page.getByRole('button', { name: 'Take selfie and check in' }).click();
+await page.getByText('1 of 3 visits done today').waitFor();
+await page.getByText(/Visited \d/).waitFor();
+await until(() => visits.length === 1, 'the visit to be sent');
+assert.deepEqual(visits[0].flags, []);
+assert.ok(photos.has(visits[0].selfie_path) && photos.has(visits[0].shelf_photo_path), 'selfie and shelf photo uploaded');
+assert.ok(photos.get(visits[0].shelf_photo_path).length <= 80 * 1024);
+step('check-in at the store: GPS + selfie + shelf photo + note; "1 of 3" and "Visited"');
+await shot('rep-today-1-done');
+
+await ctx.setGeolocation({ latitude: 6.4400, longitude: 3.4700, accuracy: 12 }); // at Spar Lekki
+await page.getByRole('button', { name: /Spar Lekki/ }).click();
+await page.getByText("This store's location isn't saved yet. Checking in here will save it.").waitFor();
+await page.getByRole('button', { name: 'Take selfie and check in' }).click();
+await page.getByText('2 of 3 visits done today').waitFor();
+await until(() => visits.length === 2, 'the second visit to be sent');
+assert.deepEqual(visits[1].flags, ['store_located']);
+assert.equal(stores.find((x) => x.name === 'Spar Lekki').lat, 6.44);
+step('first visit to a store with no location saves its location (flagged for the manager)');
+
+await page.getByRole('button', { name: /Ebeano Ikota/ }).click();
+await page.getByText("You're outside this store's zone").waitFor();
+await page.getByRole('button', { name: 'Pick another store' }).waitFor();
+await shot('rep-outside-zone');
+page.once('dialog', (d) => d.accept());
+networkDown = true;
+await page.getByRole('button', { name: 'Check in anyway (flagged)' }).click();
+await page.getByText('Target reached').waitFor();
+await page.getByText('1 check-in saved on this phone').waitFor();
+step('outside the zone: "Pick another store", or check in anyway after a warning; no signal: saved on the phone');
+await shot('rep-target-reached-offline');
+networkDown = false;
+await goOnline();
+await page.getByText('1 check-in saved on this phone').waitFor({ state: 'hidden' });
+await until(() => visits.length === 3, 'the third visit to be sent');
+assert.deepEqual(visits[2].flags, ['outside_radius']);
+step('signal back: the visit is sent and flagged "outside the store"');
+
+await page.getByRole('link', { name: 'History' }).click();
+await page.getByRole('heading', { name: 'History' }).waitFor();
+await page.getByText('3 visits').waitFor();
+await shot('rep-history');
+step('History shows the last 30 days, with flags');
 await page.getByRole('button', { name: 'Sign out' }).click();
+
+// Owner sees Remi's visits.
+await page.getByRole('link', { name: 'Business owner? Sign in with email' }).click();
+await page.getByLabel('Email').fill('elvis@chfheron.com');
+await page.getByLabel('Password').fill('password1');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('link', { name: /Remi Okafor/ }).click();
+await page.getByRole('heading', { name: 'Recent visits' }).waitFor();
+await page.waitForFunction(() => [...document.querySelectorAll('img[data-photo]')].every((i) => i.complete && i.naturalWidth > 0));
+await page.getByText('“Low stock on Sebamed, met the store manager”').waitFor();
+await page.getByText('Store location saved from this visit').waitFor();
+step('owner sees each visit with selfie, shelf photo, note and flags');
+await shot('owner-rep-visits');
+await page.getByRole('link', { name: '‹ Team' }).click();
+await page.getByRole('button', { name: 'Sign out' }).click();
+
 await page.goto(base + '#/join/' + 'f'.repeat(32));
 await page.getByRole('heading', { name: 'This link has expired' }).waitFor();
 step('a used invite link cannot be used again');

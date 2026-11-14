@@ -165,7 +165,7 @@ function noCompany() {
 const loadMe = () => api.cached('me', async () => {
   const uid = api.getSession().user.id;
   const rows = await api.select('members',
-    'select=id,role,full_name,company_id,reference_photo_path,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days)' +
+    'select=id,role,full_name,company_id,reference_photo_path,daily_visit_target,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days)' +
     `&user_id=eq.${uid}&active=is.true&order=created_at&limit=1`);
   return rows[0] || null;
 });

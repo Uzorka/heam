@@ -43,6 +43,15 @@ Individual checks: `npm run test:unit`, `npm run test:db`, `npm run test:screens
 
 Managers set up **Offices** (stand in the office and tap "Use my current location", or paste from Google Maps) and **Hours** (start, end, grace minutes, work days).
 
+## Store visits (field sales)
+
+Same layout and flow as the CHF Heron field sales tracker.
+
+- **Today:** "Hi, Remi", a progress ring ("2 of 4 visits done today"), and My stores sorted **nearest first** (or A–Z), with the nearest unvisited store highlighted "go here next". Visited stores move to the bottom with "Visited 9:14 am".
+- **Check in at a store:** fresh GPS + selfie, optional shelf photo (back camera) and note. Inside the store's area: "You're at the store". Outside: "Pick another store", or "Check in anyway (flagged)" after a warning.
+- Saved on the phone first, like clock-ins. **History** shows the last 30 days.
+- Managers add **Stores** (a name and address is enough; the first visit with good GPS saves the location, flagged for checking), set each rep's **visits per day**, and tick the **stores each rep covers**. Each rep's page shows recent visits with selfie, shelf photo, note and flags.
+
 ## Who can see what (enforced by the database)
 
 | | Own company | Other companies |

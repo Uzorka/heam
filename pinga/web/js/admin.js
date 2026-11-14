@@ -1,29 +1,22 @@
-// Owner and manager screens: team, invites, offices, working hours.
+// Owner and manager screens: team, invites, offices, stores, store assignments, working hours.
 import * as api from './api.js';
 import { normalizePhone, displayPhone } from './phone.js';
 import { watchBest, parseLatLng } from './gps.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance } from './ui.js';
-
-const FLAG = {
-  outside_radius: 'Outside the office',
-  weak_gps: 'Weak GPS signal',
-  suspicious_gps: 'Possible fake location',
-  impossible_speed: 'Impossible travel speed',
-  clock_changed: 'Phone clock was changed',
-  no_photo: 'No photo',
-  no_office: 'No office set up',
-};
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel } from './ui.js';
 
 const tabs = (on) => `
   <nav class="tabs">
-    ${[['#/', 'Team'], ['#/offices', 'Offices'], ['#/hours', 'Hours']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
+    ${[['#/', 'Team'], ['#/offices', 'Offices'], ['#/stores', 'Stores'], ['#/hours', 'Hours']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
   </nav>`;
 
 export function adminRoute(me, name, arg) {
   if (name === 'invite') return invite(me);
   if (name === 'person') return person(me, arg);
-  if (name === 'offices') return offices(me);
-  if (name === 'office') return officeForm(me, arg);
+  if (name === 'offices') return places(me, PLACE.office);
+  if (name === 'office') return placeForm(me, PLACE.office, arg);
+  if (name === 'stores') return places(me, PLACE.store);
+  if (name === 'store') return placeForm(me, PLACE.store, arg);
+  if (name === 'assign') return assign(me, arg);
   if (name === 'hours') return hours(me);
   return team(me);
 }
@@ -91,15 +84,43 @@ function loadPhotos() {
 
 async function person(me, id) {
   const tz = me.companies.timezone;
+  const mid = encodeURIComponent(id);
   const [[p], records] = await Promise.all([
-    api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path&id=eq.${encodeURIComponent(id)}`),
-    api.select('attendance', `select=id,kind,happened_at,late_minutes,distance_m,photo_path,flags&member_id=eq.${encodeURIComponent(id)}&order=happened_at.desc&limit=10`),
+    api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path,daily_visit_target&id=eq.${mid}`),
+    api.select('attendance', `select=id,kind,happened_at,late_minutes,distance_m,photo_path,flags&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
   ]);
   if (!p) return go('#/');
+  const isRep = p.role === 'rep';
+  const [assigned, visits, stores] = isRep ? await Promise.all([
+    api.select('store_assignments', `select=store_id&member_id=eq.${mid}`),
+    api.select('visits', `select=id,store_id,happened_at,distance_m,selfie_path,shelf_photo_path,note,flags&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
+    api.select('stores', `select=id,name&company_id=eq.${me.company_id}`),
+  ]) : [[], [], []];
+  const storeName = new Map(stores.map((s) => [s.id, s.name]));
+  const visitRow = (v) => `
+      <li class="card row record">
+        ${v.selfie_path ? `<img class="thumb" data-photo="${esc(v.selfie_path)}" alt="Selfie at the store">` : '<span class="thumb"></span>'}
+        <span class="grow"><strong>${esc(storeName.get(v.store_id) || 'Store')}</strong><br>
+          <span class="muted">${fmtDay(v.happened_at, tz)} · ${fmtTime(v.happened_at, tz)}</span>
+          ${v.note ? `<br><span class="note">“${esc(v.note)}”</span>` : ''}
+          ${v.flags.length ? '<br>' + v.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'store'))}${f === 'outside_radius' && v.distance_m != null ? ` (${fmtDistance(v.distance_m)})` : ''}</span>`).join(' ') : ''}</span>
+        ${v.shelf_photo_path ? `<img class="thumb" data-photo="${esc(v.shelf_photo_path)}" alt="Shelf photo">` : ''}
+      </li>`;
+  const repSection = isRep ? `
+      <h2 class="section">Store visits</h2>
+      <div class="card stack">
+        <form class="inline-form">
+          <label>Visits per day<input name="target" type="number" min="0" max="50" value="${p.daily_visit_target ?? 4}" required></label>
+          <button type="submit" class="secondary">Save</button>
+          <p class="error" role="alert"></p>
+        </form>
+        <a class="row link-row" href="#/assign/${p.id}"><span>Assigned stores</span><span><b>${assigned.length}</b> <span class="chev">›</span></span></a>
+      </div>
+      ${visits.length ? `<h2 class="section">Recent visits</h2><ul class="list">${visits.map(visitRow).join('')}</ul>` : ''}` : '';
   const first = p.full_name.split(' ')[0];
   const share = (token) => {
     const link = `${location.origin}${location.pathname}#/join/${token}`;
-    const text = `Hi ${first}, ${me.companies.name} uses Pinga for attendance. Open this link to set your PIN: ${link}`;
+    const text = `Hi ${first}, ${me.companies.name} uses Pinga${isRep ? ' for store visits' : ' for attendance'}. Open this link to set your PIN: ${link}`;
     return `
       <div class="card stack">
         <p>Send ${esc(first)} this link. It works for 7 days.</p>
@@ -110,7 +131,7 @@ async function person(me, id) {
   };
   const row = (r) => {
     const late = r.kind === 'in' && r.late_minutes > 0 ? ` · <span class="late">${r.late_minutes} min late</span>` : '';
-    const flags = r.flags.map((f) => `<span class="pill warn">${FLAG[f] || esc(f)}${f === 'outside_radius' && r.distance_m != null ? ` (${fmtDistance(r.distance_m)})` : ''}</span>`).join(' ');
+    const flags = r.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'office'))}${f === 'outside_radius' && r.distance_m != null ? ` (${fmtDistance(r.distance_m)})` : ''}</span>`).join(' ');
     return `
       <li class="card row record">
         ${r.photo_path ? `<img class="thumb" data-photo="${esc(r.photo_path)}" alt="Photo at ${r.kind === 'in' ? 'clock-in' : 'clock-out'}">` : '<span class="thumb"></span>'}
@@ -131,8 +152,12 @@ async function person(me, id) {
           : p.invite_token ? share(p.invite_token)
           : `<p>${esc(first)} has joined.</p><button class="secondary" id="reset">Forgot PIN? Create a new PIN link</button>`}
       </div>
+      ${repSection}
       ${records.length ? `<h2 class="section">Recent clock-ins</h2><ul class="list">${records.map(row).join('')}</ul>` : ''}
-    </main>`);
+    </main>`, isRep ? async ({ target }) => {
+    await api.update('members', `id=eq.${p.id}`, { daily_visit_target: Number(target) });
+    toast(`Target saved: ${Number(target)} visits a day`);
+  } : undefined);
   loadPhotos();
   const wireCopy = () => {
     const btn = document.getElementById('copy');
@@ -156,20 +181,40 @@ async function person(me, id) {
   }
 }
 
-// ── Offices ─────────────────────────────────────────────────
+// ── Offices and stores ──────────────────────────────────────
 
-async function offices(me) {
-  const list = await api.select('branches', `select=id,name,address,radius_m&company_id=eq.${me.company_id}&order=name`);
+const PLACE = {
+  office: {
+    table: 'branches', plural: 'Offices', one: 'office', path: 'office', back: '#/offices',
+    empty: 'Add your office so staff can clock in there.', example: 'e.g. Yaba office',
+    area: 'Clock-in area', areaHint: 'Staff must be this close to clock in without a flag. 100 m suits most offices.',
+    needsLocation: true, hint: 'Stand in the office and tap the button below, or paste the numbers from Google Maps.',
+  },
+  store: {
+    table: 'stores', plural: 'Stores', one: 'store', path: 'store', back: '#/stores',
+    empty: 'Add the stores your sales reps visit, then assign them on each rep\'s page.', example: 'e.g. Shoprite Ikeja',
+    area: 'Check-in area', areaHint: 'Reps must be this close to check in without a flag. 100 m suits most stores.',
+    needsLocation: false, hint: 'Optional. Leave empty and the first visit with good GPS will save it. Or stand in the store and tap the button below, or paste from Google Maps.',
+  },
+};
+
+const whereText = (k, b) => (k.table !== 'stores' ? `${k.area} ${b.radius_m} m`
+  : b.lat == null ? 'No location yet · first visit will save it'
+  : b.location_source === 'first_visit' ? 'Location from first visit · please check' : `${k.area} ${b.radius_m} m`);
+
+async function places(me, k) {
+  const cols = k.table === 'stores' ? 'id,name,address,radius_m,lat,location_source' : 'id,name,address,radius_m';
+  const list = await api.select(k.table, `select=${cols}&company_id=eq.${me.company_id}&order=name`);
   show(`
     <main class="page">
-      ${header(me, 'Offices')}
-      ${tabs('Offices')}
-      <a class="primary button" href="#/office/new">Add office</a>
-      ${list.length ? '' : '<p class="muted center empty">Add your office so staff can clock in there.</p>'}
+      ${header(me, k.plural)}
+      ${tabs(k.plural)}
+      <a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>
+      ${list.length ? '' : `<p class="muted center empty">${k.empty}</p>`}
       <ul class="list">
         ${list.map((b) => `
-          <li><a class="card row" href="#/office/${b.id}">
-            <span><strong>${esc(b.name)}</strong><br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}Clock-in area ${b.radius_m} m</span></span>
+          <li><a class="card row" href="#/${k.path}/${b.id}">
+            <span><strong>${esc(b.name)}</strong><br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span></span>
             <span class="chev">›</span>
           </a></li>`).join('')}
       </ul>
@@ -177,38 +222,43 @@ async function offices(me) {
   wireSignOut();
 }
 
-async function officeForm(me, id) {
+async function placeForm(me, k, id) {
   const isNew = id === 'new';
-  const b = isNew ? { radius_m: 100 } : (await api.select('branches', `select=*&id=eq.${encodeURIComponent(id)}`))[0];
-  if (!b) return go('#/offices');
+  const b = isNew ? { radius_m: 100 } : (await api.select(k.table, `select=*&id=eq.${encodeURIComponent(id)}`))[0];
+  if (!b) return go(k.back);
   show(`
     <main class="page narrow">
-      <a class="back" href="#/offices">‹ Offices</a>
-      <h1>${isNew ? 'Add office' : esc(b.name)}</h1>
+      <a class="back" href="${k.back}">‹ ${k.plural}</a>
+      <h1>${isNew ? `Add ${k.one}` : esc(b.name)}</h1>
       <form class="stack">
-        <label>Name<input name="name" value="${esc(b.name)}" placeholder="e.g. Yaba office" required></label>
+        <label>Name<input name="name" value="${esc(b.name)}" placeholder="${k.example}" required></label>
         <label><span>Address <span class="muted">(optional)</span></span><input name="address" value="${esc(b.address)}"></label>
-        <label>Location<input name="where" id="where" value="${b.lat != null ? `${b.lat}, ${b.lng}` : ''}" placeholder="6.5095, 3.3711" inputmode="decimal" required>
-          <span class="hint muted">Stand in the office and tap the button below, or paste the numbers from Google Maps.</span></label>
+        <label><span>Location${k.needsLocation ? '' : ' <span class="muted">(optional)</span>'}</span><input name="where" id="where" value="${b.lat != null ? `${b.lat}, ${b.lng}` : ''}" placeholder="6.5095, 3.3711" inputmode="decimal"${k.needsLocation ? ' required' : ''}>
+          <span class="hint muted">${b.location_source === 'first_visit' ? 'Saved from the first visit. Change it if it looks wrong.' : k.hint}</span></label>
         <button type="button" class="secondary" id="here">Use my current location</button>
-        <label>Clock-in area (metres)<input name="radius_m" type="number" min="20" max="2000" value="${b.radius_m}" required>
-          <span class="hint muted">Staff must be this close to clock in without a flag. 100 m suits most offices.</span></label>
+        <label>${k.area} (metres)<input name="radius_m" type="number" min="20" max="2000" value="${b.radius_m}" required>
+          <span class="hint muted">${k.areaHint}</span></label>
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Save</button>
       </form>
     </main>`, async ({ name, address, where, radius_m }) => {
-    const pos = parseLatLng(where);
-    if (!pos) throw new Say('Location should look like 6.5095, 3.3711.');
-    const row = { name: name.trim(), address: address.trim() || null, lat: pos.lat, lng: pos.lng, radius_m: Number(radius_m) };
+    const pos = where.trim() ? parseLatLng(where) : null;
+    if (where.trim() && !pos) throw new Say('Location should look like 6.5095, 3.3711.');
+    if (k.needsLocation && !pos) throw new Say('Please add the location.');
+    const row = { name: name.trim(), address: address.trim() || null, lat: pos?.lat ?? null, lng: pos?.lng ?? null, radius_m: Number(radius_m) };
+    if (k.table === 'stores') {
+      const moved = !pos || pos.lat !== b.lat || pos.lng !== b.lng;
+      row.location_source = !pos ? null : moved ? 'manager' : b.location_source;
+    }
     try {
-      if (isNew) await api.insert('branches', { company_id: me.company_id, ...row });
-      else await api.update('branches', `id=eq.${b.id}`, row);
+      if (isNew) await api.insert(k.table, { company_id: me.company_id, ...row });
+      else await api.update(k.table, `id=eq.${b.id}`, row);
     } catch (x) {
-      if (x.code === '23505') throw new Say('You already have an office with this name.');
+      if (x.code === '23505') throw new Say(`You already have an ${k.one} with this name.`);
       throw x;
     }
-    toast('Office saved');
-    go('#/offices');
+    toast(`${k.one[0].toUpperCase() + k.one.slice(1)} saved`);
+    go(k.back);
   });
   const btn = document.getElementById('here');
   btn.onclick = () => {
@@ -221,6 +271,46 @@ async function officeForm(me, id) {
     { goodM: 15, maxMs: 30000 });
     onLeave(stop);
   };
+}
+
+// ── Which stores a rep covers ───────────────────────────────
+
+async function assign(me, id) {
+  const [[p], stores, current] = await Promise.all([
+    api.select('members', `select=id,full_name&id=eq.${encodeURIComponent(id)}`),
+    api.select('stores', `select=id,name,address&company_id=eq.${me.company_id}&active=is.true&order=name`),
+    api.select('store_assignments', `select=store_id&member_id=eq.${encodeURIComponent(id)}`),
+  ]);
+  if (!p) return go('#/');
+  const first = p.full_name.split(' ')[0];
+  const had = new Set(current.map((a) => a.store_id));
+  show(`
+    <main class="page narrow">
+      <a class="back" href="#/person/${p.id}">‹ ${esc(p.full_name)}</a>
+      <h1>Stores for ${esc(first)}</h1>
+      <p class="muted" id="count"></p>
+      ${stores.length ? `<input id="sq" type="search" placeholder="Search stores" aria-label="Search stores"${stores.length > 8 ? '' : ' hidden'}>` : `<p class="empty">No stores yet. <a href="#/store/new">Add a store</a> first.</p>`}
+      <form class="stack">
+        <fieldset class="choices">
+          ${stores.map((s) => `<label class="choice" data-name="${esc(`${s.name} ${s.address || ''}`.toLowerCase())}"><input type="checkbox" name="s" value="${s.id}"${had.has(s.id) ? ' checked' : ''}><span><strong>${esc(s.name)}</strong>${s.address ? `<br><span class="muted">${esc(s.address)}</span>` : ''}</span></label>`).join('')}
+        </fieldset>
+        <p class="error" role="alert"></p>
+        <button type="submit" class="primary"${stores.length ? '' : ' hidden'}>Save</button>
+      </form>
+    </main>`, async (_, form) => {
+    const now = new Set(new FormData(form).getAll('s'));
+    const add = [...now].filter((s) => !had.has(s));
+    const drop = [...had].filter((s) => !now.has(s));
+    if (add.length) await api.insertRows('store_assignments', add.map((store_id) => ({ company_id: me.company_id, member_id: p.id, store_id })));
+    if (drop.length) await api.remove('store_assignments', `member_id=eq.${p.id}&store_id=in.(${drop.join(',')})`);
+    toast(`${first} now covers ${now.size} store${now.size === 1 ? '' : 's'}`);
+    go('#/person/' + p.id);
+  });
+  const count = () => { document.getElementById('count').textContent = `Tick the stores ${first} covers. ${app.querySelectorAll('input[name=s]:checked').length} selected.`; };
+  count();
+  app.querySelector('form').addEventListener('change', count);
+  const sq = document.getElementById('sq');
+  if (sq) sq.oninput = () => app.querySelectorAll('[data-name]').forEach((l) => { l.hidden = !l.dataset.name.includes(sq.value.toLowerCase()); });
 }
 
 // ── Working hours ───────────────────────────────────────────

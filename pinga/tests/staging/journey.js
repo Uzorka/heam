@@ -34,8 +34,11 @@ const login = phone.slice(1) + '@phone.usepinga.com';
 const [{ company, member, token }] = await sql(`
   with c as (insert into public.companies (name) values ('Staging check (auto-deleted)') returning id),
        b as (insert into public.branches (company_id, name, lat, lng) select id, 'Yaba', 6.5095, 3.3711 from c),
-       m as (insert into public.members (company_id, full_name, phone, role) select id, 'Check Person', '${phone}', 'staff' from c returning id, invite_token)
-  select (select id from c) as company, m.id as member, m.invite_token as token from m;`);
+       m as (insert into public.members (company_id, full_name, phone, role) select id, 'Check Person', '${phone}', 'staff' from c returning id, invite_token),
+       s as (insert into public.stores (company_id, name, address) select id, 'Check Store', 'No location yet' from c returning id),
+       a as (insert into public.store_assignments (company_id, member_id, store_id) select (select id from c), m.id, s.id from m, s)
+  select (select id from c) as company, m.id as member, m.invite_token as token, (select id from s) as store from m;`);
+const [{ store }] = await sql(`select id as store from public.stores where company_id = '${company}'`);
 
 try {
   const preview = await call('/rest/v1/rpc/invite_preview', { method: 'POST', body: { p_token: token } });
@@ -87,6 +90,19 @@ try {
   const mine = await call(`/rest/v1/attendance?select=id&member_id=eq.${member}`, { token: t });
   assert.equal(mine.data.length, 1);
   step(`clock-in recorded at the office with no flags (${rec.data.distance_m} m away); re-send saved once`);
+
+  const stores = await call('/rest/v1/stores?select=id,name,lat', { token: t });
+  assert.deepEqual(stores.data.map((x) => x.name), ['Check Store'], 'sees only assigned stores');
+  const later = new Date(Date.now() + 1000).toISOString();
+  const v = await call('/rest/v1/rpc/record_visit', { method: 'POST', token: t, body: {
+    p_id: crypto.randomUUID(), p_store: store, p_happened_at: later, p_lat: 6.5097, p_lng: 3.3713, p_accuracy: 12,
+    p_selfie_path: path, p_shelf_path: null, p_note: ' Low stock ', p_device_now: later } });
+  assert.equal(v.status, 200, JSON.stringify(v.data));
+  assert.deepEqual(v.data.flags, ['store_located']);
+  assert.equal(v.data.note, 'Low stock');
+  const located = await call(`/rest/v1/stores?select=lat&id=eq.${store}`, { token: t });
+  assert.equal(located.data[0].lat, 6.5097);
+  step('store visit recorded; a store with no location gets it from the first visit (flagged)');
 } finally {
   await sql(`
     set local storage.allow_delete_query = 'true';

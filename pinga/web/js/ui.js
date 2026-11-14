@@ -76,3 +76,17 @@ export const fmtTime = (iso, tz) => new Date(iso).toLocaleTimeString('en-NG', { 
 export const fmtDay = (iso, tz) => new Date(iso).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz });
 export const localDate = (d, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 export const fmtDistance = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+
+// Plain-English reasons a record was flagged for the manager.
+export const FLAG = {
+  weak_gps: 'Weak GPS signal',
+  suspicious_gps: 'Possible fake location',
+  impossible_speed: 'Impossible travel speed',
+  clock_changed: 'Phone clock was changed',
+  no_photo: 'No photo',
+  no_office: 'No office set up',
+  not_assigned: 'Store not assigned to them',
+  store_located: 'Store location saved from this visit',
+  no_store_location: 'Store location unknown',
+};
+export const flagLabel = (f, place) => (f === 'outside_radius' ? `Outside the ${place}` : FLAG[f] || f);

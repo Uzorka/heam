@@ -1,43 +1,22 @@
 // Staff screens: reference photo, home, clock in / clock out. Everything works without signal.
 import * as api from './api.js';
-import { outbox } from './outbox.js';
-import { createSync } from './sync.js';
+import { sync, outbox, setMember, uuid, safeToSignOut, waitingText } from './queue.js';
 import { watchBest, nearest } from './gps.js';
 import { startCamera, capture } from './camera.js';
 import { report } from './report.js';
-import { show, go, esc, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, localDate, fmtDistance } from './ui.js';
+import { show, go, esc, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, fmtTime, localDate, fmtDistance } from './ui.js';
 
-let current = null; // the signed-in person
-const sync = createSync({ store: outbox, api, report, memberId: () => current?.id });
-
-// Send whenever the chance comes: app opened, signal back, every minute while open.
-addEventListener('online', () => sync.flush());
-document.addEventListener('visibilitychange', () => { if (!document.hidden) sync.flush(); });
-setInterval(() => sync.flush(), 60000);
-
-const uuid = () => (crypto.randomUUID ? crypto.randomUUID()
-  : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
-
-export function staffRoute(me, name, arg) {
-  current = me;
+export async function staffRoute(me, name, arg) {
+  setMember(me);
   api.syncClock().catch(() => {});
   sync.flush();
-  if (me.role === 'rep') return repHome(me);
+  if (me.role === 'rep' && me.reference_photo_path) return (await import('./field.js')).fieldRoute(me, name, arg);
   if (!me.reference_photo_path) return referencePhoto(me);
   if (name === 'clock') return clock(me, arg === 'out' ? 'out' : 'in');
   return home(me);
 }
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
-
-// Signing out with unsent clock-ins would lose them.
-const safeToSignOut = async () => {
-  if (!(await sync.count())) return true;
-  toast("Some clock-ins haven't been sent yet. Connect to the internet first.");
-  return false;
-};
-
-const waitingText = (n) => (n ? `${n} waiting to send · will send when you have signal` : '');
 
 // ── Home ────────────────────────────────────────────────────
 
@@ -51,7 +30,7 @@ async function home(me) {
     return [];
   });
   const waiting = (await outbox.all()).filter((r) => r.member_id === me.id);
-  const events = [...sent.filter(isToday), ...waiting.filter((w) => isToday(w) && !sent.some((s) => s.id === w.id))]
+  const events = [...sent.filter(isToday), ...waiting.filter((w) => w.type !== 'visit' && isToday(w) && !sent.some((s) => s.id === w.id))]
     .sort((a, b) => a.happened_at.localeCompare(b.happened_at));
   const last = events[events.length - 1];
   const firstIn = events.find((e) => e.kind === 'in');
@@ -86,28 +65,15 @@ async function home(me) {
   onLeave(off);
 }
 
-function repHome(me) {
-  show(`
-    <main class="page narrow">
-      ${header(me, greeting())}
-      <div class="card hero">
-        <h2>${esc(me.full_name.split(' ')[0])}</h2>
-        <p>You're all set up as ${ROLE[me.role].toLowerCase()} at ${esc(me.companies.name)}.</p>
-      </div>
-      <p class="muted center">Store visits arrive in the next update.</p>
-    </main>`);
-  wireSignOut();
-}
-
 // ── Camera screen (shared by reference photo and clock in/out) ──
 
-function cameraScreen({ title, intro = '', back = true }) {
+export function cameraScreen({ title, intro = '', back = true }) {
   show(`
     <main class="page narrow">
       ${back ? '<a class="back" href="#/">‹ Back</a>' : '<div class="brand">Pinga</div>'}
       <h1>${title}</h1>
       ${intro}
-      <div class="camera"><video playsinline muted></video></div>
+      <div class="camera"><video class="mirror" playsinline muted></video></div>
       <p class="where" id="where"></p>
       <p class="error" id="err" role="alert"></p>
       <button class="primary" id="go" disabled>Please wait…</button>

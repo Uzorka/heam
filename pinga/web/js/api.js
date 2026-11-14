@@ -112,6 +112,8 @@ export const insert = (table, row) =>
   data(`/rest/v1/${table}`, { method: 'POST', body: row, extra: { prefer: 'return=representation' } }).then((r) => r[0]);
 export const update = (table, query, changes) =>
   data(`/rest/v1/${table}?${query}`, { method: 'PATCH', body: changes, extra: { prefer: 'return=representation' } });
+export const insertRows = (table, rows) => data(`/rest/v1/${table}`, { method: 'POST', body: rows, extra: { prefer: 'return=minimal' } });
+export const remove = (table, query) => data(`/rest/v1/${table}?${query}`, { method: 'DELETE' });
 export const rpc = (fn, args = {}) => data(`/rest/v1/rpc/${fn}`, { method: 'POST', body: args });
 // Photos (private storage).
 export const upload = (bucket, path, file) =>

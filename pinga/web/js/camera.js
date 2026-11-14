@@ -3,10 +3,11 @@
 
 const MAX_BYTES = 50 * 1024;
 
-export async function startCamera(video) {
+// facing: 'user' (selfie) or 'environment' (back camera, e.g. shelf photos).
+export async function startCamera(video, facing = 'user') {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error('no-camera');
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }, audio: false,
+    video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 640 } }, audio: false,
   });
   video.srcObject = stream;
   await video.play().catch(() => {});
@@ -15,8 +16,9 @@ export async function startCamera(video) {
 
 const toBlob = (canvas, q) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', q));
 
-// Square crop from the centre, 320 × 320, lowering quality until it fits.
-export async function capture(video, size = 320) {
+// Square crop from the centre, lowering quality until it fits.
+// Selfies: 320 × 320, at most 50 KB. Shelf photos: pass a larger size and limit.
+export async function capture(video, size = 320, maxBytes = MAX_BYTES) {
   const w = video.videoWidth, h = video.videoHeight;
   if (!w || !h) throw new Error('camera-not-ready');
   const s = Math.min(w, h);
@@ -25,7 +27,7 @@ export async function capture(video, size = 320) {
   canvas.getContext('2d').drawImage(video, (w - s) / 2, (h - s) / 2, s, s, 0, 0, size, size);
   for (const q of [0.7, 0.55, 0.4, 0.3]) {
     const blob = await toBlob(canvas, q);
-    if (blob && blob.size <= MAX_BYTES) return blob;
+    if (blob && blob.size <= maxBytes) return blob;
   }
   throw new Error('photo-too-large');
 }

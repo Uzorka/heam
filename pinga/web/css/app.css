@@ -60,7 +60,7 @@ button, .button {
 .primary:active { background: var(--accent-press); }
 .secondary { background: var(--card); color: var(--accent); border: 1px solid var(--line); }
 button:disabled { opacity: .55; }
-button.link { background: none; color: var(--accent); width: auto; min-height: 44px; padding: 0 4px; font-weight: 500; }
+button.link { background: none; color: var(--accent); width: auto; min-height: 44px; padding: 0 4px; font-weight: 500; white-space: nowrap; flex: none; }
 .error { color: var(--danger); font-size: 15px; margin: 0; min-height: 1px; }
 .error:empty { display: none; }
 
@@ -218,8 +218,8 @@ select { font: inherit; font-weight: 400; height: 52px; padding: 0 12px; width: 
 .offices li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
 .ok-text { color: var(--accent); font-weight: 600; }
 .big-line { font-size: 17px; margin: 0 0 8px; }
-.bar { height: 8px; background: #e5e5ea; border-radius: 8px; overflow: hidden; }
-.bar i { display: block; height: 100%; background: var(--accent); border-radius: 8px; }
+.meter { height: 8px; background: #e5e5ea; border-radius: 8px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: 8px; }
 .map { height: 240px; border-radius: 12px; margin-top: 14px; background: #e8eef0; overflow: hidden; z-index: 0; }
 .legend { margin: 6px 0 0; display: flex; align-items: center; gap: 6px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: #9a9aa0; display: inline-block; }

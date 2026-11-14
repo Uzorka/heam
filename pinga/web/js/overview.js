@@ -74,7 +74,7 @@ export async function overview(me, tabs) {
       <section class="card block" aria-labelledby="field-h">
         <h2 id="field-h">Field visits</h2>
         <p class="big-line"><b>${f.done} of ${f.planned}</b> planned visits done</p>
-        <div class="bar"><i style="width:${visitPct}%"></i></div>
+        <div class="meter"><i style="width:${visitPct}%"></i></div>
         ${d.stores.length ? '<div class="map" id="map" role="img" aria-label="Map of stores: green visited, grey not yet"></div><p class="tiny muted legend"><i class="dot on"></i> Visited <i class="dot"></i> Not yet</p>' : ''}
         <ul class="offices">${f.reps.map((r) => `
           <li><span>${esc(r.name)}</span><span class="${r.visits >= r.target ? 'ok-text' : 'muted'}">${r.status === 'leave' || r.status === 'off' ? (r.status === 'leave' ? 'On leave' : 'Off') : `${r.visits} of ${r.target}`}</span></li>`).join('')}</ul>

@@ -7,8 +7,8 @@
 const LIVE_HOSTS = ['app.usepinga.com', 'app.pinga.com.ng'];
 
 const PROJECTS = {
-  staging: { url: 'https://ltizbbzhfmexwezjdszs.supabase.co', key: 'sb_publishable_E0iS1qxWtgJBuG4NoBpZyQ_-tIQmcXO', sentryDsn: '' },
-  live: { url: '', key: '', sentryDsn: '' },
+  staging: { url: 'https://zgwgszomktveikhecmiz.supabase.co', key: 'sb_publishable_cp82R2d3yddf5HUTlvEmxg_JqrgGF5b', sentryDsn: '' },
+  live: { url: 'https://ltizbbzhfmexwezjdszs.supabase.co', key: 'sb_publishable_E0iS1qxWtgJBuG4NoBpZyQ_-tIQmcXO', sentryDsn: '' },
 };
 
 const host = typeof location === 'undefined' ? '' : location.hostname;

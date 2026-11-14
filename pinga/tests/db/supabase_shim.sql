@@ -35,3 +35,9 @@ create table storage.objects (
 );
 alter table storage.objects enable row level security;
 grant select, insert, update, delete on storage.objects to authenticated;
+
+-- Like real Supabase: everything new in "public" is open to anon and authenticated
+-- by default, so our migrations must close it explicitly.
+alter default privileges in schema public grant all on tables to anon, authenticated;
+alter default privileges in schema public grant all on functions to anon, authenticated;
+alter default privileges in schema public grant all on sequences to anon, authenticated;

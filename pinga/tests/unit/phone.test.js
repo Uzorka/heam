@@ -37,3 +37,13 @@ test('PIN rules: 6 digits, not easy to guess, same on phone and server', () => {
   assert.equal(validPin('123456'), false);
   assert.equal(validPin('12345'), false);
 });
+
+test('deploy targets match the app settings (staging is staging, live is live)', async () => {
+  const { CONFIG_FOR } = await import('../../scripts/projects.js');
+  const cfg = readFileSync(new URL('../../web/js/config.js', import.meta.url), 'utf8');
+  for (const env of ['staging', 'live']) {
+    const line = cfg.split('\n').find((l) => l.trim().startsWith(env + ':'));
+    assert.ok(line.includes(`https://${CONFIG_FOR[env].ref}.supabase.co`), env + ' url');
+    assert.ok(line.includes(CONFIG_FOR[env].key), env + ' key');
+  }
+});

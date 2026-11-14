@@ -63,21 +63,20 @@ The app chooses automatically (`web/js/config.js`): it uses **live only** on the
 
 ## Deploy
 
-Database changes (staging first, then live):
+Two Supabase projects, both in eu-west-1 (Ireland): **Pinga Staging** (`zgwgszomktveikhecmiz`) and **Pinga** live (`ltizbbzhfmexwezjdszs`). Their addresses are in `scripts/projects.js` and `web/js/config.js` (a test checks they agree).
+
+Backend (database, invite function, login settings), using Supabase's management API. It needs a Supabase personal access token; in our cloud sessions it is saved as a network secret for api.supabase.com.
 
 ```
-npx supabase link --project-ref <staging-ref>
-npx supabase db push                      # applies new files in supabase/migrations
-npx supabase functions deploy accept-invite
+npm run deploy:staging                       # deploy, then run every security check and a full staff journey on staging
+CONFIRM_LIVE=yes npm run deploy:live         # only after staging is checked
 ```
 
-Repeat with `<live-ref>` after checking staging.
+Only new files in `supabase/migrations` are applied; each is recorded in `supabase_migrations.schema_migrations`.
 
-App: run `npm run stamp` (tells phones a new version exists; the tests fail if you forget), then upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build.
+App: run `npm run stamp` (tells phones a new version exists; the tests fail if you forget), then upload the contents of `web/` to the hosting (Hostinger or Cloudflare Pages). It's static files, nothing to build. The app uses the live project only on the live web addresses listed in `web/js/config.js`; anywhere else it uses staging.
 
-Supabase settings needed once per project (Dashboard → Authentication):
-- Site URL: the app's address (so the owner's email confirmation link comes back to the app).
-- Email sign-ups on. Minimum password length 6 (PINs are 6 digits).
+Still to set per project (Dashboard → Authentication → URL Configuration): Site URL = the app's web address, once hosting is chosen, so the owner's email confirmation link opens the app.
 
 ## Roll back
 

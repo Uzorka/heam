@@ -38,6 +38,7 @@ $$;
 -- ───────────────────────── Access rules ──────────────────────────
 
 alter table public.attendance enable row level security;
+revoke all on public.attendance from anon, authenticated;
 grant select on public.attendance to authenticated;  -- written only through record_attendance()
 create policy "read attendance" on public.attendance for select to authenticated
   using (member_id in (select private.my_member_ids()) or private.is_admin(company_id));

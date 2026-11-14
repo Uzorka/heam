@@ -38,6 +38,7 @@ export function adminRoute(me, name, arg) {
   if (name === 'team') return team(me);
   if (name === 'hours') return hours(me);
   if (name === 'setup') return setup(me);
+  if (name === 'face') return faceSettings(me);
   if (name === 'export') return import('./export.js').then((m) => m.exportScreen(me));
   if (name === 'today' || name === 'day') return import('./today.js').then((m) => m.today(me, arg, tabs));
   if (name === 'overview' || me.role === 'owner') return import('./overview.js').then((m) => m.overview(me, tabs));
@@ -383,10 +384,10 @@ async function setup(me) {
         <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span><span class="chev">›</span></a></li>
         ${isOwner ? '<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">Plan, price for your team, payments</span></span><span class="chev">›</span></a></li>' : ''}
         <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span><span class="chev">›</span></a></li>
-        ${face ? `<li class="card row"><span><strong>Face check</strong><br><span class="muted">${face.enabled
-          ? `On. Each selfie is compared with the person's reference photo.${face.waiting ? ` ${face.waiting} waiting.` : ''}`
+        ${face ? `<li><${isOwner ? 'a href="#/face"' : 'div'} class="card row"><span><strong>Face check</strong><br><span class="muted">${face.enabled
+          ? `On. Selfies must be ${face.match_percent}% alike to the reference photo.${face.waiting ? ` ${face.waiting} waiting.` : ''}`
           : `Off until the AWS keys are added. Clock-ins work as normal.${face.waiting ? ` ${face.waiting} selfie${face.waiting === 1 ? '' : 's'} will be checked when it's switched on.` : ''}`}</span></span>
-          <span class="pill ${face.enabled ? 'ok' : ''}">${face.enabled ? 'On' : 'Off'}</span></li>` : ''}
+          <span class="pill ${face.enabled ? 'ok' : ''}">${face.enabled ? 'On' : 'Off'}</span>${isOwner ? '<span class="chev">›</span>' : ''}</${isOwner ? 'a' : 'div'}></li>` : ''}
         ${isOwner ? `<li class="card row"><span><strong>Evening summary email</strong><br><span class="muted">A short summary of the day, around 7 pm</span></span>
           <label class="switch"><input type="checkbox" id="summary"${co.summary_email ? ' checked' : ''} aria-label="Evening summary email"><span></span></label></li>` : ''}
       </ul>
@@ -401,6 +402,31 @@ async function setup(me) {
       } catch (x) { sw.checked = !sw.checked; toast(friendly(x)); }
     };
   }
+}
+
+// ── Face check setting (owner) ──────────────────────────────
+
+async function faceSettings(me) {
+  if (me.role !== 'owner') return go('#/setup');
+  const f = await api.rpc('face_check_status');
+  show(`
+    <main class="page narrow">
+      <a class="back" href="#/setup">‹ Setup</a>
+      <h1>Face check</h1>
+      <p class="muted">Each clock-in and store visit selfie is compared with the person's reference photo. If it isn't alike enough, it is flagged "Face didn't match" for you to look at. Nobody is ever blocked.</p>
+      <form class="stack">
+        <label>Match needed (%)<input name="pct" type="number" min="50" max="99" step="1" value="${f.match_percent}" required>
+          <span class="hint muted">90 suits most phones. If cheap or cracked cameras cause too many false flags, try 80. Lower numbers catch fewer real mismatches.</span></label>
+        <p class="error" role="alert"></p>
+        <button type="submit" class="primary">Save</button>
+      </form>
+    </main>`, async ({ pct }) => {
+    const n = Number(pct);
+    if (!Number.isInteger(n) || n < 50 || n > 99) throw new Say('Choose a whole number from 50 to 99.');
+    await api.rpc('set_face_match_percent', { p_percent: n });
+    toast(`Saved: selfies must be ${n}% alike`);
+    go('#/setup');
+  });
 }
 
 // ── Working hours ───────────────────────────────────────────

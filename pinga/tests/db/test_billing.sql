@@ -26,7 +26,7 @@ update public.members set active = false where id = 'ea000000-0000-0000-0000-000
 
 select tests.act_as('a0000000-0000-0000-0000-000000000001');
 create temp table o as select public.billing_overview() as j;
-select tests.eq((select j->'quote' from o), '{"staff_seats": 2, "rep_seats": 1, "staff_price": 1500, "rep_price": 2500, "amount_kobo": 550000}'::jsonb,
+select tests.eq((select j->'quote' from o), '{"staff_seats": 2, "rep_seats": 1, "staff_price": 1500, "rep_price": 2500, "gross_kobo": 550000, "discount_percent": 0, "discount_min_people": null, "amount_kobo": 550000}'::jsonb,
   'price: 2 office staff × ₦1,500 + 1 rep × ₦2,500 = ₦5,500 (owners, managers, not-joined and inactive people are free)');
 select tests.eq((select j->>'status' from o), 'trial', 'starts on the free trial');
 select tests.eq((select (j->>'trial_days_left')::int from o), 5, '5 days of trial left');
@@ -102,6 +102,28 @@ reset role;
 select tests.act_as('b0000000-0000-0000-0000-000000000001');
 select tests.eq((select count(*) from public.billing_invoices where company_id = 'c000000a-0000-0000-0000-000000000000'), 0::bigint, 'another company cannot see these invoices');
 select tests.refused($$ update public.billing_prices set naira_per_seat = 1 $$, 'nobody can change prices from the app');
+reset role;
+
+-- Volume discount: 100+ people → 10% off (placeholder tier), whole naira.
+insert into public.members (company_id, full_name, phone, role, joined_at)
+select 'c000000b-0000-0000-0000-000000000000', 'Staff ' || g, '+234806' || lpad(g::text, 7, '0'), 'staff', now() from generate_series(1, 98) g;
+insert into public.members (company_id, full_name, phone, role, joined_at)
+values ('c000000b-0000-0000-0000-000000000000', 'Rep One', '+2348069999999', 'rep', now());
+select tests.act_as('b0000000-0000-0000-0000-000000000001');
+create temp table big as select public.billing_overview()->'quote' as q;
+select tests.eq((select (q->>'staff_seats')::int + (q->>'rep_seats')::int from big), 100, '100 billable people');
+select tests.eq((select (q->>'gross_kobo')::bigint from big), ((99 * 1500 + 2500) * 100)::bigint, 'before discount: 99 × ₦1,500 + 1 × ₦2,500 = ₦151,000');
+select tests.eq((select (q->>'discount_percent')::numeric from big), 10::numeric, '10% volume discount applies at 100 people');
+select tests.eq((select (q->>'amount_kobo')::bigint from big), 13590000::bigint, 'pays ₦135,900 a month');
+reset role;
+delete from public.members where full_name = 'Rep One';
+select tests.act_as('b0000000-0000-0000-0000-000000000001');
+select tests.eq((select (public.billing_overview()->'quote'->>'discount_percent')::numeric), 0::numeric, 'at 99 people there is no discount');
+reset role;
+insert into public.billing_discounts values (50, 5);
+select tests.act_as('b0000000-0000-0000-0000-000000000001');
+select tests.eq((select (public.billing_overview()->'quote'->>'discount_percent')::numeric), 5::numeric, 'tiers are set in one table (e.g. adding 50+ → 5%)');
+select tests.refused($$ insert into public.billing_discounts values (2, 99) $$, 'companies cannot give themselves discounts');
 reset role;
 
 rollback;

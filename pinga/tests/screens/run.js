@@ -185,7 +185,9 @@ async function fakeSupabase(route) {
     const joined = people.filter((x) => x.joined_at && ['staff', 'rep'].includes(x.role));
     const staff = joined.filter((x) => x.role === 'staff').length, reps = joined.filter((x) => x.role === 'rep').length;
     return json(route, { status: bill.status, trial_ends: company.trial_ends_at.slice(0, 10), trial_days_left: 2, paid_until: bill.paid_until,
-      quote: { staff_seats: staff, rep_seats: reps, staff_price: 1500, rep_price: 2500, amount_kobo: (staff * 1500 + reps * 2500) * 100 },
+      quote: bill.bigTeam
+        ? { staff_seats: 99, rep_seats: 1, staff_price: 1500, rep_price: 2500, gross_kobo: 15100000, discount_percent: 10, discount_min_people: 100, amount_kobo: 13590000 }
+        : { staff_seats: staff, rep_seats: reps, staff_price: 1500, rep_price: 2500, gross_kobo: (staff * 1500 + reps * 2500) * 100, discount_percent: 0, discount_min_people: null, amount_kobo: (staff * 1500 + reps * 2500) * 100 },
       card: bill.card, invoices: bill.invoices });
   }
   if (p === '/functions/v1/billing/checkout') {
@@ -199,7 +201,8 @@ async function fakeSupabase(route) {
     company.status = 'active';
     return json(route, { result: 'paid' });
   }
-  if (p === '/rest/v1/rpc/face_check_status') return json(route, { enabled: false, last_run: null, waiting: attendance.filter((a) => a.photo_path).length });
+  if (p === '/rest/v1/rpc/face_check_status') return json(route, { enabled: false, last_run: null, match_percent: company.face_match_percent ?? 90, waiting: attendance.filter((a) => a.photo_path).length });
+  if (p === '/rest/v1/rpc/set_face_match_percent') { company.face_match_percent = body.p_percent; return json(route, null); }
   if (p === '/rest/v1/rpc/clear_reference_photo') { people.find((x) => x.id === body.p_member).reference_photo_path = null; return json(route, null); }
   if (p === '/rest/v1/rpc/set_reference_photo') { me.reference_photo_path = body.p_path; return json(route, null); }
   if (p.startsWith('/storage/v1/object/authenticated/photos/')) {
@@ -615,7 +618,24 @@ await page.getByText(/Visa •••• 4081 \(expires 12\/30\) · renews automa
 assert.equal(await page.getByRole('button', { name: /^Pay / }).count(), 0, 'no Pay button once paid ahead');
 step('Billing shows Active, the saved card for monthly renewal, and the payment');
 await shot('owner-billing-active');
+bill.bigTeam = true;   // as if the team had grown to 100 people
+await page.reload();
+await page.getByText('Volume discount (100+ people) · 10% off').waitFor();
+assert.match(await page.locator('.offices').innerText(), /−₦15,100\s+Total a month\s+₦135,900/);
+step('a team of 100+ sees the volume discount: ₦151,000 − 10% = ₦135,900 a month');
+await shot('owner-billing-volume-discount');
+bill.bigTeam = false;
+
+// Face-match threshold (owner only).
 await page.getByRole('link', { name: '‹ Setup' }).click();
+await page.getByRole('link', { name: /^Face check/ }).click();
+await page.getByLabel('Match needed (%)').fill('80');
+await shot('owner-face-setting');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('Saved: selfies must be 80% alike').waitFor();
+assert.equal(company.face_match_percent, 80);
+step('owner lowers the face-match threshold to 80% for the pilot');
+await page.getByRole('heading', { name: 'Setup' }).waitFor();   // saving returns to Setup
 await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Remi Okafor/ }).click();
 await page.getByRole('heading', { name: 'Recent visits' }).waitFor();

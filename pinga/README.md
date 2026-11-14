@@ -84,7 +84,8 @@ To switch sending on: create a free account at resend.com, make an API key, and 
 
 Every few minutes the `face-check` function compares new clock-in and visit selfies with each person's reference photo (AWS Rekognition CompareFaces, about $0.001 per check). **Nothing is ever blocked:** a clock-in or visit is saved straight away; the result arrives a few minutes later.
 
-- 90% similarity or more is a match. Below that: flag "Face didn't match (41% alike)". No face found: flag "No face in photo". Both count as "to check" on Today and face mismatches are listed in the owner's evening email.
+- **Each company sets how alike a selfie must be** (Setup → Face check, owner only; 50–99%, default **90%**). Lower it (e.g. 80%) if cheap or cracked phone cameras cause too many false flags. A new setting applies to selfies checked from then on.
+- At or above the company's setting is a match. Below that: flag "Face didn't match (41% alike)". No face found: flag "No face in photo". Both count as "to check" on Today and face mismatches are listed in the owner's evening email.
 - No reference photo yet: no AWS call (no charge); checked once they take one. AWS errors retry up to 3 times, then stop. Only the last 3 days are checked, so switching on never bills for an old backlog.
 - Staff agree to the use of their photo on the reference photo screen (Nigeria Data Protection Act); the time is recorded. Managers can "Ask for a new reference photo".
 - Requests to AWS are signed by our own code (`signV4` in `supabase/functions/face-check/handler.js`), tested against AWS's published example and AWS's own signer. No AWS library.
@@ -94,6 +95,8 @@ Every few minutes the `face-check` function compares new clock-in and visit self
 ## Billing (Paystack)
 
 - **Price:** per active, joined person per month, by module: Office Attendance per office staff member, Field Sales per sales rep. Owners and managers are free. **Placeholder prices ₦1,500 and ₦2,500** in `billing_prices` (migration `20261120000001_billing.sql`): confirm before going live.
+- **Volume discounts** in `billing_discounts` (same migration family, `20261121000001_…`): a company with at least `min_people` billable people gets `percent_off` its whole monthly price; the highest tier it reaches applies. **Placeholder: 100+ people → 10% off.** Prices and discounts are the only two tables to edit (via SQL or the Supabase table editor); companies can't change them.
+- **Paystack fees (paid by Pinga, live mode only):** 1.5% + ₦100 per local transaction; the ₦100 is waived under ₦2,500; fees are capped at ₦2,000. Test mode is free.
 - **14-day free trial.** Paying during the trial starts the first paid month when the trial ends.
 - **Paying:** Setup → Billing → "Pay ₦X with Paystack" opens Paystack's own checkout (card, transfer, USSD). A card is saved (masked; the Paystack code never leaves the server) and renewed automatically each month at the current team size (daily job, 07:10 Lagos, at most one attempt per company per day).
 - **Every payment is checked with Paystack** (and must match the invoice amount in naira exactly) before it is marked paid. Paystack's webhook messages are accepted only with a valid signature.

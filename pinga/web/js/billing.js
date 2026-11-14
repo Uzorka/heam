@@ -39,6 +39,7 @@ export async function billing(me, arg) {
         <ul class="offices">
           ${q.staff_seats || !q.rep_seats ? `<li><span>Office staff · ${q.staff_seats} × ${naira(q.staff_price * 100)}</span><span>${naira(q.staff_seats * q.staff_price * 100)}</span></li>` : ''}
           ${q.rep_seats ? `<li><span>Sales reps · ${q.rep_seats} × ${naira(q.rep_price * 100)}</span><span>${naira(q.rep_seats * q.rep_price * 100)}</span></li>` : ''}
+          ${q.discount_percent > 0 ? `<li><span>Volume discount (${q.discount_min_people}+ people) · ${Number(q.discount_percent)}% off</span><span>−${naira(q.gross_kobo - q.amount_kobo)}</span></li>` : ''}
           <li class="total"><span>Total a month</span><span>${naira(q.amount_kobo)}</span></li>
         </ul>
         <p class="tiny muted">Counted from people who have joined and are active. Owners and managers are free.</p>

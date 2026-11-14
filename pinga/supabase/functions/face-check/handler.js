@@ -4,7 +4,7 @@
 // then it does nothing and selfies simply wait. Clock-ins and visits never depend on it.
 // Plain JS with no imports: runs on Supabase (Deno) and in our Node tests.
 
-export const MATCH_AT = 90;      // similarity (0–100) needed to count as the same person
+export const MATCH_AT = 90;      // default similarity (0–100) to count as the same person; each company can set its own
 const BATCH = 20;                // selfies per run (each run is a few seconds)
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -46,7 +46,7 @@ const b64 = (buf) => {
 };
 
 // One comparison. Returns { status: 'match' | 'mismatch' | 'no_face' | 'error', similarity }.
-export async function compareFaces(reference, selfie, aws, fetchFn = fetch) {
+export async function compareFaces(reference, selfie, aws, fetchFn = fetch, matchAt = MATCH_AT) {
   const host = `rekognition.${aws.region}.amazonaws.com`;
   const body = JSON.stringify({ SourceImage: { Bytes: b64(reference) }, TargetImage: { Bytes: b64(selfie) }, SimilarityThreshold: 0 });
   const headers = await signV4({
@@ -63,7 +63,7 @@ export async function compareFaces(reference, selfie, aws, fetchFn = fetch) {
     return { status: 'error', similarity: null, detail: `${r.status} ${data.__type || ''} ${data.message || data.Message || ''}`.trim() };
   }
   const best = Math.max(0, ...(data.FaceMatches || []).map((m) => m.Similarity || 0));
-  return { status: best >= MATCH_AT ? 'match' : 'mismatch', similarity: Math.round(best * 10) / 10 };
+  return { status: best >= matchAt ? 'match' : 'mismatch', similarity: Math.round(best * 10) / 10 };
 }
 
 export async function handle(req, env, fetchFn = fetch) {
@@ -95,7 +95,7 @@ export async function handle(req, env, fetchFn = fetch) {
     let outcome;
     try {
       if (!item.reference_path) outcome = { status: 'no_reference', similarity: null };
-      else outcome = await compareFaces(await photo(item.reference_path), await photo(item.photo_path), aws, fetchFn);
+      else outcome = await compareFaces(await photo(item.reference_path), await photo(item.photo_path), aws, fetchFn, item.match_percent || MATCH_AT);
     } catch (e) {
       outcome = { status: 'error', similarity: null, detail: String(e.message || e) };
     }

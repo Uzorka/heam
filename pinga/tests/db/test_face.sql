@@ -110,5 +110,27 @@ select tests.act_as('b0000000-0000-0000-0000-000000000001');
 select tests.eq((select (public.face_check_status()->>'waiting')::int), 0, 'another company sees only its own waiting count');
 reset role;
 
+-- Per-company threshold (owner only).
+select tests.act_as('a0000000-0000-0000-0000-000000000001');
+select tests.eq((select (public.face_check_status()->>'match_percent')::int), 90, 'face match starts at 90%');
+select public.set_face_match_percent(80::smallint);
+select tests.eq((select (public.face_check_status()->>'match_percent')::int), 80, 'owner can lower it (e.g. for cheap phone cameras)');
+select tests.refused($$ select public.set_face_match_percent(30::smallint) $$, 'not below 50%');
+select tests.refused($$ select public.set_face_match_percent(100::smallint) $$, 'not 100%');
+select tests.refused($$ update public.companies set face_match_percent = 50 $$, 'only through the owner''s setting');
+reset role;
+select tests.act_as('b0000000-0000-0000-0000-000000000001');
+select tests.eq((select (public.face_check_status()->>'match_percent')::int), 90, 'each company has its own setting');
+reset role;
+-- A queued selfie carries its company's threshold to the checker.
+select tests.act_as('a0000000-0000-0000-0000-000000000004');
+create temp table v9 as select * from public.record_visit(gen_random_uuid(), '5a000000-0000-0000-0000-000000000001', now() - interval '5 minutes', 6.6017, 3.3514, 10,
+  'c000000a-0000-0000-0000-000000000000/ea000000-0000-0000-0000-000000000004/v9.jpg', null, null, now());
+grant all on v9 to public;
+reset role;
+select tests.act_as_server();
+select tests.eq((select match_percent from public.face_checks_due(50) where id = (select id from v9)), 80::smallint, 'the checker uses the company''s threshold');
+reset role;
+
 rollback;
 \echo 'All face check database tests passed.'

@@ -89,3 +89,14 @@ test('refuses callers without the schedule key', async () => {
   assert.equal((await handle(req('guess'), awsEnv, f.fetchFn)).status, 401);
   assert.equal((await handle(new Request('https://fn', { method: 'POST' }), awsEnv, f.fetchFn)).status, 401);
 });
+
+test('each company\'s own threshold is used (e.g. 80% for cheap phone cameras)', async () => {
+  const img = new Uint8Array([1]).buffer;
+  const reply = awsReply(200, { FaceMatches: [{ Similarity: 85 }] });
+  assert.equal((await compareFaces(img, img, aws, reply)).status, 'mismatch', '85% fails the default 90%');
+  assert.equal((await compareFaces(img, img, aws, reply, 80)).status, 'match', '85% passes a company set to 80%');
+  const f = fake({ due: [{ kind: 'attendance', id: 'a1', photo_path: 'c/m/a1.jpg', reference_path: 'c/m/r.jpg', match_percent: 80 }],
+    rekognition: { FaceMatches: [{ Similarity: 85 }] } });
+  await handle(req(), awsEnv, f.fetchFn);
+  assert.equal(f.calls.find((c) => c.url.endsWith('/face_check_save')).body.p_status, 'match');
+});

@@ -51,7 +51,7 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
 await sql("notify pgrst, 'reload schema';");
 
 // 2. Functions
-for (const [slug, files] of [['accept-invite', ['index.ts', 'handler.js']], ['daily-summary', ['index.ts', 'handler.js']], ['face-check', ['index.ts', 'handler.js']]]) {
+for (const [slug, files] of [['accept-invite', ['index.ts', 'handler.js']], ['daily-summary', ['index.ts', 'handler.js']], ['face-check', ['index.ts', 'handler.js']], ['billing', ['index.ts', 'handler.js']]]) {
   const fnDir = new URL(`../supabase/functions/${slug}/`, import.meta.url);
   const form = new FormData();
   form.append('metadata', JSON.stringify({ name: slug, entrypoint_path: 'index.ts', verify_jwt: false }));
@@ -81,7 +81,15 @@ await sql(`select cron.schedule('pinga-face-check', '*/5 * * * *', $job$
       headers := jsonb_build_object('content-type', 'application/json', 'x-job-key', (select value from private.settings where key = 'summary_key')),
       body := '{}'::jsonb, timeout_milliseconds := 60000)
   $job$);`);
+// Billing renewals once a day at 07:10 Lagos time (06:10 UTC). Does nothing until Paystack is set up.
+await sql(`select cron.schedule('pinga-billing-renew', '10 6 * * *', $job$
+    select net.http_post(
+      url := 'https://${project.ref}.supabase.co/functions/v1/billing/renew',
+      headers := jsonb_build_object('content-type', 'application/json', 'x-job-key', (select value from private.settings where key = 'summary_key')),
+      body := '{}'::jsonb, timeout_milliseconds := 60000)
+  $job$);`);
 const secrets = (await call('/secrets')).map((x) => x.name);
+console.log(`  billing: renewals daily at 07:10 Lagos; Paystack ${secrets.includes('PAYSTACK_SECRET_KEY') ? 'key found' : 'NOT set up yet (add PAYSTACK_SECRET_KEY, a TEST key sk_test_…)'}`);
 const awsReady = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION'].every((n) => secrets.includes(n));
 console.log(`  face check: scheduled every 5 minutes; ${awsReady ? 'ON (AWS keys found)' : 'OFF until AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION are added'}`);
 console.log(`  summary: scheduled hourly; email ${secrets.includes('RESEND_API_KEY') ? 'is set up' : 'NOT set up yet (add RESEND_API_KEY in Supabase → Edge Functions → Secrets)'}`);
@@ -102,6 +110,10 @@ await check('visitors cannot read people', fetch(`${base}/rest/v1/members?select
 await check('visitors cannot read companies', fetch(`${base}/rest/v1/companies?select=id`, { headers: pub }).then((r) => r.status === 401 || r.status === 403));
 await check('invite function refuses a bad link', fetch(`${base}/functions/v1/accept-invite`, { method: 'POST', headers: pub, body: JSON.stringify({ token: 'x', pin: '482913' }) })
   .then((r) => r.status === 400));
+await check('billing refuses unsigned or unset-up payment messages', fetch(`${base}/functions/v1/billing/webhook`, { method: 'POST', headers: pub, body: '{"event":"charge.success","data":{"reference":"PNG-X"}}' })
+  .then((r) => r.status === 401 || r.status === 503));
+await check('billing renewals refuse callers without the schedule key', fetch(`${base}/functions/v1/billing/renew`, { method: 'POST', headers: pub, body: '{}' })
+  .then((r) => r.status === 401));
 await check('face-check function refuses callers without the schedule key', fetch(`${base}/functions/v1/face-check`, { method: 'POST', headers: pub, body: '{}' })
   .then((r) => r.status === 401));
 await check('summary function refuses callers without the schedule key', fetch(`${base}/functions/v1/daily-summary`, { method: 'POST', headers: pub, body: '{}' })

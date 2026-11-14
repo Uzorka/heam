@@ -246,3 +246,12 @@ select { font: inherit; font-weight: 400; height: 52px; padding: 0 12px; width: 
   .print-only thead { display: table-header-group; }
 }
 .consent { font-size: 14px; color: var(--muted); background: var(--card); border-radius: 12px; padding: 12px 14px; }
+
+/* Step 7: billing */
+.plan-state { font-size: 24px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+.plan-state.ok { color: var(--accent); }
+.plan-state.bad { color: var(--danger); }
+.offices li.total { font-weight: 700; }
+a.banner { display: block; color: var(--wait); margin-bottom: 14px; }
+.banner.bad-banner { background: #fdecea; color: var(--danger); }
+p.banner { margin: 0 0 14px; }

@@ -152,4 +152,6 @@ export function clearCache() {
   try { Object.keys(localStorage).filter((k) => k.startsWith('pinga.cache.')).forEach((k) => localStorage.removeItem(k)); } catch { /* none */ }
 }
 
+// For functions that act as the signed-in person (e.g. starting a payment).
+export const callFunctionAsUser = (name, body) => data(`/functions/v1/${name}`, { method: 'POST', body });
 export const callFunction = (name, body) => request(`/functions/v1/${name}`, { method: 'POST', body, withUser: false });

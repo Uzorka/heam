@@ -91,6 +91,19 @@ Every few minutes the `face-check` function compares new clock-in and visit self
 
 **Switched off until these Supabase secrets exist** (Pinga Staging → Edge Functions → Secrets): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` = `eu-west-1`. Setup shows "Face check: Off/On". Use an AWS key whose only permission is `rekognition:CompareFaces`.
 
+## Billing (Paystack)
+
+- **Price:** per active, joined person per month, by module: Office Attendance per office staff member, Field Sales per sales rep. Owners and managers are free. **Placeholder prices ₦1,500 and ₦2,500** in `billing_prices` (migration `20261120000001_billing.sql`): confirm before going live.
+- **14-day free trial.** Paying during the trial starts the first paid month when the trial ends.
+- **Paying:** Setup → Billing → "Pay ₦X with Paystack" opens Paystack's own checkout (card, transfer, USSD). A card is saved (masked; the Paystack code never leaves the server) and renewed automatically each month at the current team size (daily job, 07:10 Lagos, at most one attempt per company per day).
+- **Every payment is checked with Paystack** (and must match the invoice amount in naira exactly) before it is marked paid. Paystack's webhook messages are accepted only with a valid signature.
+- **Late payment never stops staff:** owners see "Payment due" (managers are asked to tell the owner).
+- **Test mode only:** the `billing` function refuses a live key (`sk_live_…`) unless `ALLOW_LIVE_PAYMENTS=yes` is set.
+
+To switch on (staging): Paystack Dashboard (Test mode) → Settings → API Keys & Webhooks:
+1. Copy the **Test Secret Key** (`sk_test_…`) into Supabase → Pinga Staging → Edge Functions → Secrets as `PAYSTACK_SECRET_KEY`.
+2. Set **Test Webhook URL** to `https://zgwgszomktveikhecmiz.supabase.co/functions/v1/billing/webhook`.
+
 ## Who can see what (enforced by the database)
 
 | | Own company | Other companies |

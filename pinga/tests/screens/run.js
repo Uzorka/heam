@@ -14,7 +14,7 @@ mkdirSync(out, { recursive: true });
 
 // ── Pretend Supabase ────────────────────────────────────────
 const YABA = { lat: 6.5095, lng: 3.3711 };
-const company = { id: 'c1', name: 'CHF Heron', summary_email: true, timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
+const company = { id: 'c1', name: 'CHF Heron', summary_email: true, status: 'trial', trial_ends_at: new Date(Date.now() + 2 * 864e5 - 3600e3).toISOString(), timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
 const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '12 Herbert Macaulay Way', radius_m: 100, ...YABA }];
 const people = [
   { id: 'm0', user: 'u-owner', full_name: 'Elvis Uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null, branch_id: null },
@@ -31,6 +31,7 @@ const assignments = [];
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
 const payRates = new Map();
+const bill = { status: 'trial', paid_until: null, card: null, invoices: [] };
 const photos = new Map();
 let networkDown = false;
 let signedInAs = null;
@@ -179,6 +180,24 @@ async function fakeSupabase(route) {
       if (body.p_status) { dayStatus.set(k, body.p_status); n++; } else if (dayStatus.delete(k)) n++;
     }
     return json(route, n);
+  }
+  if (p === '/rest/v1/rpc/billing_overview') {
+    const joined = people.filter((x) => x.joined_at && ['staff', 'rep'].includes(x.role));
+    const staff = joined.filter((x) => x.role === 'staff').length, reps = joined.filter((x) => x.role === 'rep').length;
+    return json(route, { status: bill.status, trial_ends: company.trial_ends_at.slice(0, 10), trial_days_left: 2, paid_until: bill.paid_until,
+      quote: { staff_seats: staff, rep_seats: reps, staff_price: 1500, rep_price: 2500, amount_kobo: (staff * 1500 + reps * 2500) * 100 },
+      card: bill.card, invoices: bill.invoices });
+  }
+  if (p === '/functions/v1/billing/checkout') {
+    assert.match(req.headers().authorization || '', /^Bearer at-u-owner$/, 'checkout is sent with the owner\'s login');
+    // Pretend the owner paid on Paystack's page and was sent back.
+    return json(route, { url: `${base}#/billing?trxref=PNG-TEST000000000001&reference=PNG-TEST000000000001`, reference: 'PNG-TEST000000000001' });
+  }
+  if (p === '/functions/v1/billing/verify') {
+    Object.assign(bill, { status: 'active', paid_until: '2026-12-16', card: { label: 'Visa •••• 4081', expires: '12/30' },
+      invoices: [{ reference: body.reference, period_start: '2026-11-17', period_end: '2026-12-16', amount_kobo: 550000, status: 'paid' }] });
+    company.status = 'active';
+    return json(route, { result: 'paid' });
   }
   if (p === '/rest/v1/rpc/face_check_status') return json(route, { enabled: false, last_run: null, waiting: attendance.filter((a) => a.photo_path).length });
   if (p === '/rest/v1/rpc/clear_reference_photo') { people.find((x) => x.id === body.p_member).reference_photo_path = null; return json(route, null); }
@@ -576,6 +595,26 @@ assert.deepEqual(sheet[0].slice(0, 4), ['Date', 'Name', 'Role', 'Status']);
 assert.ok(sheet.length > 3 && sheet.some((r) => r[1] === 'Sade Bello'), 'register rows for this month');
 step(`Excel export downloads a real .xlsx (${sheet.length - 1} rows) that a spreadsheet program opens`);
 
+// ── Billing (Paystack, test mode) ───────────────────────────
+await page.getByRole('link', { name: '‹ Setup' }).click();
+await page.getByText('Your free trial ends in 2 days. Set up payment ›').waitFor();
+step('owner sees "Your free trial ends in 2 days" (staff never see it)');
+await page.getByRole('link', { name: /^Billing/ }).click();
+await page.getByText('Free trial', { exact: true }).waitFor();
+await page.getByText('Test mode: payments use Paystack test cards. No real money is taken.').waitFor();
+assert.match(await page.locator('.offices').innerText(), /Office staff · 2 × ₦1,500\s+₦3,000\s+Sales reps · 1 × ₦2,500\s+₦2,500\s+Total a month\s+₦5,500/);
+step('Billing: free trial, price for the team (2 office staff × ₦1,500 + 1 rep × ₦2,500 = ₦5,500), test-mode notice');
+await shot('owner-billing-trial');
+await page.getByRole('button', { name: 'Pay ₦5,500 with Paystack' }).click();
+await page.getByRole('heading', { name: 'Payment received' }).waitFor();
+step('Pay → Paystack → back to Pinga: payment confirmed with Paystack');
+await shot('owner-billing-paid');
+await page.getByRole('link', { name: 'Back to Billing' }).click();
+await page.getByText('Active', { exact: true }).waitFor();
+await page.getByText(/Visa •••• 4081 \(expires 12\/30\) · renews automatically each month/).waitFor();
+assert.equal(await page.getByRole('button', { name: /^Pay / }).count(), 0, 'no Pay button once paid ahead');
+step('Billing shows Active, the saved card for monthly renewal, and the payment');
+await shot('owner-billing-active');
 await page.getByRole('link', { name: '‹ Setup' }).click();
 await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Remi Okafor/ }).click();

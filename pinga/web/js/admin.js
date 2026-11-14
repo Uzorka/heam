@@ -4,12 +4,30 @@ import { normalizePhone, displayPhone } from './phone.js';
 import { watchBest, parseLatLng } from './gps.js';
 import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel } from './ui.js';
 
-const tabs = (on) => `
+let banner = '';
+// A reminder for owners and managers when the trial is ending or payment is due. Staff never see it.
+function billingBanner(me) {
+  const c = me.companies;
+  const owner = me.role === 'owner';
+  if (c.status === 'past_due') {
+    return owner ? '<a class="banner bad-banner" href="#/billing">Payment due. Your team can still clock in. Pay now ›</a>'
+      : '<p class="banner bad-banner">Payment due. Please ask the owner to pay so Pinga keeps running.</p>';
+  }
+  const left = Math.ceil((new Date(c.trial_ends_at) - Date.now()) / 864e5);
+  if (c.status === 'trial' && left <= 3 && owner) {
+    return `<a class="banner" href="#/billing">Your free trial ends ${left <= 0 ? 'today' : `in ${left} day${left === 1 ? '' : 's'}`}. Set up payment ›</a>`;
+  }
+  return '';
+}
+
+const tabs = (on) => `${banner}
   <nav class="tabs">
     ${[['#/overview', 'Overview'], ['#/today', 'Today'], ['#/team', 'Team'], ['#/setup', 'Setup']].map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
   </nav>`;
 
 export function adminRoute(me, name, arg) {
+  banner = billingBanner(me);
+  if (name === 'billing') return import('./billing.js').then((m) => m.billing(me, arg));
   if (name === 'invite') return invite(me);
   if (name === 'person') return person(me, arg);
   if (name === 'offices') return places(me, PLACE.office);
@@ -363,6 +381,7 @@ async function setup(me) {
         <li><a class="card row" href="#/offices"><span><strong>Offices</strong><br><span class="muted">Where office staff clock in</span></span><span class="chev">›</span></a></li>
         <li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span><span class="chev">›</span></a></li>
         <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span><span class="chev">›</span></a></li>
+        ${isOwner ? '<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">Plan, price for your team, payments</span></span><span class="chev">›</span></a></li>' : ''}
         <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span><span class="chev">›</span></a></li>
         ${face ? `<li class="card row"><span><strong>Face check</strong><br><span class="muted">${face.enabled
           ? `On. Each selfie is compared with the person's reference photo.${face.waiting ? ` ${face.waiting} waiting.` : ''}`

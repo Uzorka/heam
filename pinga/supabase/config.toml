@@ -12,3 +12,8 @@ verify_jwt = false
 [functions.face-check]
 # Called by the schedule, which proves itself with a key.
 verify_jwt = false
+
+[functions.billing]
+# Paystack's webhook can't send a Supabase login; each route checks its own proof
+# (owner's login for checkout, Paystack signature for the webhook, schedule key for renewals).
+verify_jwt = false

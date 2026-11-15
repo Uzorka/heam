@@ -2,18 +2,8 @@
 import * as api from './api.js';
 import { normalizePhone, loginEmailFor, validPin, PHONE_LOGIN_DOMAIN } from './phone.js';
 import { catchAll } from './report.js';
-import { show, go, esc, Say, friendly, toast, firstName, BUSINESS, setNav } from './ui.js';
-import { publicBase } from './device.js';
+import { show, go, esc, Say, friendly, toast, firstName, setNav } from './ui.js';
 import { wordmark } from './icons.js';
-
-const PENDING = 'pinga.pendingCompany';
-
-// The business type picker (sign-up and company set-up).
-const typePicker = (chosen = 'field') => `
-  <fieldset class="choices"><legend>What kind of business?</legend>
-    ${Object.entries(BUSINESS).map(([v, b]) => `<label class="choice"><input type="radio" name="type" value="${v}"${v === chosen ? ' checked' : ''} required><span><strong>${b.name}</strong><br><span class="muted">${b.blurb}</span></span></label>`).join('')}
-  </fieldset>
-  <p class="hint muted">You can change this later in Setup.</p>`;
 
 let me = null; // { id, role, full_name, company_id, reference_photo_path, companies: {...} }
 
@@ -54,7 +44,7 @@ function ownerSignIn() {
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Sign in</button>
       </form>
-      <p class="foot">New to Pinga? <a href="#/signup">Start your free 14-day trial</a></p>
+      <p class="foot">New to Pinga? <a href="#/signup">Start free</a></p>
       <p class="foot"><a href="#/">Staff sign in</a></p>
     </main>`, async ({ email, password }) => {
     try { await api.signIn(email.trim(), password); } catch (x) {
@@ -63,40 +53,6 @@ function ownerSignIn() {
       throw x;
     }
     go('#/');
-  });
-}
-
-function ownerSignUp() {
-  show(`
-    <main class="page narrow">
-      <div class="brand">${wordmark()}</div>
-      <h1>Start free trial</h1>
-      <p class="muted">14 days free. No card needed.</p>
-      <form class="stack">
-        <label>Your name<input name="name" autocomplete="name" required></label>
-        <label>Business name<input name="company" autocomplete="organization" required></label>
-        ${typePicker()}
-        <label>Email<input name="email" type="email" autocomplete="email" required></label>
-        <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required></label>
-        <p class="error" role="alert"></p>
-        <button type="submit" class="primary">Create account</button>
-      </form>
-      <p class="foot"><a href="#/owner">I already have an account</a></p>
-    </main>`, async ({ name, company, type, email, password }) => {
-    try { localStorage.setItem(PENDING, JSON.stringify({ name, company, type })); } catch { /* private mode */ }
-    let signedIn;
-    try { signedIn = await api.signUp(email.trim(), password, publicBase()); } catch (x) {
-      if (x.code === 'user_already_exists') throw new Say('This email already has an account. Sign in instead.');
-      if (x.code === 'weak_password') throw new Say('Please choose a stronger password.');
-      throw x;
-    }
-    if (signedIn) return go('#/');
-    show(`
-      <main class="page narrow">
-        <div class="brand">${wordmark()}</div>
-        <h1>Check your email</h1>
-        <p>We sent a link to <strong>${esc(email)}</strong>. Open it on this device to finish setting up.</p>
-      </main>`);
   });
 }
 
@@ -136,30 +92,6 @@ async function join(token) {
   });
 }
 
-// ── First-time company set-up (owner) ───────────────────────
-
-function createCompany() {
-  let pending = {};
-  try { pending = JSON.parse(localStorage.getItem(PENDING)) || {}; } catch { /* none */ }
-  show(`
-    <main class="page narrow">
-      <div class="brand">${wordmark()}</div>
-      <h1>Set up your company</h1>
-      <form class="stack">
-        <label>Your name<input name="name" value="${esc(pending.name)}" autocomplete="name" required></label>
-        <label>Business name<input name="company" value="${esc(pending.company)}" autocomplete="organization" required></label>
-        ${typePicker(pending.type || 'field')}
-        <p class="error" role="alert"></p>
-        <button type="submit" class="primary">Continue</button>
-      </form>
-    </main>`, async ({ name, company, type }) => {
-    await api.rpc('create_company', { p_name: company, p_owner_name: name, p_type: type || 'field' });
-    try { localStorage.removeItem(PENDING); } catch { /* fine */ }
-    me = null;
-    go('#/');
-  });
-}
-
 function noCompany() {
   show(`
     <main class="page narrow">
@@ -176,7 +108,7 @@ function noCompany() {
 const loadMe = () => api.cached('me', async () => {
   const uid = api.getSession().user.id;
   const rows = await api.select('members',
-    'select=id,role,full_name,company_id,branch_id,reference_photo_path,daily_visit_target,can_see_costs,can_manage_staff,can_delete_products,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days,status,trial_ends_at,paid_until,business_type,logo_path,receipt_note,sell_requires_clock_in,staff_below_lowest)' +
+    'select=id,role,full_name,company_id,branch_id,reference_photo_path,daily_visit_target,can_see_costs,can_manage_staff,can_delete_products,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days,status,trial_ends_at,paid_until,business_type,logo_path,receipt_note,sell_requires_clock_in,staff_below_lowest,plan,setup_done,setup_step,phone,address)' +
     `&user_id=eq.${uid}&active=is.true&order=created_at&limit=1`);
   return rows[0] || null;
 });
@@ -193,12 +125,14 @@ async function route() {
   if (!api.getSession()) {
     me = null;
     setNav('');
-    return name === 'owner' ? ownerSignIn() : name === 'signup' ? ownerSignUp() : phoneSignIn();
+    if (name === 'signup' || name === 'verify') return import('./signup.js').then((m) => (name === 'signup' ? m.signUp(arg) : m.verify()));
+    return name === 'owner' ? ownerSignIn() : phoneSignIn();
   }
   if (!me) me = await loadMe();
   if (!me) {
     const isStaffLogin = (api.getSession().user.email || '').endsWith('@' + PHONE_LOGIN_DOMAIN);
-    return isStaffLogin ? noCompany() : createCompany();
+    // A new owner: the setup wizard creates the business (steps 1 and 2).
+    return isStaffLogin ? noCompany() : import('./welcome.js').then((m) => m.welcome(null, name === 'welcome' ? arg : ''));
   }
   // Managers' screens are downloaded only by managers, keeping the staff app small.
   if (me.role === 'owner' || me.role === 'admin') return (await import('./admin.js')).adminRoute(me, name, arg);

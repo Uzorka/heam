@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en-NG">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pinga · Run your shops and your team from your phone</title>
+<meta name="description" content="Pinga checks your staff in with GPS and a selfie, rings up sales with receipts on WhatsApp, keeps your stock right and sends you a short summary every evening. First month free.">
+<meta name="theme-color" content="#FF8A1F">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:title" content="Pinga · Run your shops and your team from your phone">
+<meta property="og:description" content="Attendance with GPS and selfie, sales and receipts, stock, field sales visits. First month free, no card needed.">
+<style>
+@font-face { font-family: Nunito; font-weight: 400; font-display: swap; src: url(fonts/nunito-400.woff2) format("woff2"); }
+@font-face { font-family: Nunito; font-weight: 700; font-display: swap; src: url(fonts/nunito-700.woff2) format("woff2"); }
+@font-face { font-family: Nunito; font-weight: 800; font-display: swap; src: url(fonts/nunito-800.woff2) format("woff2"); }
+:root { --mango: #FF8A1F; --mango-press: #F07A0C; --mango-soft: #FFE8D1; --mango-ink: #A84E00; --ink: #14213D; --cream: #FFF8EE; --card: #fff; --muted: #5B6478; --line: #F0E4D3; --ok: #1E7B45; --ok-bg: #E2F4E8; --late-bg: #FFEFD4; --late: #94570A; color-scheme: light; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--cream); color: var(--ink); font: 17px/1.5 Nunito, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--mango-ink); font-weight: 700; text-decoration: none; }
+h1, h2, h3 { font-weight: 800; letter-spacing: -0.015em; line-height: 1.15; margin: 0 0 12px; }
+h1 { font-size: 36px; } h2 { font-size: 28px; } h3 { font-size: 19px; margin-bottom: 4px; }
+p { margin: 0 0 12px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+.muted { color: var(--muted); }
+.skip { position: absolute; left: -999px; } .skip:focus { left: 16px; top: 8px; background: #fff; padding: 8px 12px; border-radius: 8px; z-index: 9; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 24px; border-radius: 16px; font-weight: 800; font-size: 17px; }
+.btn-main { background: var(--mango); color: var(--ink); box-shadow: 0 2px 0 rgba(20,33,61,.12); }
+.btn-main:hover { background: var(--mango-press); }
+.btn-soft { background: #fff; color: var(--ink); border: 1.5px solid var(--line); }
+:focus-visible { outline: 3px solid #2155B8; outline-offset: 2px; }
+
+/* Top bar */
+header.top { position: sticky; top: 0; z-index: 5; background: rgba(255,248,238,.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 16px; height: 64px; }
+.mark { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 24px; color: var(--ink); }
+.top nav { display: none; gap: 24px; margin-left: 24px; }
+.top nav a { color: var(--ink); font-weight: 700; }
+.top .right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.top .btn { min-height: 44px; padding: 0 16px; font-size: 16px; }
+.signin { color: var(--ink); }
+
+/* Hero */
+.hero { padding: 36px 0 24px; }
+.hero .wrap { display: grid; gap: 32px; align-items: center; }
+.eyebrow { display: inline-block; background: var(--mango-soft); color: var(--mango-ink); font-weight: 800; font-size: 14px; padding: 6px 12px; border-radius: 99px; margin-bottom: 14px; }
+.hero p.lead { font-size: 19px; color: var(--muted); max-width: 560px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin: 22px 0 10px; }
+.cta .btn { flex: 1 1 200px; }
+.small { font-size: 15px; }
+.ticks { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 8px 18px; font-weight: 700; font-size: 15px; }
+.ticks li::before { content: "✓"; color: var(--ok); margin-right: 6px; font-weight: 800; }
+
+/* Phone picture (drawn, not a photo) */
+.phone { width: 300px; max-width: 100%; margin: 0 auto; background: var(--ink); border-radius: 40px; padding: 12px; box-shadow: 0 30px 60px -20px rgba(20,33,61,.45); }
+.screen { background: var(--cream); border-radius: 30px; padding: 22px 16px 16px; display: grid; gap: 10px; }
+.sc-top { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
+.sc-top small { color: var(--muted); font-weight: 700; font-size: 13px; }
+.sc-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.sc-card .lbl { color: var(--muted); font-size: 13px; }
+.sc-big { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+.sc-row { display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0; }
+.pill { display: inline-block; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 99px; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); } .pill.late { background: var(--late-bg); color: var(--late); }
+.sc-bar { display: flex; gap: 4px; align-items: flex-end; height: 44px; margin-top: 6px; }
+.sc-bar i { flex: 1; background: var(--mango); border-radius: 4px 4px 0 0; opacity: .85; }
+.sc-btn { background: var(--mango); border-radius: 14px; text-align: center; font-weight: 800; padding: 12px; }
+
+section { padding: 44px 0; }
+.section-head { max-width: 640px; margin-bottom: 24px; }
+
+/* What it does */
+.features { display: grid; gap: 14px; }
+.feature { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 20px; }
+.feature .ic { width: 46px; height: 46px; border-radius: 14px; background: var(--mango-soft); color: var(--mango-ink); display: grid; place-items: center; margin-bottom: 12px; }
+.feature .ic svg { width: 26px; height: 26px; }
+.feature p { color: var(--muted); margin: 0; font-size: 16px; }
+
+/* Who it's for */
+.who { display: grid; gap: 12px; }
+.who-card { display: flex; gap: 14px; align-items: flex-start; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
+.who-card b { display: block; }
+.who-card span { color: var(--muted); font-size: 16px; }
+.who-card .emoji { font-size: 28px; line-height: 1; }
+
+/* Pricing */
+.free { background: var(--ink); color: #fff; border-radius: 20px; padding: 18px 20px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-bottom: 18px; }
+.free b { color: var(--mango); font-size: 20px; }
+.plans { display: grid; gap: 16px; }
+.plan { background: #fff; border: 2px solid var(--line); border-radius: 22px; padding: 22px; display: flex; flex-direction: column; }
+.plan.pop { border-color: var(--mango); box-shadow: 0 0 0 4px var(--mango-soft); }
+.plan .tag { align-self: flex-start; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 99px; background: var(--mango-soft); color: var(--mango-ink); margin-bottom: 10px; }
+.plan .tag.soon { background: #E6EEFC; color: #2155B8; }
+.price { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; margin: 4px 0 0; }
+.price small { font-size: 16px; color: var(--muted); font-weight: 700; white-space: nowrap; display: inline-block; }
+.plan .btn[aria-disabled] { color: var(--muted); border-style: dashed; cursor: default; }
+.plan ul { list-style: none; padding: 0; margin: 14px 0 18px; display: grid; gap: 8px; font-size: 16px; }
+.plan li { padding-left: 26px; position: relative; }
+.plan li::before { content: "✓"; position: absolute; left: 0; color: var(--ok); font-weight: 800; }
+.plan li.no::before { content: "–"; color: var(--muted); }
+.plan .btn { margin-top: auto; width: 100%; }
+.plan .rates { background: var(--cream); border-radius: 14px; padding: 10px 14px; margin-top: 12px; font-size: 15px; }
+.plan .rates div { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }
+.promise { margin-top: 16px; font-size: 15px; color: var(--muted); }
+
+/* FAQ */
+.faq { display: grid; gap: 10px; max-width: 780px; }
+details { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 0 18px; }
+summary { cursor: pointer; font-weight: 800; padding: 16px 28px 16px 0; list-style: none; position: relative; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; position: absolute; right: 0; top: 13px; font-size: 22px; color: var(--mango-ink); }
+details[open] summary::after { content: "–"; }
+details p { color: var(--muted); padding-bottom: 6px; }
+
+.end { text-align: center; background: var(--mango); border-radius: 28px; padding: 36px 20px; margin: 0 0 40px; }
+.end p { font-size: 18px; }
+.end .btn-main { background: var(--ink); color: #fff; }
+footer { border-top: 1px solid var(--line); padding: 24px 0 40px; font-size: 15px; color: var(--muted); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; }
+
+@media (min-width: 768px) {
+  h1 { font-size: 46px; } h2 { font-size: 34px; }
+  .top nav { display: flex; }
+  .hero { padding: 56px 0 32px; }
+  .features { grid-template-columns: 1fr 1fr; }
+  .who { grid-template-columns: 1fr 1fr; }
+  .plans { grid-template-columns: 1fr 1fr; }
+  .plan.premium { grid-column: 1 / -1; }
+  .cta .btn { flex: 0 0 auto; }
+}
+@media (min-width: 1100px) {
+  h1 { font-size: 54px; }
+  .hero .wrap { grid-template-columns: 1.15fr .85fr; }
+  .phone { width: 320px; }
+  .features { grid-template-columns: repeat(3, 1fr); }
+  .plans { grid-template-columns: repeat(3, 1fr); }
+  .plan.premium { grid-column: auto; }
+  section { padding: 64px 0; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#" aria-label="Pinga home">
+      <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><defs><mask id="cut"><rect width="48" height="48" fill="#fff"/><path d="M16 20.5l5.6 5.6L32.5 15" fill="none" stroke="#000" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/></mask></defs><path d="M24 3C14.6 3 7 10.5 7 19.8c0 12.4 14.2 23.6 15.5 24.6a2.4 2.4 0 0 0 3 0C26.8 43.4 41 32.2 41 19.8 41 10.5 33.4 3 24 3Z" fill="#FF8A1F" mask="url(#cut)"/></svg>Pinga</a>
+    <nav aria-label="Page"><a href="#what">What it does</a><a href="#who">Who it's for</a><a href="#pricing">Pricing</a><a href="#faq">FAQs</a></nav>
+    <div class="right">
+      <a class="signin" data-app="owner" href="../#/owner">Sign in</a>
+      <a class="btn btn-main" data-app="signup/starter" href="../#/signup/starter">Start free</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow">Made for Nigerian businesses</span>
+        <h1>Run your shops and your team from your phone.</h1>
+        <p class="lead">Pinga checks your staff in with GPS and a selfie, rings up sales with receipts on WhatsApp, keeps your stock right, and sends you a short summary of the day every evening.</p>
+        <div class="cta">
+          <a class="btn btn-main" data-app="signup/starter" href="../#/signup/starter">Start free</a>
+          <a class="btn btn-soft" href="#pricing">See prices</a>
+        </div>
+        <p class="small muted"><span data-trial>First month</span> free. No card needed.</p>
+        <ul class="ticks"><li>Works on any Android phone</li><li>Keeps working with poor signal</li><li>Set up in 10 minutes</li></ul>
+      </div>
+      <div class="phone" role="img" aria-label="The Pinga app on a phone: sales today ₦184,500 from 37 sales, 5 of 6 staff in, 2 products running low.">
+        <div class="screen" aria-hidden="true">
+          <div class="sc-top"><span>Good evening, Ada</span><small>Mama Put Stores</small></div>
+          <div class="sc-card"><div class="lbl">Sales today</div><div class="sc-big">₦184,500</div><div class="lbl">37 sales · Cash ₦96,000 · Transfer ₦88,500</div>
+            <div class="sc-bar"><i style="height:30%"></i><i style="height:55%"></i><i style="height:42%"></i><i style="height:80%"></i><i style="height:64%"></i><i style="height:100%"></i><i style="height:70%"></i></div></div>
+          <div class="sc-card"><div class="sc-row"><b>Staff in</b><span class="pill ok">5 of 6</span></div><div class="sc-row"><span>Kemi · Yaba shop</span><span class="pill late">Late 12 min</span></div></div>
+          <div class="sc-card"><div class="sc-row"><b>Stock</b><span class="pill late">2 running low</span></div><div class="sc-row"><span>Peak Milk 400g</span><span>4 left</span></div></div>
+          <div class="sc-btn">Sell</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="what">
+    <div class="wrap">
+      <div class="section-head"><h2>What Pinga does</h2><p class="muted">Everything you'd check if you could be in every shop at once.</p></div>
+      <div class="features">
+        <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></div>
+          <h3>Attendance you can trust</h3><p>Staff clock in on their phone. Pinga checks they're really at work with GPS and a selfie, and flags anything odd for you.</p></div>
+        <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 10v9.5h16V10M3 10l2-5.5h14L21 10z"/><path d="M10 19.5v-5h4v5"/></svg></div>
+          <h3>Sell and send receipts</h3><p>A fast till on any phone or computer. Scan barcodes, take cash, transfer or POS card, and send the receipt on WhatsApp.</p></div>
+        <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3.5 7.6 12 3l8.5 4.6v8.8L12 21l-8.5-4.6z"/><path d="M3.5 7.6 12 12l8.5-4.4M12 12v9"/></svg></div>
+          <h3>Stock that adds up</h3><p>Every sale takes stock off. See what's running low or about to expire, and what each shop sold.</p></div>
+        <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg></div>
+          <h3>Field sales visits</h3><p>Sales reps check in at each store with GPS and a photo. See who visited where, and who is falling behind.</p></div>
+        <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></svg></div>
+          <h3>The day, every evening</h3><p>A short email around 7 pm: sales, who was late, stock to reorder and anything that needs you.</p></div>
+        <div class="feature"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 16a4.8 4.8 0 0 1 6.4 0"/><circle cx="12" cy="19.3" r="1" fill="currentColor"/></svg></div>
+          <h3>Works with poor signal</h3><p>Clock-ins and sales are saved on the phone and sent when the signal comes back. Nothing is lost.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="who">
+    <div class="wrap">
+      <div class="section-head"><h2>Who it's for</h2><p class="muted">Businesses where the owner can't be everywhere.</p></div>
+      <div class="who">
+        <div class="who-card"><span class="emoji" aria-hidden="true">🛒</span><div><b>Shops and supermarkets</b><span>Provision stores, minimarts, boutiques, phone shops.</span></div></div>
+        <div class="who-card"><span class="emoji" aria-hidden="true">💊</span><div><b>Pharmacies</b><span>Expiry dates, stock per branch, and who sold what.</span></div></div>
+        <div class="who-card"><span class="emoji" aria-hidden="true">🚚</span><div><b>Distributors and field teams</b><span>FMCG, pharma and telecoms reps visiting stores every day.</span></div></div>
+        <div class="who-card"><span class="emoji" aria-hidden="true">🏢</span><div><b>Offices and branches</b><span>Staff attendance across one office or many.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pricing">
+    <div class="wrap">
+      <div class="section-head"><h2>Plans and prices</h2><p class="muted">Pay monthly. Change plan any time.</p></div>
+      <div class="free"><b><span data-trial>First month</span> free</b><span>No card needed to start. We ask for a card when your free month ends.</span></div>
+      <div class="plans">
+        <div class="plan pop">
+          <span class="tag">Most shops start here</span>
+          <h3>Starter</h3>
+          <p class="price"><span data-p="starter.price">₦5,000</span> <small>a month</small></p>
+          <p class="muted small">For 1 shop or office and up to <span data-p="starter.staff">5</span> staff.</p>
+          <ul>
+            <li>Sell, with receipts on WhatsApp</li>
+            <li>Stock and low-stock alerts</li>
+            <li>Staff attendance with GPS and selfie</li>
+            <li>The evening summary email</li>
+            <li class="no">Managers, sales reps, Excel</li>
+          </ul>
+          <a class="btn btn-main" data-app="signup/starter" href="../#/signup/starter">Start free</a>
+        </div>
+        <div class="plan">
+          <span class="tag">Growing businesses</span>
+          <h3>Business</h3>
+          <p class="price">From <span data-p="business.shop">₦5,000</span> <small>a shop, a month</small></p>
+          <p class="muted small">Everything in Starter, for as many shops and offices as you have.</p>
+          <ul>
+            <li>Many shops and offices</li>
+            <li>Managers for each shop</li>
+            <li>Field sales: reps and store visits</li>
+            <li>Excel import and export</li>
+          </ul>
+          <div class="rates">
+            <div><span>Each shop (<span data-p="business.shop_staff">5</span> staff included)</span><b data-p="business.shop">₦5,000</b></div>
+            <div><span>Each extra shop staff</span><b data-p="business.extra_staff">₦1,000</b></div>
+            <div><span>Each office staff</span><b data-p="business.office_staff">₦1,500</b></div>
+            <div><span>Each sales rep</span><b data-p="business.rep">₦2,500</b></div>
+          </div>
+          <p class="promise">Owners and managers are free. You never pay more on Business than you would on Starter for the same set-up.</p>
+          <a class="btn btn-soft" data-app="signup/business" href="../#/signup/business">Start free</a>
+        </div>
+        <div class="plan premium">
+          <span class="tag soon">Coming soon</span>
+          <h3>Premium</h3>
+          <p class="price">AI cameras</p>
+          <p class="muted small">Cameras in your shops that work with Pinga: count customers, match sales to the till, and alert you when something looks wrong.</p>
+          <ul><li>Everything in Business</li><li>Customer counts per hour</li><li>Alerts sent to your phone</li></ul>
+          <span class="btn btn-soft" aria-disabled="true">Coming soon</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-head"><h2>FAQs</h2></div>
+      <div class="faq">
+        <details><summary>Do I need a card to start?</summary><p>No. Your <span data-trial>first month</span> is free and we don't ask for a card. When the free month ends, you pay by card, bank transfer or USSD through Paystack.</p></details>
+        <details><summary>What happens when the free month ends?</summary><p>We remind you a few days before. Your staff can always clock in and sell, even if a payment is late. You'll see a reminder until it's paid.</p></details>
+        <details><summary>What phones does it work on?</summary><p>Any Android phone or iPhone with a browser, and any computer. Nothing to install from the app store. It's light, so it works well on cheaper phones.</p></details>
+        <details><summary>Does it work without internet?</summary><p>Yes. Clock-ins and sales are saved on the phone and sent when the signal comes back. Receipts go out as soon as you're online.</p></details>
+        <details><summary>Can staff cheat the clock-in?</summary><p>Pinga checks the GPS location and takes a selfie at every clock-in. Anything unusual, like clocking in away from the shop, is flagged for you to check.</p></details>
+        <details><summary>Can I change plan later?</summary><p>Yes, any time in Setup → Billing. Moving up to Business never costs more for the same set-up.</p></details>
+        <details><summary>How do my staff join?</summary><p>You type their name and phone number. Pinga makes a link you send on WhatsApp. They open it, choose a PIN, and sign in with their phone number.</p></details>
+        <details><summary>Is my data safe?</summary><p>Each business only ever sees its own data. Staff see only what they need; managers see only their shops. Your data is stored securely.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="end">
+      <h2>Ready when you are</h2>
+      <p><span data-trial>First month</span> free. Set up in 10 minutes.</p>
+      <a class="btn btn-main" data-app="signup/starter" href="../#/signup/starter">Start free</a>
+    </div>
+  </div>
+</main>
+
+<footer><div class="wrap"><span>© <span id="year">2026</span> Pinga</span><span><a data-app="owner" href="../#/owner">Owner sign in</a> · <a data-app="" href="../#/">Staff sign in</a></span></div></footer>
+<script src="landing.js" defer></script>
+</body>
+</html>

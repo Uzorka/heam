@@ -16,7 +16,7 @@ mkdirSync(out, { recursive: true });
 const YABA = { lat: 6.5095, lng: 3.3711 };
 const company = { id: 'c1', name: 'CHF Heron', summary_email: true, status: 'trial', trial_ends_at: new Date(Date.now() + 2 * 864e5 - 3600e3).toISOString(), business_type: 'field', timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5],
   // The selling tests below are about the till itself; the owner's till rules are switched on in the roles section.
-  sell_requires_clock_in: false, staff_below_lowest: true };
+  sell_requires_clock_in: false, staff_below_lowest: true, plan: 'business', setup_done: true, setup_step: 6 };
 const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '12 Herbert Macaulay Way', radius_m: 100, ...YABA }];
 const people = [
   { id: 'm0', user: 'u-owner', full_name: 'elvis uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null, branch_id: null },
@@ -48,6 +48,7 @@ const photos = new Map();
 let networkDown = false;
 let signedInAs = null;
 
+const PLANS = { trial_days: 30, starter: { price: 5000, staff: 5, locations: 1 }, business: { shop: 5000, shop_staff: 5, extra_staff: 1000, office_staff: 1500, rep: 2500 }, discounts: [] };
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const dist = (a, b) => { const r = (d) => (d * Math.PI) / 180; const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2; return 2 * 6371000 * Math.asin(Math.sqrt(h)); };
 const lagosDate = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date(iso));
@@ -344,6 +345,7 @@ async function fakeSupabase(route) {
     const joined = people.filter((x) => x.joined_at && ['staff', 'rep'].includes(x.role));
     const staff = joined.filter((x) => x.role === 'staff').length, reps = joined.filter((x) => x.role === 'rep').length;
     return json(route, { status: bill.status, trial_ends: company.trial_ends_at.slice(0, 10), trial_days_left: 2, paid_until: bill.paid_until,
+      plan: company.plan, plans: PLANS, starter_blockers: people.some((x) => x.role === 'rep') ? ['sales reps'] : [],
       quote: company.business_type === 'storefront' ? (() => {
         const per = new Map(); joined.filter((x) => x.role === 'staff' && x.branch_id).forEach((x) => per.set(x.branch_id, (per.get(x.branch_id) || 0) + 1));
         const extra = [...per.values()].reduce((t, k) => t + Math.max(0, k - 3), 0), loose = joined.filter((x) => x.role === 'staff' && !x.branch_id).length;

@@ -89,6 +89,13 @@ export async function signUp(email, password, redirectTo) {
   return false;
 }
 
+// The 6-digit code from the sign-up email. Signs the person in when it's right.
+export async function verifyEmailCode(email, token) {
+  save(await request('/auth/v1/verify', { method: 'POST', body: { type: 'signup', email, token }, withUser: false }));
+  return session;
+}
+export const resendEmailCode = (email) => request('/auth/v1/resend', { method: 'POST', body: { type: 'signup', email }, withUser: false });
+
 // After clicking the email confirmation link, Supabase sends people back with the login in the address.
 export async function signInFromLink(hash) {
   const p = new URLSearchParams(hash.replace(/^#/, ''));

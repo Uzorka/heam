@@ -10,8 +10,12 @@ const { UPLOAD_URL, X_AUTH, X_AUTH_REST } = process.env;
 if (!UPLOAD_URL || !X_AUTH || !X_AUTH_REST) { console.error('Missing UPLOAD_URL / X_AUTH / X_AUTH_REST'); process.exit(1); }
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const walk = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
+// The landing page (site/) goes in a folder of the same website until it has its own domain (usepinga.com).
+const siteRoot = fileURLToPath(new URL('../site/', import.meta.url));
+const sitePath = process.env.SITE_PATH ?? 'home/';
 const files = [
   ...walk(root).map((f) => [relative(root, f).split('\\').join('/'), readFileSync(f)]),
+  ...(sitePath ? walk(siteRoot).map((f) => [sitePath + relative(siteRoot, f).split('\\').join('/'), readFileSync(f)]) : []),
   ['.htaccess', readFileSync(new URL('../hosting/htaccess', import.meta.url))],
 ];
 // sw.js last, so phones only see the new version once every file is in place.

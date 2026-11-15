@@ -2,7 +2,7 @@
 import * as api from './api.js';
 import { CONFIG } from './config.js';
 import { publicBase } from './device.js';
-import { show, go, esc, toast, friendly, app, fmtDay, backLink } from './ui.js';
+import { show, go, esc, toast, friendly, app, fmtDay, backLink, reloadMe } from './ui.js';
 
 const naira = (kobo) => '₦' + Math.round(kobo / 100).toLocaleString('en-NG');
 const day = (d, tz) => fmtDay(d + 'T12:00:00Z', tz);
@@ -39,15 +39,18 @@ export async function billing(me, arg) {
         <p class="muted">${esc(head[1])}</p>
         ${b.card ? `<p class="small">${esc(b.card.label)}${b.card.expires ? ` (expires ${esc(b.card.expires)})` : ''} · renews automatically each month</p>` : ''}
       </section>
+      ${planCard(b)}
       <section class="card block">
         <h2>Your monthly price</h2>
         <ul class="offices">
+          ${q.plan === 'starter' ? `<li><span>Starter · 1 shop or office, up to ${q.starter_staff} staff <span class="muted">(${q.people} now)</span></span><span>${naira(q.starter_price * 100)}</span></li>` : ''}
           ${q.shop_seats ? `<li><span>Shops · ${q.shop_seats} × ${naira(q.shop_price * 100)} <span class="muted">(up to ${q.shop_included_staff} staff each)</span></span><span>${naira(q.shop_seats * q.shop_price * 100)}</span></li>` : ''}
           ${q.shop_extra_staff ? `<li><span>Extra shop staff · ${q.shop_extra_staff} × ${naira(q.extra_staff_price * 100)}</span><span>${naira(q.shop_extra_staff * q.extra_staff_price * 100)}</span></li>` : ''}
           ${q.loose_staff ? `<li><span>Staff not in a shop yet · ${q.loose_staff} × ${naira(q.extra_staff_price * 100)}</span><span>${naira(q.loose_staff * q.extra_staff_price * 100)}</span></li>` : ''}
-          ${q.staff_seats || (!q.rep_seats && !q.shop_seats && !q.loose_staff) ? `<li><span>Office staff · ${q.staff_seats} × ${naira(q.staff_price * 100)}</span><span>${naira(q.staff_seats * q.staff_price * 100)}</span></li>` : ''}
+          ${q.plan !== 'starter' && (q.staff_seats || (!q.rep_seats && !q.shop_seats && !q.loose_staff)) ? `<li><span>Office staff · ${q.staff_seats} × ${naira(q.staff_price * 100)}</span><span>${naira(q.staff_seats * q.staff_price * 100)}</span></li>` : ''}
           ${q.rep_seats ? `<li><span>Sales reps · ${q.rep_seats} × ${naira(q.rep_price * 100)}</span><span>${naira(q.rep_seats * q.rep_price * 100)}</span></li>` : ''}
           ${q.discount_percent > 0 ? `<li><span>Volume discount (${q.discount_min_people}+ people) · ${Number(q.discount_percent)}% off</span><span>−${naira(q.gross_kobo - q.amount_kobo)}</span></li>` : ''}
+          ${q.capped ? `<li><span>Never more than Starter for the same set-up</span><span>−${naira(q.gross_kobo * (100 - q.discount_percent) / 100 - q.amount_kobo)}</span></li>` : ''}
           <li class="total"><span>Total a month</span><span>${naira(q.amount_kobo)}</span></li>
         </ul>
         <p class="tiny muted">Counted from people who have joined and are active. Owners and managers are free.${me.companies.business_type !== 'field' ? ` A shop is counted once one of its staff has joined.` : ''}</p>
@@ -66,6 +69,18 @@ export async function billing(me, arg) {
           <td class="end"><span class="pill ${STATUS[i.status][0]}">${STATUS[i.status][1]}</span></td></tr>`).join('')}</tbody></table></div>` : ''}
     </main>`);
 
+  const change = document.getElementById('change-plan');
+  if (change) {
+    change.onclick = async () => {
+      change.disabled = true;
+      try {
+        await api.rpc('set_plan', { p_plan: change.dataset.plan });
+        reloadMe();
+        toast(`You're on ${change.dataset.plan === 'starter' ? 'Starter' : 'Business'} now`);
+        go('#/billing');
+      } catch (x) { toast(friendly(x)); change.disabled = false; }
+    };
+  }
   const pay = document.getElementById('pay');
   if (pay) {
     pay.onclick = async () => {
@@ -81,6 +96,25 @@ export async function billing(me, arg) {
       }
     };
   }
+}
+
+// Starter or Business, and moving between them. Down to Starter only when the business fits it.
+function planCard(b) {
+  const p = b.plans, starter = b.plan === 'starter';
+  if (!p) return '';
+  const blockers = b.starter_blockers || [];
+  return `
+    <section class="card block plan-card">
+      <h2>Your plan: ${starter ? 'Starter' : 'Business'}</h2>
+      <p class="muted">${starter
+        ? `${naira(p.starter.price * 100)} a month for 1 shop or office and up to ${p.starter.staff} staff. Sell, stock, receipts, attendance and the evening email.`
+        : `${naira(p.business.shop * 100)} a shop (${p.business.shop_staff} staff included), ${naira(p.business.extra_staff * 100)} each extra shop staff, ${naira(p.business.office_staff * 100)} each office staff, ${naira(p.business.rep * 100)} each sales rep. Many shops, managers, field sales, Excel import and export.`}</p>
+      ${starter ? `<button class="secondary" id="change-plan" data-plan="business">Move to Business</button>
+        <p class="tiny muted">You never pay more on Business than on Starter for the same set-up.</p>`
+        : blockers.length ? `<p class="tiny muted">Starter fits 1 shop or office, up to ${p.starter.staff} staff, no managers or sales reps. You have ${esc(blockers.join(', '))}.</p>`
+        : '<button class="secondary" id="change-plan" data-plan="starter">Move to Starter</button>'}
+      <p class="tiny muted">Premium, with AI cameras, is coming soon.</p>
+    </section>`;
 }
 
 // Back from Paystack: confirm the payment with Paystack, then show the result.

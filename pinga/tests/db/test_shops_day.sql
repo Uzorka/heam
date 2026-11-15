@@ -19,6 +19,8 @@ insert into public.branches (id, company_id, name, lat, lng) values
   ('5f000000-0000-0000-0000-000000000001', (select id from co), 'Yaba shop', 6.5095, 3.3711),
   ('5f000000-0000-0000-0000-000000000002', (select id from co), 'Surulere shop', 6.50, 3.35),
   ('5f000000-0000-0000-0000-000000000003', (select id from co), 'Empty shop', 6.40, 3.30);
+-- The sums below use 3 staff included per shop (the real setting is in billing_prices; test_plans.sql checks it).
+update public.billing_prices set included_staff = 3 where module = 'shop';
 -- Yaba: 5 joined staff (3 included + 2 extra). Surulere: 1. Empty shop: nobody joined yet. One person not in a shop.
 insert into public.members (id, company_id, user_id, full_name, phone, role, branch_id, joined_at)
 select ('ed000000-0000-0000-0000-00000000000' || g)::uuid, (select id from co),

@@ -643,3 +643,66 @@ body.has-paybar .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 /* Phones, basket open: toasts at the top so they never cover the payment buttons. */
 @media (max-width: 767px) { body.sheet-open .toast { top: max(12px, env(safe-area-inset-top)); bottom: auto; } }
 .tillline { display: block; width: 100%; font-size: 14px; font-weight: 800; margin-top: 2px; }
+
+/* ── Sign-up and the setup wizard ── */
+.code-input { font-size: 30px; letter-spacing: 0.5em; text-align: center; font-weight: 800; padding: 14px 8px 14px 0.5em; font-variant-numeric: tabular-nums; }
+.plan-pick .choice { padding: 10px 14px; }
+.wizard { padding-bottom: 32px; }
+.wizard .brand { margin-bottom: 18px; }
+.wiz-progress { height: 8px; background: var(--grey-bg); border-radius: 99px; overflow: hidden; }
+.wiz-progress span { display: block; height: 100%; background: var(--mango); border-radius: 99px; transition: width .3s; }
+.wiz-step { margin: 8px 0 10px; font-weight: 700; }
+.wiz-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.wiz-actions > .secondary, .wiz-actions > span:first-child { flex: 0 0 auto; }
+.wiz-actions .primary { margin-left: auto; min-width: 132px; width: auto; }
+.wiz-actions .skip { margin-left: auto; }
+.wiz-actions .skip + .primary { margin-left: 0; }
+.type-cards { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; }
+.type-card { position: relative; display: flex; align-items: flex-start; gap: 14px; background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 16px; cursor: pointer; font-weight: 400; }
+.type-card input { position: absolute; opacity: 0; pointer-events: none; }
+.type-card:has(input:checked) { border-color: var(--mango); background: #FFFBF6; box-shadow: 0 0 0 3px var(--mango-soft); }
+.type-card:has(input:focus-visible) { outline: 3px solid var(--info); outline-offset: 2px; }
+.tc-icon { flex: none; width: 52px; height: 52px; border-radius: 14px; background: var(--mango-soft); color: var(--mango-ink); display: grid; place-items: center; }
+.tc-icon svg { width: 32px; height: 32px; }
+.tc-text { display: flex; flex-direction: column; gap: 2px; padding-right: 26px; }
+.tc-text strong { font-size: 19px; }
+.tc-eg { color: var(--muted); font-size: 15px; }
+.tc-does { font-size: 14px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+.tc-tick { position: absolute; top: 14px; right: 14px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; color: transparent; }
+.type-card:has(input:checked) .tc-tick { background: var(--mango); border-color: var(--mango); color: var(--ink); }
+.tc-tick svg { width: 16px; height: 16px; }
+.map-field { display: flex; flex-direction: column; gap: 8px; }
+.map-field .label { font-weight: 700; }
+.pick-map { height: 260px; border-radius: 14px; overflow: hidden; border: 1.5px solid var(--line); background: var(--grey-bg); display: grid; place-items: center; }
+.map-pin span { display: block; width: 32px; height: 42px; background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 42'%3E%3Cpath d='M16 41S30 27.5 30 15.5a14 14 0 0 0-28 0C2 27.5 16 41 16 41z' fill='%23FF8A1F' stroke='%2314213D' stroke-width='2'/%3E%3Ccircle cx='16' cy='15.5' r='5.5' fill='%2314213D'/%3E%3C/svg%3E"); filter: drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
+.wiz-list { margin: 0; }
+.wiz-list .row { gap: 12px; align-items: center; }
+.wiz-list .end { margin-left: auto; font-weight: 800; }
+.tick.on { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; }
+.tick.on svg { width: 16px; height: 16px; }
+.pick-cards { display: grid; gap: 12px; margin-top: 16px; }
+.pick-card { display: flex; flex-direction: column; gap: 2px; background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 18px; color: var(--ink); }
+.pick-card strong { font-size: 18px; }
+.pick-card:hover { border-color: var(--mango); }
+.pick-card.off { opacity: .6; }
+.add-product, .add-person { margin-top: 16px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wiz-done { margin: 12px 0 8px; }
+.wiz-go { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 16px; }
+.wiz-go .button { display: flex; align-items: center; justify-content: center; gap: 10px; }
+@media (min-width: 768px) {
+  .wizard { max-width: 560px; }
+  .pick-cards { grid-template-columns: 1fr 1fr; }
+  .wiz-go { flex-direction: row; } .wiz-go .button { flex: 1; }
+}
+@media (min-width: 1200px) {
+  .wizard { max-width: 640px; padding-top: 40px; }
+  .wizard:has(.type-cards) { max-width: 960px; }
+  .type-cards { grid-template-columns: repeat(3, 1fr); }
+  .type-card { flex-direction: column; padding: 20px; }
+  .pick-map { height: 320px; }
+}
+.wiz-actions .button, .wiz-actions button { width: auto; padding-left: 22px; padding-right: 22px; }
+.wiz-go .button.big + .button.big { margin-top: 0; }
+.foot .link { min-height: 0; padding: 0; display: inline; font-size: inherit; }
+.wiz-list .row { justify-content: flex-start; }

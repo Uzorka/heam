@@ -45,6 +45,19 @@ begin
   raise exception 'FAIL: % (was allowed)', p_name;
 end $$;
 
+-- Passes when the statement is refused with a message containing p_words.
+create function tests.refused_saying(p_sql text, p_words text, p_name text) returns void language plpgsql as $$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if position(p_words in sqlerrm) = 0 then raise exception 'FAIL: % (refused, but said: %)', p_name, sqlerrm; end if;
+    raise notice 'ok - % (refused: %)', p_name, sqlerrm;
+    return;
+  end;
+  raise exception 'FAIL: % (was allowed)', p_name;
+end $$;
+
 -- Passes when an update/delete runs but touches zero rows (hidden by row rules).
 create function tests.no_rows(p_sql text, p_name text) returns void language plpgsql as $$
 declare n int;

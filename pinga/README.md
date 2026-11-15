@@ -143,6 +143,48 @@ Full screen for shop staff, managers and owners (owners and managers open it fro
 - **Till:** the first time Sell opens each day it asks for the cash in the drawer (optional, ₦0; asked only when there is signal). Managers and owners **close the till**: expected = opening + cash taken (including the cash part of split payments); counted − expected is kept and shown in the owner's dashboard data and the evening email.
 - Database: `20261201000001_pos.sql` (tests: `tests/db/test_pos.sql`).
 
+## Plans, sign-up and the setup wizard
+
+**Plans** (placeholder prices, all in `public.billing_prices`; the free trial length is in `public.billing_settings`):
+- **Starter**: ₦5,000 a month for 1 shop or office and up to 5 staff. Includes Sell, stock, receipts, attendance and the evening email. It has no managers, sales reps, stores or Excel import/export, and the database refuses them.
+- **Business**: ₦5,000 a shop with 5 staff included, ₦1,000 for each extra shop staff, ₦1,500 for each office staff member and ₦2,500 for each sales rep. Adds many shops, managers, field sales and Excel import/export.
+- **Premium** (AI cameras) is shown as "Coming soon" and is not sold.
+- A Business set-up that would fit Starter never costs more than Starter. The price is capped, and `tests/db/test_plans.sql` checks every such set-up.
+- The first month is free, with no card needed. The owner moves between plans in Setup → Billing. Moving down to Starter only works once the business fits it, and Pinga says what's in the way.
+
+**Sign-up** (`#/signup/starter` or `#/signup/business`):
+1. The owner gives their name, phone, email and password.
+2. They type the 6-digit code from the email. The code email's template is `supabase/templates/confirm-code.html`, set by `scripts/deploy.js`.
+
+**Setup wizard** (`#/welcome/N`): one step per screen, with a progress bar, Back/Next and "Skip for now" on optional steps.
+1. Business type
+2. Business details (name, logo, phone, address)
+3. Shops or offices, with a pin on the map
+4. Products, for businesses with shops
+5. Invite staff on WhatsApp
+6. Done
+
+Steps 1–2 are kept on the phone until the business is created. After that, the step reached is saved (`save_setup`), and an owner who hasn't finished is taken back to it.
+
+**Landing page**: `site/`. It is published to `/home/` on the staging site for now (`SITE_PATH` in `scripts/publish.js`), and prices come from `public.plans()`. On usepinga.com its links go to `app.usepinga.com`.
+
+## Email from usepinga.com (Resend)
+
+Once usepinga.com is bought:
+1. In Resend, go to Domains → Add domain → `usepinga.com`, region **eu-west-1 (Ireland)**.
+2. Add the records Resend shows in Hostinger → Domains → usepinga.com → DNS records. They look like this, but copy the exact values from Resend (the DKIM key is unique):
+
+   | Type | Name | Value | Priority |
+   |---|---|---|---|
+   | TXT | `resend._domainkey` | `p=MIGfMA0G…` (from Resend) | |
+   | MX | `send` | `feedback-smtp.eu-west-1.amazonses.com` | 10 |
+   | TXT | `send` | `v=spf1 include:amazonses.com ~all` | |
+   | TXT | `_dmarc` | `v=DMARC1; p=none;` (optional, recommended) | |
+3. Press Verify in Resend. This usually takes minutes, and can take up to a few hours.
+4. Add the settings below. The key goes only into these settings, never into chat or the code:
+   - **Supabase → Authentication → Emails → SMTP settings**: host `smtp.resend.com`, port `465`, user `resend`, password = your Resend API key, sender `no-reply@usepinga.com`, name `Pinga`. Without this, Supabase's test sender sends only 2 emails an hour, and only to your own team's addresses.
+   - **Supabase → Edge Functions → Secrets**: `RESEND_API_KEY` (the same key) and `SUMMARY_FROM` = `Pinga <summary@usepinga.com>` for the evening email.
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

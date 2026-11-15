@@ -90,10 +90,10 @@ export async function stockList(me, arg, tabs) {
       <a class="card row salescard" href="#/sales/${shop.id}">
         <span class="grow"><span class="muted">Sales today</span><br><b class="big">${naira(sold?.total || 0)}</b> · ${plural(sold?.sales || 0, 'sale')}
           ${sold?.mistakes ? `<br><span class="pill info">${plural(sold.mistakes, 'mistake')} reported</span>` : ''}${sold?.flagged ? ` <span class="pill warn">${sold.flagged} to check</span>` : ''}</span>${chev}</a>
-      <div class="btn-pair">
+      ${me.companies.plan === 'starter' ? '<a class="primary button" href="#/product/new">Add product</a>' : `<div class="btn-pair">
         <a class="primary button" href="#/import">Import stock</a>
         <a class="secondary button" href="#/product/new">Add product</a>
-      </div>
+      </div>`}
       ${products.length ? `
       <section class="card block" aria-labelledby="st-h">
         <h2 id="st-h" class="sr">Summary</h2>

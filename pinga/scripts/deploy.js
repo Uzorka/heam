@@ -95,9 +95,18 @@ console.log(`  face check: scheduled every 5 minutes; ${awsReady ? 'ON (AWS keys
 console.log(`  summary: scheduled hourly; email ${secrets.includes('RESEND_API_KEY') ? 'is set up' : 'NOT set up yet (add RESEND_API_KEY in Supabase → Edge Functions → Secrets)'}`);
 
 // 3. Login settings
-const authConfig = { password_min_length: 6, ...(project.site ? { site_url: project.site } : {}) };
+// New owners confirm their email with a 6-digit code (typed into the app), not only a link.
+const codeEmail = readFileSync(new URL('../supabase/templates/confirm-code.html', import.meta.url), 'utf8');
+const authConfig = {
+  password_min_length: 6, ...(project.site ? { site_url: project.site } : {}),
+  mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600,
+  mailer_subjects_confirmation: 'Your Pinga code: {{ .Token }}',
+  mailer_templates_confirmation_content: codeEmail,
+};
 await call('/config/auth', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(authConfig) });
-console.log(`  logins: minimum password length 6${project.site ? `, app address ${project.site}` : ''}`);
+const authNow = await call('/config/auth');
+console.log(`  logins: minimum password length 6${project.site ? `, app address ${project.site}` : ''}; sign-up code email (6 digits, 1 hour)`);
+console.log(`  sign-up email: ${authNow.smtp_host ? `sent through ${authNow.smtp_host} as ${authNow.smtp_admin_email}` : "Supabase's test sender (2 emails an hour, team addresses only). Add Resend as SMTP in Supabase → Authentication → Emails → SMTP"}`);
 
 // 4. Smoke test, as the public app would
 const pub = { apikey: project.key, 'content-type': 'application/json' };

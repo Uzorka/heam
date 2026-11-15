@@ -3,28 +3,10 @@ import * as api from './api.js';
 import { show, esc, header, wireSignOut, onLeave, fmtDay, localDate, firstName, properName } from './ui.js';
 import { happyPin } from './icons.js';
 import { checklist, setupDone } from './getstarted.js';
+import { loadLeaflet } from './map.js';
 
 const naira = (n) => '₦' + Math.round(n).toLocaleString('en-NG');
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-
-// Leaflet (the map) is loaded only here, from our own site, the first time it's needed.
-let leaflet = null;
-function loadLeaflet() {
-  if (!leaflet) {
-    leaflet = new Promise((resolve, reject) => {
-      const css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = 'vendor/leaflet/leaflet.css';
-      document.head.append(css);
-      const js = document.createElement('script');
-      js.src = 'vendor/leaflet/leaflet.js';
-      js.onload = () => resolve(window.L);
-      js.onerror = () => { leaflet = null; reject(new Error('map-load-failed')); };
-      document.head.append(js);
-    });
-  }
-  return leaflet;
-}
 
 async function drawMap(el, stores) {
   const L = await loadLeaflet();
@@ -115,7 +97,7 @@ export async function overview(me, tabs) {
       </section>` : ''}
 
       </div>
-      ${nobody || (sells && me.role !== 'owner') ? '' : '<a class="secondary button export-btn" href="#/export">Export register (Excel or PDF)</a>'}
+      ${nobody || (sells && me.role !== 'owner') || me.companies.plan === 'starter' ? '' : '<a class="secondary button export-btn" href="#/export">Export register (Excel or PDF)</a>'}
     </main>`);
   wireSignOut();
 

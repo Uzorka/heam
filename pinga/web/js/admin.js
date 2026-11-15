@@ -60,6 +60,9 @@ export async function adminRoute(me, name, arg) {
   ME = me;
   NAV = F.shop ? NAV_SHOP : NAV_FIELD;
   PLACE.office = officeKind(F);
+  // A new owner goes through the setup wizard first (full screen, no menu). Any other screen still opens.
+  if (name === 'welcome' && me.role === 'owner') { setNav(''); return import('./welcome.js').then((m) => m.welcome(me, arg)); }
+  if (me.role === 'owner' && !me.companies.setup_done && ['', 'overview'].includes(name)) return go('#/welcome/' + Math.max(3, me.companies.setup_step || 3));
   setNav(navHtml(SECTION[name] || 'Setup'));   // sub-screens keep the side nav on bigger screens
   // Features this business type doesn't use are not reachable.
   if (!F.visits && ['stores', 'store', 'assign'].includes(name)) return go('#/setup');
@@ -67,6 +70,8 @@ export async function adminRoute(me, name, arg) {
   if (can(me).limited && ['hours', 'export', 'business', 'brand', 'billing', 'face'].includes(name)) return go('#/setup');
   if (!can(me).staff && name === 'invite') return go('#/team');
   if (!can(me).shops && name === 'office' && arg === 'new') return go('#/offices');
+  // Starter: no Excel import or export (the database refuses them too).
+  if (F.starter && ['import', 'export'].includes(name)) return go(name === 'import' ? '#/stock' : '#/setup');
   // Sell (full screen) for owners and managers: choose the shop if there is more than one.
   if (F.shop && name === 'sell') return sellFor(me, arg);
   if (F.shop && ['stock', 'product', 'import', 'imports', 'sales', 'sale'].includes(name)) {
@@ -147,6 +152,7 @@ async function team(me) {
 
 // Who can be invited depends on the business type.
 function inviteRoles() {
+  if (F.starter) return [['staff', F.type === 'storefront' ? 'Shop staff' : 'Staff', 'Clocks in at work. Managers and sales reps come with the Business plan.']];
   if (F.type === 'storefront') return [['staff', 'Shop staff', 'Clocks in at their shop'], ['admin', 'Manager', 'Looks after one or more shops']];
   if (F.type === 'both') return [['staff', 'Staff', 'Clocks in at an office or shop'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
   return [['staff', 'Office staff', 'Clocks in at the office'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
@@ -459,7 +465,7 @@ async function places(me, k) {
       ${header(me, k.plural)}
       ${tabs('Setup')}
       ${backLink('#/setup', 'Setup')}
-      ${k.table === 'branches' && !can(me).shops ? '' : `<a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>`}
+      ${k.table === 'branches' && !can(me).shops ? '' : k.table === 'branches' && F.starter && list.length ? '<p class="banner tip">Starter includes 1 shop or office. <a href="#/billing">Move to Business</a> to add more.</p>' : `<a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>`}
       ${isStores && list.length && !reps.length ? '<p class="banner tip">Invite a sales rep (Team → Invite someone), then tap a store to choose who visits it.</p>' : ''}
       ${isStores && reps.length && unassigned ? `<p class="banner tip">${unassigned} store${unassigned === 1 ? " isn't" : "s aren't"} assigned to a sales rep yet. Tap a store to choose who visits it.</p>` : ''}
       ${list.length ? '' : `<p class="muted center empty">${k.empty}</p>`}
@@ -621,8 +627,8 @@ async function setup(me) {
         <li><a class="card row" href="#/offices"><span><strong>${PLACE.office.plural}</strong><br><span class="muted">${F.type === 'storefront' ? 'Where your staff clock in and sell' : F.type === 'both' ? 'Where staff clock in' : 'Where office staff clock in'}</span></span>${chev}</a></li>
         ${F.visits ? `<li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span>${chev}</a></li>` : ''}
         ${c.settings ? `<li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span>${chev}</a></li>` : ''}
-        ${isOwner ? `<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">Plan, price for your team, payments</span></span>${chev}</a></li>` : ''}
-        ${c.export ? `<li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span>${chev}</a></li>` : ''}
+        ${isOwner ? `<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">${F.starter ? 'Starter plan' : 'Business plan'} · price, payments</span></span>${chev}</a></li>` : ''}
+        ${c.export && !F.starter ? `<li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span>${chev}</a></li>` : ''}
         ${isOwner && F.shop ? `<li class="card row"><span><strong>Staff must clock in before selling</strong><br><span class="muted">The till stays closed for shop staff until they clock in</span></span>
           <label class="switch"><input type="checkbox" data-co="sell_requires_clock_in"${co.sell_requires_clock_in ? ' checked' : ''} aria-label="Staff must clock in before selling"><span></span></label></li>
         <li class="card row"><span><strong>Staff may sell below the lowest price</strong><br><span class="muted">Off: staff sell only between the lowest and the selling price. On: lower is allowed but flagged for you</span></span>

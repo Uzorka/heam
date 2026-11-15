@@ -14,7 +14,7 @@ const rows = walk(root).filter((f) => ['.js', '.css', '.html', '.webmanifest', '
 const total = (ext) => rows.filter((r) => extname(r.file) === ext).reduce((s, r) => s + r.kb, 0);
 for (const r of rows) console.log(`${r.kb.toFixed(1).padStart(6)} KB  ${r.file}`);
 // Managers' screens are only downloaded by managers, so they don't count towards the staff budget.
-const MANAGER_ONLY = ['js/admin.js', 'js/today.js', 'js/overview.js', 'js/export.js', 'js/xlsx.js', 'js/billing.js', 'js/getstarted.js', 'js/stock.js', 'js/sheet.js'];
+const MANAGER_ONLY = ['js/admin.js', 'js/today.js', 'js/overview.js', 'js/export.js', 'js/xlsx.js', 'js/billing.js', 'js/getstarted.js', 'js/stock.js', 'js/sheet.js', 'js/signup.js', 'js/welcome.js', 'js/map.js'];   // + owner sign-up and setup wizard
 const managerOnly = (f) => MANAGER_ONLY.includes(f) || f.startsWith('vendor/');
 const js = rows.filter((r) => extname(r.file) === '.js' && !managerOnly(r.file)).reduce((s, r) => s + r.kb, 0);
 console.log(`\nStaff app JavaScript: ${js.toFixed(1)} KB of ${BUDGET_JS_KB} KB budget (gzipped)`);

@@ -18,7 +18,9 @@ export function feats(me) {
   const type = me?.companies?.business_type || 'field';
   // Words follow the type: "Shop staff" in a Storefront business.
   ROLE.staff = type === 'storefront' ? 'Shop staff' : type === 'both' ? 'Staff' : 'Office staff';
-  return { type, visits: type !== 'storefront', shop: type !== 'field', offices: type !== 'storefront' };
+  // Starter: one shop or office, no sales reps or store visits, no Excel import or export.
+  const starter = me?.companies?.plan === 'starter';
+  return { type, starter, visits: type !== 'storefront' && !starter, shop: type !== 'field', offices: type !== 'storefront', excel: !starter };
 }
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -183,6 +185,9 @@ export const moneyInput = ({ name = '', value = '', label = '', placeholder = ''
 
 document.addEventListener('input', (e) => {
   const el = e.target;
+  // Fixing a field clears the form's error message.
+  const err = el.form?.querySelector('.error');
+  if (err?.textContent) err.textContent = '';
   if (el.matches?.('.datefield input[type=date]')) {
     const out = el.parentElement.querySelector('.dval');
     out.textContent = el.value ? fmtDate(el.value) : out.dataset.empty;

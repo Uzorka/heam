@@ -43,7 +43,13 @@ export async function adminRoute(me, name, arg) {
   PLACE.office = officeKind(F);
   // Features this business type doesn't use are not reachable.
   if (!F.visits && ['stores', 'store', 'assign'].includes(name)) return go('#/setup');
-  if (name === 'stock' && F.shop) return stockSoon(me);
+  if (F.shop && ['stock', 'product', 'import', 'imports'].includes(name)) {
+    const st = await import('./stock.js');
+    if (name === 'stock') return st.stockList(me, arg, tabs);
+    if (name === 'product') return st.productForm(me, arg, tabs);
+    if (name === 'import') return st.importScreen(me, tabs);
+    return st.importLog(me);
+  }
   if (name === 'business') return businessType(me);
   if (name === 'billing') return import('./billing.js').then((m) => m.billing(me, arg));
   if (name === 'invite') return invite(me);
@@ -558,22 +564,6 @@ function businessType(me) {
     toast(`Business type: ${BUSINESS[type].name}`);
     go('#/setup');
   });
-}
-
-// ── Stock (Storefront and Both). Products, stock and sales come in the next update. ──
-
-function stockSoon(me) {
-  show(`
-    <main class="page">
-      ${header(me, 'Stock')}
-      ${tabs('Stock')}
-      <div class="card stack center">
-        <p><strong>Products, stock and sales are coming next.</strong></p>
-        <p class="muted">You'll add products, import your stock list from Excel, and your shop staff will record sales here, even offline.</p>
-        <a class="secondary button" href="#/offices">Set up your shops</a>
-      </div>
-    </main>`);
-  wireSignOut();
 }
 
 // ── Face check setting (owner) ──────────────────────────────

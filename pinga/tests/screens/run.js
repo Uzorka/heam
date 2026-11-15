@@ -29,6 +29,10 @@ const stores = [
 ];
 const assignments = [];
 const managerShops = [];
+const products = [];
+const stockRows = new Map();     // `${branch}|${product}` -> { qty, expires_on }
+const stockChanges = [];
+const stockImports = [];
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
 const payRates = new Map();
@@ -127,6 +131,52 @@ async function fakeSupabase(route) {
     const mid = param(q, 'manager_id'), drop = /branch_id=in\.\(([^)]*)\)/.exec(decodeURIComponent(q))[1].split(',');
     for (let i = managerShops.length - 1; i >= 0; i--) if (managerShops[i].manager_id === mid && drop.includes(managerShops[i].branch_id)) managerShops.splice(i, 1);
     return route.fulfill({ status: 204 });
+  }
+  // ── Products and stock ──
+  if (p === '/rest/v1/products' && m === 'GET') {
+    const id = param(q, 'id');
+    return json(route, products.filter((x) => (id ? x.id === id : !q.includes('active=is.true') || x.active)).sort((a, b) => a.name.localeCompare(b.name)));
+  }
+  if (p === '/rest/v1/products' && m === 'POST') {
+    if (products.some((x) => x.name.toLowerCase() === body.name.toLowerCase())) return json(route, { code: '23505', message: 'duplicate key value violates unique constraint "products_name"' }, 409);
+    const row = { id: 'p' + (products.length + 1), active: true, code: null, price: null, lowest_price: null, low_stock_at: 5, ...body };
+    products.push(row); return json(route, [row]);
+  }
+  if (p === '/rest/v1/products' && m === 'PATCH') { const x = products.find((y) => y.id === param(q, 'id')); Object.assign(x, body); return json(route, [x]); }
+  if (p === '/rest/v1/stock' && m === 'GET') {
+    const b = param(q, 'branch_id'), pid = param(q, 'product_id');
+    return json(route, [...stockRows].filter(([k]) => k.startsWith(b + '|') && (!pid || k.endsWith('|' + pid))).map(([k, v]) => ({ product_id: k.split('|')[1], ...v })));
+  }
+  if (p === '/rest/v1/stock_changes' && m === 'GET') {
+    const b = param(q, 'branch_id'), pid = param(q, 'product_id');
+    return json(route, stockChanges.filter((c) => c.branch_id === b && c.product_id === pid).reverse());
+  }
+  if (p === '/rest/v1/stock_imports' && m === 'GET') return json(route, [...stockImports].reverse());
+  const applyStock = (b, pid, qty, add, exp, reason, note) => {
+    const k = b + '|' + pid, old = stockRows.get(k), now = add ? (old?.qty || 0) + qty : qty;
+    stockRows.set(k, { qty: now, expires_on: exp || old?.expires_on || null });
+    stockChanges.push({ branch_id: b, product_id: pid, change: now - (old?.qty || 0), qty_after: now, reason, note: note || null, by_name: me.full_name, created_at: new Date().toISOString() });
+  };
+  if (p === '/rest/v1/rpc/import_stock') {
+    let fresh = 0, units = 0;
+    for (const i of body.p_rows) {
+      let x = products.find((y) => (i.code && y.code?.toLowerCase() === i.code.toLowerCase()) || (i.name && y.name.toLowerCase() === i.name.toLowerCase()));
+      if (!x) { x = { id: 'p' + (products.length + 1), active: true, name: i.name, code: i.code, price: i.price ?? null, lowest_price: i.lowest_price ?? null, low_stock_at: i.low_stock_at ?? 5 }; products.push(x); fresh++; }
+      else Object.assign(x, i.price != null ? { price: i.price } : {});
+      applyStock(body.p_branch, x.id, i.qty, body.p_kind === 'delivery', i.expires_on, body.p_kind);
+      units += i.qty;
+    }
+    stockImports.push({ kind: body.p_kind, file_name: body.p_file_name, rows: body.p_rows.length, new_products: fresh, units, by_name: me.full_name, created_at: new Date().toISOString(), branch_id: body.p_branch });
+    return json(route, { rows: body.p_rows.length, new_products: fresh, units });
+  }
+  if (p === '/rest/v1/rpc/set_stock') { applyStock(body.p_branch, body.p_product, body.p_qty, false, body.p_expires_on, 'correction', body.p_note); return json(route, null); }
+  if (p === '/rest/v1/rpc/clear_expiry') { stockRows.get(body.p_branch + '|' + body.p_product).expires_on = null; return json(route, null); }
+  if (p === '/rest/v1/rpc/stock_alerts') {
+    return json(route, [...stockRows].filter(([k]) => k.startsWith(body.p_branch + '|')).flatMap(([k, v]) => {
+      const x = products.find((y) => y.id === k.split('|')[1]);
+      const soon = v.expires_on && v.qty > 0 && v.expires_on <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+      return soon || v.qty <= x.low_stock_at ? [{ product_id: x.id, product: x.name, qty: v.qty, alert: soon ? 'expiring' : v.qty <= 0 ? 'out' : 'low' }] : [];
+    }));
   }
   if (p === '/rest/v1/rpc/set_business_type') { company.business_type = body.p_type; return json(route, null); }
   if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
@@ -891,9 +941,76 @@ await page.getByRole('button', { name: 'Save shops' }).click();
 await until(() => managerShops.length === 1 && managerShops[0].branch_id === 'b8', 'shops swapped');
 step('Storefront: owner chooses which shops a manager looks after (and can change it)');
 await page.goto(base + '#/stock');
-await page.getByText('Products, stock and sales are coming next.').waitFor();
-await shot('storefront-stock-soon');
-step('Storefront: Stock tab is there (products and sales come in Part B)');
+await page.getByText('No products yet').waitFor();
+assert.deepEqual((await page.locator('.chips .chip').allInnerTexts()).sort(), ['Surulere shop', 'Yaba shop'], 'one chip per shop');
+await page.getByRole('link', { name: 'Yaba shop' }).click();
+await page.waitForFunction(() => document.querySelector('.chip.on')?.textContent === 'Yaba shop');
+await shot('stock-empty');
+step('Stock: empty shop explains how to start (import or add)');
+
+// Download the template, fill nothing in, import it straight back as a stock count.
+await page.getByRole('link', { name: 'Import stock' }).click();
+await page.getByRole('heading', { name: 'Import stock' }).waitFor();
+await shot('stock-import');
+const [tpl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download the template' }).click()]);
+assert.equal(tpl.suggestedFilename(), 'Pinga-stock-template.xlsx');
+const tplPath = out + 'template.xlsx';
+await tpl.saveAs(tplPath);
+const opened = execFileSync('python3', ['-c', 'import openpyxl,sys; ws=openpyxl.load_workbook(sys.argv[1]).active; print([c.value for c in ws[1]])', tplPath]).toString();
+assert.match(opened, /Product name.*Quantity.*Selling price/, 'the template opens in a spreadsheet program');
+await page.getByRole('button', { name: 'Check the file' }).click();
+await page.getByText('Choose "stock count" or "delivery".').waitFor();
+await page.getByText('This is a stock count').click();
+await page.getByLabel('Excel or CSV file').setInputFiles(tplPath);
+await page.getByRole('button', { name: 'Check the file' }).click();
+await page.getByRole('heading', { name: 'Check before importing' }).waitFor();
+assert.match(await page.locator('.big-line').innerText(), /2 products · 144 items · 2 new/);
+await shot('stock-import-check');
+await page.getByRole('button', { name: 'Save the count for 2 products' }).click();
+await page.getByText('Imported 2 products (2 new)').waitFor();
+rmSync(tplPath);
+step('Import: template downloads as a real Excel file; importing it as a stock count shows a check screen first, then saves');
+
+// A delivery from a CSV with a mistake in it.
+await page.getByRole('link', { name: 'Import stock' }).click();
+await page.getByText('This is a delivery').click();
+await page.getByLabel('Excel or CSV file').setInputFiles({ name: 'delivery 15 Nov.csv', mimeType: 'text/csv',
+  buffer: Buffer.from('Item,Qty,Price\r\nPeak Milk 400g,12,\r\nBread,-1,800\r\nGolden Penny Sugar 500g,3,"1,200"\r\n') });
+await page.getByRole('button', { name: 'Check the file' }).click();
+await page.getByText("1 row can't be imported and will be skipped:").waitFor();
+await page.getByText('Row 3 (Bread): quantity "-1" should be a whole number, 0 or more').waitFor();
+assert.match(await page.locator('.board').innerText(), /Peak Milk 400g\s+36\s+24 \+ 12/, 'shows what the shop will have after the delivery');
+await shot('stock-import-problems');
+await page.getByRole('button', { name: 'Add 15 items to Yaba shop' }).click();
+await page.getByText('Imported 2 products (1 new)').waitFor();
+await page.locator('#plist').getByText('Golden Penny Sugar 500g').waitFor();
+assert.deepEqual(await page.locator('#plist .qty b').allInnerTexts(), ['3', '120', '36']);
+assert.equal(await page.locator('#plist li', { hasText: 'Golden Penny Sugar' }).locator('.pill').innerText(), 'Low', '3 left (alert at 5) shows Low');
+await shot('stock-list');
+step('Import: a delivery adds to stock; a bad row is explained and skipped; low stock is marked');
+
+// Correct one product, with a reason.
+await page.locator('#plist').getByText('Peak Milk 400g').click();
+await page.getByRole('heading', { name: 'Peak Milk 400g' }).waitFor();
+await page.getByLabel('Quantity').fill('30');
+await page.getByLabel(/Reason for a change/).fill('6 tins damaged');
+await page.getByLabel(/Lowest price/).fill('2600');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('The lowest price must be the same as or below the selling price.').waitFor();
+await page.getByLabel(/Lowest price/).fill('2300');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.locator('#plist').waitFor();
+assert.equal(stockChanges.at(-1).note, '6 tins damaged');
+assert.equal(stockChanges.at(-1).change, -6);
+await page.locator('#plist').getByText('Peak Milk 400g').click();
+await page.getByRole('heading', { name: 'Recent changes in Yaba shop' }).waitFor();
+await shot('stock-product');
+step('Product: prices checked (lowest ≤ selling); a stock correction is logged with who and why');
+await page.goto(base + '#/imports');
+await page.getByRole('heading', { name: 'Import history' }).waitFor();
+assert.equal(await page.locator('.list li').count(), 2);
+await shot('stock-import-history');
+step('Import history lists every file: kind, shop, who, when, how many');
 
 // Switch to Both: offices and shops, stores and reps back.
 await page.goto(base + '#/business');

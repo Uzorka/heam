@@ -62,6 +62,17 @@ Picked at sign-up; the owner can change it any time in Setup → Business type (
 
 Staff are invited straight into their shop. The owner ticks which shops each manager looks after (on the manager's page); a manager then sees only the staff of those shops (plus staff not in any shop yet) everywhere: Team, Today, Overview, exports. Owners see every shop. Office staff are visible to every manager as before. Enforced in the database (`private.can_see_member`, `manager_shops`), tested in `tests/db/test_business.sql`.
 
+## Products and stock (Storefront and Both)
+
+Stock tab (owners and managers). Products and prices are one list for the business; stock is kept per shop.
+
+- **Import** an Excel (.xlsx) or CSV file. Each time, say whether it's a **stock count** (the file's numbers replace what's recorded; products not in the file stay as they are) or a **delivery** (the numbers are added). A check screen shows every product's new number, which are new, and any rows that can't be imported (in plain English, with the row number); good rows can still go in. Up to 5,000 products per file. Most column names work ("Item", "Qty", "SKU", "Selling price"…); dates are read day first (31/03/2027). A template is on the import screen.
+- Files are read in the browser by our own code (`web/js/sheet.js`, no library), then saved in one go by the database (`import_stock`): if anything is wrong, nothing is half-saved.
+- **Every import is logged** (kind, shop, file, who, when, how many): Stock → Import history. Every stock change is logged too (count, delivery, correction with a reason; sales in Part C), shown on each product.
+- **Prices**: selling price and an optional lowest allowed price per product (lowest ≤ selling, checked in the app and the database).
+- **Alerts**: low stock (at or below the product's alert level, default 5), out of stock, expiring within 30 days, expired.
+- Who: owners every shop; managers only their shops; shop staff can read the price list and their own shop's stock (for the till in Part C), nothing else. Stock can only change through the logged functions. Tested in `tests/db/test_stock.sql` and `tests/unit/sheet.test.js`.
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

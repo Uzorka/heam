@@ -328,3 +328,16 @@ fieldset.days { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap
 .page:has(.tabbar) { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
 @media (min-width: 900px) and (hover: hover) and (pointer: fine) { .page:has(.tabbar.manager) { padding-bottom: 48px; } }
 .banner.tip { background: var(--mango-soft); color: var(--ink); font-weight: 700; margin: 12px 0 0; }
+
+/* Stock */
+a.chip { display: inline-flex; align-items: center; text-decoration: none; }
+.btn-pair { display: flex; gap: 10px; margin-bottom: 14px; }
+.btn-pair > * { flex: 1; text-align: center; }
+.qty { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-align: right; flex: none; }
+.qty b { font-size: 18px; font-weight: 800; }
+.qty .pill { margin: 0; }
+.alerts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.banner.warn { margin: 0 0 14px; }
+.problems { margin: 8px 0; padding-left: 18px; font-weight: 400; }
+.problems li { margin: 2px 0; }
+button.back { width: auto; padding: 0; min-height: 0; margin-bottom: 8px; }

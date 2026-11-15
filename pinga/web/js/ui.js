@@ -150,6 +150,9 @@ export function wireSignOut(guard) {
   };
 }
 
+// "elvis uzorka" → "Elvis Uzorka": names shown properly however they were typed (the rest of each word is kept, so McDonald stays).
+export const properName = (full) => String(full ?? '').trim().replace(/(^|[\s'-])(\p{Ll})/gu, (m, a, b) => a + b.toUpperCase());
+
 // "elvis uzorka" → "Elvis". Names are shown the way people expect, whatever was typed.
 export const firstName = (full) => { const f = String(full || '').trim().split(/\s+/)[0] || ''; return f.charAt(0).toUpperCase() + f.slice(1); };
 

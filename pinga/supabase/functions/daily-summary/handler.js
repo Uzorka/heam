@@ -6,6 +6,7 @@ export const keyHeaders = (key) => (key.startsWith('sb_') ? { apikey: key } : { 
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const naira = (n) => '₦' + Math.round(Number(n)).toLocaleString('en-NG');
+const proper = (full) => String(full ?? '').trim().replace(/(^|[\s'-])(\p{Ll})/gu, (m, x, y) => x + y.toUpperCase());
 const count = (n, one, many = one + 's') => `${Number(n).toLocaleString('en-NG')} ${n === 1 ? one : many}`;
 const list = (names, max = 6) => (names.length > max ? `${names.slice(0, max).join(', ')} and ${names.length - max} more` : names.join(', '));
 const shortDay = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NG', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -23,7 +24,7 @@ export function summaryParts(c) {
   const add = (level, text) => attention.push([level, text]);
   if (sh) {
     if (sh.mistakes) add('red', `${count(sh.mistakes, 'mistake')} reported by staff`);
-    for (const x of sh.below_lowest) add('amber', `${x.product} sold at ${naira(x.price)}, below the lowest price${x.lowest != null ? ` of ${naira(x.lowest)}` : ''} (${x.seller}${sh.shops.length > 1 ? `, ${x.shop}` : ''})`);
+    for (const x of sh.below_lowest) add('amber', `${x.product} sold at ${naira(x.price)}, below the lowest price${x.lowest != null ? ` of ${naira(x.lowest)}` : ''} (${proper(x.seller)}${sh.shops.length > 1 ? `, ${x.shop}` : ''})`);
     if (sh.out_of_stock_sales) add('amber', `${count(sh.out_of_stock_sales, 'sale')} made while out of stock`);
     if (sh.cancelled) add('amber', `${count(sh.cancelled, 'sale')} cancelled`);
     const out = sh.low_stock.filter((x) => x.qty <= 0);
@@ -34,7 +35,7 @@ export function summaryParts(c) {
       else if (d <= 14) add('amber', `${x.product} expires ${d === 0 ? 'today' : `in ${count(d, 'day')}`}${sh.shops.length > 1 ? ` (${x.shop})` : ''}`);
     }
   }
-  for (const x of c.face_mismatches || []) add('red', `${x.name}'s face didn't match (${x.what})`);
+  for (const x of c.face_mismatches || []) add('red', `${proper(x.name)}'s face didn't match (${x.what})`);
   if (c.absent.length) add('red', `${count(c.absent.length, 'person', 'people')} not in`);
   if (c.late.length) add('amber', `${count(c.late.length, 'person', 'people')} late`);
   if (c.visits_planned && c.below_target.length) add('amber', `${count(c.below_target.length, 'sales rep')} below their visit target`);
@@ -53,8 +54,8 @@ export function summaryParts(c) {
     stock: [...low, ...later],
     attendance: {
       line: [`${inNow} in`, c.late.length ? `${c.late.length} late` : '', c.absent.length ? `${c.absent.length} not in` : '', c.away ? `${c.away} on leave or off` : ''].filter(Boolean).join(' · '),
-      late: c.late.map((x) => `${x.name} (${x.minutes} min)`),
-      absent: c.absent,
+      late: c.late.map((x) => `${proper(x.name)} (${x.minutes} min)`),
+      absent: c.absent.map(proper),
       visits: c.visits_planned ? `Store visits: ${c.visits_done} of ${c.visits_planned} done` : '',
     },
     subject: [c.company, sh ? naira(sh.total) : '', `${inNow} of ${c.people} in`, attention.length ? `${attention.length} to check` : ''].filter(Boolean).join(' · '),

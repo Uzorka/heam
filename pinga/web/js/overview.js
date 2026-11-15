@@ -1,6 +1,6 @@
 // Owner dashboard: the day in 10 seconds. Right now, field visits on a map, patterns, cost of lost time.
 import * as api from './api.js';
-import { show, esc, header, wireSignOut, onLeave, fmtDay, localDate, firstName } from './ui.js';
+import { show, esc, header, wireSignOut, onLeave, fmtDay, localDate, firstName, properName } from './ui.js';
 import { happyPin } from './icons.js';
 import { checklist, setupDone } from './getstarted.js';
 
@@ -56,8 +56,8 @@ export async function overview(me, tabs) {
   const allIn = n.people > 0 && !n.late && !n.absent;
 
   const attention = [
-    ...d.repeat_late.map((x) => `<li><b>${esc(x.name)}</b> was late ${x.times} times in the last 2 weeks.</li>`),
-    ...d.visits_dropping.map((x) => `<li><b>${esc(x.name)}</b> made ${plural(x.this_week, 'visit')} this week, down from ${x.last_week}.</li>`),
+    ...d.repeat_late.map((x) => `<li><b>${esc(properName(x.name))}</b> was late ${x.times} times in the last 2 weeks.</li>`),
+    ...d.visits_dropping.map((x) => `<li><b>${esc(properName(x.name))}</b> made ${plural(x.this_week, 'visit')} this week, down from ${x.last_week}.</li>`),
     ...(n.to_review ? [`<li><b>${plural(n.to_review, 'check-in')}</b> today ${n.to_review === 1 ? 'was' : 'were'} flagged. <a href="#/today">Review on Today</a></li>`] : []),
   ];
   // Each tile opens Today, filtered to that group.
@@ -95,7 +95,7 @@ export async function overview(me, tabs) {
         <div class="meter"><i style="width:${visitPct}%"></i></div>
         ${d.stores.length ? '<div class="map" id="map" role="img" aria-label="Map of stores: green visited, grey not yet"></div><p class="tiny muted legend"><i class="dot on"></i> Visited <i class="dot"></i> Not yet</p>' : ''}
         <ul class="offices">${f.reps.map((r) => `
-          <li><span>${esc(r.name)}</span><span class="${r.visits >= r.target ? 'ok-text' : 'muted'}">${r.status === 'leave' || r.status === 'off' ? (r.status === 'leave' ? 'On leave' : 'Off') : `${r.visits} of ${r.target}`}</span></li>`).join('')}</ul>
+          <li><span>${esc(properName(r.name))}</span><span class="${r.visits >= r.target ? 'ok-text' : 'muted'}">${r.status === 'leave' || r.status === 'off' ? (r.status === 'leave' ? 'On leave' : 'Off') : `${r.visits} of ${r.target}`}</span></li>`).join('')}</ul>
       </section>` : ''}
 
       ${nobody ? '' : `
@@ -115,7 +115,7 @@ export async function overview(me, tabs) {
       </section>` : ''}
 
       </div>
-      ${nobody ? '' : '<a class="secondary button export-btn" href="#/export">Export register (Excel or PDF)</a>'}
+      ${nobody || (sells && me.role !== 'owner') ? '' : '<a class="secondary button export-btn" href="#/export">Export register (Excel or PDF)</a>'}
     </main>`);
   wireSignOut();
 

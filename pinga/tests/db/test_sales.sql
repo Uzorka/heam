@@ -14,6 +14,8 @@ select tests.act_as('c0000000-0000-0000-0000-000000000001');
 create temp table co as select public.create_company('Mama Put Stores', 'Ada Owner', 'storefront') as id;
 grant all on co to public;
 reset role;
+-- These tests are about selling itself: the owner's till rules (clock in first; nothing below the lowest price) are off here, tested in test_roles.sql.
+update public.companies set sell_requires_clock_in = false, staff_below_lowest = true where id = (select id from co);
 
 insert into public.branches (id, company_id, name, lat, lng) values
   ('5e000000-0000-0000-0000-000000000001', (select id from co), 'Yaba shop', 6.5095, 3.3711),
@@ -92,7 +94,7 @@ select tests.eq((select cancelled_by_name || ': ' || cancel_reason from public.s
 select tests.eq((select array_agg(qty order by product_id) from public.stock where branch_id = '5e000000-0000-0000-0000-000000000001'), array[8, 0], 'stock goes back (Peak 7 → 8, Indomie −3 → 0)');
 select tests.eq((select count(*) from public.stock_changes where reason = 'sale_cancelled'), 2::bigint, 'the stock coming back is logged');
 select tests.refused($$ select public.cancel_sale('5a1e0000-0000-0000-0000-000000000002', 'again') $$, 'a sale cannot be cancelled twice');
-select tests.eq(public.shop_sales_summary('5e000000-0000-0000-0000-000000000001', (now() at time zone 'Africa/Lagos')::date) - 'flagged',
+select tests.eq(public.shop_sales_summary('5e000000-0000-0000-0000-000000000001', (now() at time zone 'Africa/Lagos')::date) - 'flagged' - 'profit',
   '{"sales": 2, "total": 5050.00, "discount": 200.00, "cancelled": 1, "mistakes": 0}'::jsonb, 'the day''s summary leaves out the cancelled sale');
 reset role;
 

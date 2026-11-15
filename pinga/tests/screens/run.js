@@ -14,7 +14,9 @@ mkdirSync(out, { recursive: true });
 
 // ── Pretend Supabase ────────────────────────────────────────
 const YABA = { lat: 6.5095, lng: 3.3711 };
-const company = { id: 'c1', name: 'CHF Heron', summary_email: true, status: 'trial', trial_ends_at: new Date(Date.now() + 2 * 864e5 - 3600e3).toISOString(), business_type: 'field', timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
+const company = { id: 'c1', name: 'CHF Heron', summary_email: true, status: 'trial', trial_ends_at: new Date(Date.now() + 2 * 864e5 - 3600e3).toISOString(), business_type: 'field', timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5],
+  // The selling tests below are about the till itself; the owner's till rules are switched on in the roles section.
+  sell_requires_clock_in: false, staff_below_lowest: true };
 const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '12 Herbert Macaulay Way', radius_m: 100, ...YABA }];
 const people = [
   { id: 'm0', user: 'u-owner', full_name: 'elvis uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null, branch_id: null },
@@ -35,6 +37,7 @@ const stockChanges = [];
 const stockImports = [];
 const sales = [];
 const logos = new Map();
+const costs = new Map();   // product id -> cost price
 const receiptNo = new Map();
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
@@ -78,7 +81,8 @@ async function fakeSupabase(route) {
     const who = body.email === 'elvis@chfheron.com' && body.password === 'password1' ? 'u-owner'
       : body.email === '2348031234567@phone.usepinga.com' && body.password === '482913' ? 'u-sade'
       : body.email === '2348059876543@phone.usepinga.com' && body.password === '482913' ? 'u-remi'
-      : body.email === '2348035550101@phone.usepinga.com' && body.password === '482913' ? 'u-kemi' : null;
+      : body.email === '2348035550101@phone.usepinga.com' && body.password === '482913' ? 'u-kemi'
+      : body.email === '2348035550102@phone.usepinga.com' && body.password === '482913' ? 'u-ade' : null;
     if (!who) return json(route, { code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' }, 400);
     signedInAs = who;
     return json(route, { access_token: 'at-' + who, refresh_token: 'rt', expires_in: 3600, user: { id: who, email: body.email } });
@@ -221,11 +225,13 @@ async function fakeSupabase(route) {
   if (p === '/rest/v1/rpc/shop_sales_summary') {
     const day = sales.filter((x) => x.branch_id === body.p_branch && x.local_date === body.p_day), live = day.filter((x) => !x.cancelled_at);
     return json(route, { sales: live.length, total: live.reduce((t, x) => t + x.total, 0), discount: live.reduce((t, x) => t + x.discount, 0),
-      cancelled: day.length - live.length, flagged: live.filter((x) => x.flags.length).length, mistakes: live.filter((x) => x.mistake_note).length });
+      cancelled: day.length - live.length, flagged: live.filter((x) => x.flags.length).length, mistakes: live.filter((x) => x.mistake_note).length,
+      profit: me.role === 'owner' || me.can_see_costs ? live.flatMap((x) => x.sale_items).filter((i) => costs.has(i.product_id)).reduce((t, i) => t + i.qty * (i.unit_price - costs.get(i.product_id)), 0) : null });
   }
   if (p === '/rest/v1/rpc/shops_overview') {
     const live = sales.filter((x) => x.local_date === body.p_day && !x.cancelled_at);
-    const shopsList = branches.filter((b) => b.kind === 'shop');   // like the database: offices are never shops
+    const mineOnly = me.role === 'admin' ? new Set(managerShops.filter((x) => x.manager_id === me.id).map((x) => x.branch_id)) : null;
+    const shopsList = branches.filter((b) => b.kind === 'shop' && (!mineOnly || mineOnly.has(b.id)));   // like the database
     const qty = new Map(); live.flatMap((x) => x.sale_items).forEach((i) => qty.set(i.product_name, (qty.get(i.product_name) || 0) + i.qty));
     const alertsOf = (b) => [...stockRows].filter(([k]) => k.startsWith(b + '|')).map(([k, v]) => ({ v, x: products.find((y) => y.id === k.split('|')[1]) })).filter(({ v, x }) => v.qty <= x.low_stock_at);
     return json(route, { total: live.reduce((t, x) => t + x.total, 0), sales: live.length, discount: live.reduce((t, x) => t + x.discount, 0),
@@ -233,6 +239,13 @@ async function fakeSupabase(route) {
         return { id: b.id, name: b.name, total: mine.reduce((t, x) => t + x.total, 0), sales: mine.length, to_check: mine.filter((x) => x.flags.length || x.mistake_note).length,
           low: al.filter(({ v }) => v.qty > 0).length, out: al.filter(({ v }) => v.qty <= 0).length, expiring: 0 }; }),
       best: [...qty].sort((a, b) => b[1] - a[1]).map(([name, n]) => ({ name, qty: n })) });
+  }
+  if (p === '/rest/v1/product_costs' && m === 'GET') { const pid = param(q, 'product_id'); return json(route, [...costs].filter(([k]) => !pid || k === pid).map(([product_id, cost_price]) => ({ product_id, cost_price }))); }
+  if (p === '/rest/v1/product_costs' && m === 'POST') { costs.set(body.product_id, body.cost_price); return route.fulfill({ status: 201 }); }
+  if (p === '/rest/v1/product_costs' && m === 'DELETE') { costs.delete(param(q, 'product_id')); return route.fulfill({ status: 204 }); }
+  if (p === '/rest/v1/rpc/delete_product') {
+    if (sales.some((x) => x.sale_items.some((i) => i.product_id === body.p_product))) return json(route, { code: 'P0001', message: 'This product has sales, so it can\'t be deleted. Use "Stop selling" to hide it.' }, 400);
+    products.splice(products.findIndex((x) => x.id === body.p_product), 1); return json(route, null);
   }
   if (p === '/rest/v1/rpc/set_business_type') { company.business_type = body.p_type; return json(route, null); }
   if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
@@ -285,7 +298,7 @@ async function fakeSupabase(route) {
         reps: reps.map((r) => ({ name: r.full_name, visits: r.visits, target: r.visit_target, status: r.status })) },
       stores: stores.filter((x) => x.lat != null && assignments.some((a) => a.store_id === x.id))
         .map((x) => ({ name: x.name, lat: x.lat, lng: x.lng, visited: visits.some((v) => v.store_id === x.id && lagosDate(v.happened_at) === body.p_day) })),
-      repeat_late: [{ name: 'Sade Bello', times: 3 }],
+      repeat_late: people.some((x) => x.full_name === 'Sade Bello' && x.active !== false) ? [{ name: 'Sade Bello', times: 3 }] : [],
       visits_dropping: [],
       lost: me.role === 'owner' ? { hours: 31.5, naira: paid ? 48500 : 0, with_pay: paid, people: b.length } : null,
     });
@@ -1130,12 +1143,9 @@ Object.assign(kemi, { user: 'u-kemi', joined_at: '2026-11-15', invite_token: nul
 await page.getByLabel('Phone number').fill('0803 555 0101');
 await page.getByLabel('PIN').fill('482913');
 await page.getByRole('button', { name: 'Sign in' }).click();
-await page.getByRole('link', { name: 'Record a sale' }).waitFor();
-assert.deepEqual(await page.locator('.tabbar a[href^="#/"] span').allInnerTexts(), ['Clock', 'Sell', 'My sales'], 'shop staff: Clock, Sell, My sales');
-await shot('shop-staff-home');
-step('Shop staff: home has Clock in plus Record a sale; tab bar Clock / Sell / My sales');
-await page.getByRole('link', { name: 'Record a sale' }).click();
 await page.getByRole('heading', { name: 'Sell' }).waitFor();
+assert.deepEqual(await page.locator('.tabbar a[href^="#/"] span').allInnerTexts(), ['Sell', 'Clock', 'My sales'], 'shop staff: Sell, Clock, My sales');
+step('Shop staff land straight on Sell; their only screens are Sell, Clock and My sales');
 await page.getByLabel(/^Search product, code/).fill('pm400');
 assert.equal(await page.locator('#picks li:not([hidden])').count(), 1, 'search finds by code');
 await page.locator('#picks li:not([hidden]) .pick').click();
@@ -1194,13 +1204,14 @@ await page.getByRole('button', { name: 'Cancel this sale' }).click();
 await page.getByText('Please say why the sale is cancelled.').waitFor();
 await page.getByLabel('Reason for cancelling').fill('Wrong quantity of sugar; Kemi will re-enter');
 await page.getByRole('button', { name: 'Cancel this sale' }).click();
-await page.getByText(/Cancelled by elvis uzorka, .*Wrong quantity of sugar/).waitFor();
+await page.getByText(/Cancelled by Elvis Uzorka, .*Wrong quantity of sugar/).waitFor();
 assert.equal(stockRows.get(sales[0].branch_id + '|' + sales[0].sale_items[1].product_id).qty, 3, 'stock went back');
 await shot('owner-sale-cancelled');
 step('Owner: sees the day\'s sales, discounts and what to check; cancels with a reason; stock goes back');
 
 // A second sale today, then the Overview and Billing.
 sales.push({ id: 'sale-2', branch_id: sales[0].branch_id, member_id: kemi.id, seller_name: 'Kemi Yaba', happened_at: new Date().toISOString(), local_date: sales[0].local_date,
+  payment_method: 'cash', receipt_token: 'sale2' + 'x'.repeat(28), receipt_code: (() => { const k = (receiptNo.get(sales[0].branch_id) || 0) + 1; receiptNo.set(sales[0].branch_id, k); return 'YAB-' + String(k).padStart(6, '0'); })(),
   total: 10000, discount: 0, flags: [], cancelled_at: null, mistake_note: null, sale_items: [{ line: 1, product_name: 'Indomie Chicken 70g', qty: 40, unit_price: 250, flags: [] }] });
 await page.goto(base + '#/overview');
 await page.getByRole('heading', { name: 'Sales today' }).waitFor();
@@ -1273,7 +1284,6 @@ await page.getByRole('heading', { name: 'Sign in' }).waitFor();
 await page.getByLabel('Phone number').fill('0803 555 0101');
 await page.getByLabel('PIN').fill('482913');
 await page.getByRole('button', { name: 'Sign in' }).click();
-await page.getByRole('link', { name: 'Record a sale' }).click();
 await page.getByRole('heading', { name: 'Sell' }).waitFor();
 assert.ok(await page.locator('header .biz-logo').count(), 'the business logo at the top of the staff app');
 await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
@@ -1462,8 +1472,6 @@ for (const [size, width, height, extra] of SIZES) {
 
   // The till.
   await signIn('kemi');
-  await pg.getByRole('link', { name: 'Record a sale' }).waitFor();
-  await pg.goto(base + '#/sell');
   await pg.getByRole('heading', { name: 'Sell' }).waitFor();
   const grid = await pg.evaluate(() => [document.querySelector('.till-products').getBoundingClientRect().left, document.querySelector('.till-sale').getBoundingClientRect().left]);
   if (size === 'phone') assert.ok(grid[0] === grid[1], 'phone: one column');
@@ -1518,6 +1526,119 @@ for (const [size, width, height, extra] of SIZES) {
   await c.close();
   step(`${size} (${width} px): ${size === 'phone' ? 'bottom tab bar' : size === 'tablet' ? 'side rail, two-column till' : 'sidebar, card grid, tables, full-screen till'}; nothing wider than the screen`);
 }
+// ── Roles in a business with shops: shop staff, manager, owner (all three sizes) ──
+company.sell_requires_clock_in = true;      // the owner's defaults
+company.staff_below_lowest = false;
+const ade = people.find((x) => x.full_name === 'Ade Manager');
+Object.assign(ade, { user: 'u-ade', joined_at: '2026-11-15', invite_token: null, reference_photo_path: 'c1/ade/ref.jpg', can_see_costs: false, can_manage_staff: false, can_delete_products: false });
+managerShops.splice(0, managerShops.length, { company_id: 'c1', manager_id: ade.id, branch_id: shopId });
+const kemiP = people.find((x) => x.full_name === 'Kemi Yaba');
+for (let i = attendance.length - 1; i >= 0; i--) if (attendance[i].member_id === kemiP.id) attendance.splice(i, 1);
+for (const [size, width, height, extra] of SIZES) {
+  const c = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, serviceWorkers: 'block', ...extra });
+  const pg = await c.newPage();
+  pg.on('pageerror', (e) => errors.push(e));
+  await pg.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
+  await pg.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  const snap = async (name) => {
+    await pg.waitForTimeout(250);
+    const tall = await pg.evaluate(() => document.documentElement.scrollHeight);
+    await pg.setViewportSize({ width, height: Math.max(height, tall) });
+    await pg.waitForTimeout(150);
+    await pg.screenshot({ path: `${out}roles-${size}-${name}.png` });
+    await pg.setViewportSize({ width, height });
+  };
+  const signIn = async (phoneNo, pin) => {
+    await pg.goto(base + '#/');
+    await pg.getByLabel('Phone number').fill(phoneNo);
+    await pg.getByLabel('PIN').fill(pin);
+    await pg.getByRole('button', { name: 'Sign in' }).click();
+  };
+  const signOut = async () => {
+    if (!(await pg.getByRole('button', { name: 'Sign out' }).count())) { await pg.goto(base + '#/'); await pg.getByRole('button', { name: 'Sign out' }).waitFor(); }
+    await pg.getByRole('button', { name: 'Sign out' }).first().click();
+    await pg.getByRole('heading', { name: 'Sign in' }).waitFor();
+  };
+
+  for (let i = attendance.length - 1; i >= 0; i--) if (attendance[i].member_id === kemiP.id) attendance.splice(i, 1);
+  // 1. Shop staff: straight to Sell; must clock in first (owner's default).
+  await signIn('0803 555 0101', '482913');
+  await pg.getByText('Clock in to start selling').waitFor();
+  assert.deepEqual(await pg.locator('#appnav a[href^="#/"] span').allInnerTexts(), ['Sell', 'Clock', 'My sales'], 'shop staff: only Sell, Clock, My sales');
+  await snap('staff-after-login');
+  await pg.goto(base + '#/stock');
+  await pg.getByText('Clock in to start selling').waitFor();
+  assert.equal(await pg.getByRole('heading', { name: 'Stock' }).count(), 0, 'shop staff cannot open Stock (they get Sell)');
+  attendance.push({ id: 'in-' + size, company_id: 'c1', member_id: kemiP.id, kind: 'in', happened_at: new Date().toISOString(), local_date: lagosDate(new Date().toISOString()), late_minutes: 0, flags: [], distance_m: 10 });
+  await pg.goto(base + '#/sell');
+  await pg.reload();
+  await pg.locator('#q').waitFor();
+  await pg.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
+  await pg.getByLabel('Price each for Peak Milk 400g').fill('2000');
+  await pg.getByText("Can't go below ₦2,300 (the lowest price).").waitFor();
+  await pg.getByRole('button', { name: 'Complete sale' }).click();
+  await pg.getByText('Peak Milk 400g: the price must be between ₦2,300 and ₦2,500.').waitFor();
+  await snap('staff-sell');
+  await pg.getByLabel('Price each for Peak Milk 400g').fill('2500');
+  await pg.getByRole('button', { name: 'Clear this sale' }).click();
+  await accept(null, pg);
+  await signOut();
+
+  // 2. Manager: their shop only, no billing / settings / exports / shops / managers.
+  await signIn('0803 555 0102', '482913');
+  await pg.getByRole('heading', { name: 'Today' }).waitFor();
+  await pg.goto(base + '#/overview');
+  await pg.getByRole('heading', { name: 'Sales today' }).waitFor();
+  assert.ok(!(await pg.locator('[aria-labelledby=sales-h]').innerText()).includes('Surulere'), 'manager: only the shops they look after');
+  await snap('manager-overview');
+  await pg.goto(base + '#/setup');
+  await pg.getByRole('heading', { name: 'Setup' }).waitFor();
+  const setupText = await pg.locator('main').innerText();
+  for (const hidden of ['Billing', 'Working hours', 'Export register', 'Business type', 'Logo']) assert.ok(!setupText.includes(hidden), `manager: no "${hidden}" in Setup`);
+  await pg.goto(base + '#/overview');
+  await pg.getByRole('heading', { name: 'Sales today' }).waitFor();
+  assert.equal(await pg.getByRole('link', { name: /Export register/ }).count(), 0, 'manager: no export button on Overview');
+  await pg.goto(base + '#/setup');
+  await pg.getByRole('heading', { name: 'Setup' }).waitFor();
+  await snap('manager-setup');
+  await pg.goto(base + '#/billing');
+  await pg.getByRole('heading', { name: 'Setup' }).waitFor();
+  await pg.goto(base + '#/team');
+  await pg.getByRole('heading', { name: 'Team' }).waitFor();
+  assert.equal(await pg.getByRole('link', { name: 'Invite someone' }).count(), 0, 'manager: no inviting without the right');
+  await pg.goto(base + '#/person/' + kemiP.id);
+  await pg.getByRole('heading', { name: 'Kemi Yaba' }).waitFor();
+  assert.equal(await pg.getByRole('button', { name: /new PIN link|Remove/ }).count(), 0, 'manager: cannot reset PINs or remove staff without the right');
+  await signOut();
+
+  // 3. Owner: Team → manager → rights switches.
+  await pg.goto(base + '#/owner');
+  await pg.getByLabel('Email').fill('elvis@chfheron.com');
+  await pg.getByLabel('Password').fill('password1');
+  await pg.getByRole('button', { name: 'Sign in' }).click();
+  await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+  await pg.goto(base + '#/person/' + ade.id);
+  await pg.getByRole('heading', { name: 'Rights' }).waitFor();
+  await snap('owner-manager-rights');
+  if (size === 'desktop') {
+    await pg.getByRole('checkbox', { name: 'Invite and remove shop staff' }).check();
+    await until(() => ade.can_manage_staff === true, 'the right to be saved');
+    await signOut();
+    await signIn('0803 555 0102', '482913');
+    await pg.getByRole('heading', { name: 'Today' }).waitFor();
+    await pg.goto(base + '#/team');
+    await pg.getByRole('link', { name: 'Invite someone' }).waitFor();
+    await pg.getByRole('link', { name: 'Invite someone' }).click();
+    await pg.getByRole('heading', { name: 'Invite someone' }).waitFor();
+    assert.deepEqual(await pg.locator('.choice strong').allInnerTexts(), ['Shop staff'], 'manager with the right: invites shop staff only, never managers');
+    ade.can_manage_staff = false;
+  }
+  await c.close();
+  step(`${size}: shop staff land on Sell (clock in first; price range enforced); manager sees only their shop and no billing/settings/exports; owner switches a manager's rights`);
+}
+company.sell_requires_clock_in = false;
+company.staff_below_lowest = true;
+
 company.business_type = 'field';
 company.name = 'CHF Heron';
 

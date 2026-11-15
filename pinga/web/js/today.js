@@ -2,7 +2,7 @@
 // Same flow as the CHF Heron tracker's admin page. Pick a past date to fix it.
 import { ask } from './dialog.js';
 import * as api from './api.js';
-import { show, go, esc, toast, header, wireSignOut, friendly, app, ROLE, fmtTime, fmtDay, localDate, dateField } from './ui.js';
+import { show, go, esc, toast, header, wireSignOut, friendly, app, ROLE, fmtTime, fmtDay, localDate, dateField, properName } from './ui.js';
 import { happyPin } from './icons.js';
 import { checklist } from './getstarted.js';
 
@@ -102,8 +102,8 @@ export async function today(me, arg, tabs) {
     shown = rows.filter((r) => matches(FILTER, r) && (!q || r.full_name.toLowerCase().includes(q)));
     document.getElementById('list').innerHTML = shown.map((r) => `
       <li class="brow" data-row="${r.member_id}">
-        <label class="ck"><input type="checkbox" data-ck="${r.member_id}" aria-label="Select ${esc(r.full_name)}"${sel.has(r.member_id) ? ' checked' : ''}></label>
-        <a class="grow" href="#/person/${r.member_id}"><b>${esc(r.full_name)}</b><span class="tiny muted">${detail(r, tz)}</span></a>
+        <label class="ck"><input type="checkbox" data-ck="${r.member_id}" aria-label="Select ${esc(properName(r.full_name))}"${sel.has(r.member_id) ? ' checked' : ''}></label>
+        <a class="grow" href="#/person/${r.member_id}"><b>${esc(properName(r.full_name))}</b><span class="tiny muted">${detail(r, tz)}</span></a>
         <span class="right">${statusPill(r)}${r.to_review ? `<span class="pill warn">${r.to_review} to check</span>` : ''}</span>
       </li>`).join('') || '<li class="empty muted center">Nobody here.</li>';
     app.querySelectorAll('[data-ck]').forEach((c) => {

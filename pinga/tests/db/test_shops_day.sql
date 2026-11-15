@@ -12,6 +12,8 @@ select tests.act_as('d0000000-0000-0000-0000-000000000001');
 create temp table co as select public.create_company('Mama Put Stores', 'Ada Owner', 'storefront') as id;
 grant all on co to public;
 reset role;
+-- These tests are about selling itself: the owner's till rules (clock in first; nothing below the lowest price) are off here, tested in test_roles.sql.
+update public.companies set sell_requires_clock_in = false, staff_below_lowest = true where id = (select id from co);
 
 insert into public.branches (id, company_id, name, lat, lng) values
   ('5f000000-0000-0000-0000-000000000001', (select id from co), 'Yaba shop', 6.5095, 3.3711),

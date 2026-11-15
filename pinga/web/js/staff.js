@@ -17,9 +17,10 @@ export async function staffRoute(me, name, arg) {
   // Shop staff also sell. The till is downloaded only by them.
   if (await worksInShop(me)) {
     const till = await import('./till.js');
-    if (name === 'sell') return till.sell(me);
+    // Shop staff land on Sell; Clock and My sales are the only other screens they have.
+    if (name === 'home') return home(me, till.tabBar('home'));
     if (name === 'mysales') return till.mySales(me);
-    return home(me, till.tabBar('home'));
+    return till.sell(me);
   }
   return home(me);
 }

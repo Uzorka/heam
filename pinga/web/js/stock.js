@@ -3,12 +3,16 @@
 import { saveFile } from './device.js';
 import { ask } from './dialog.js';
 import * as api from './api.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev, dateField, fmtDate, moneyInput, parseMoney } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev, dateField, fmtDate, moneyInput, parseMoney, properName } from './ui.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
 import { readFile, readStockList, TEMPLATE_HEADER } from './sheet.js';
 
 let shopId = null;       // the shop being looked at (kept while moving between Stock screens)
 let pending = null;      // a checked file waiting for "Import"
+
+// Optional manager rights (owners have them all). The database refuses anything else anyway.
+const mayCosts = (me) => me.role === 'owner' || !!me.can_see_costs;
+const mayDelete = (me) => me.role === 'owner' || !!me.can_delete_products;
 
 export const naira = (n) => (n == null ? '' : '₦' + Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 }));
 const plural = (n, w, ws = w + 's') => `${Number(n).toLocaleString('en-NG')} ${n === 1 ? w : ws}`;
@@ -48,12 +52,15 @@ export async function stockList(me, arg, tabs) {
   const shop = pickShop(shops, arg);
   const tz = me.companies.timezone;
   const today = localDate(new Date(), tz);
-  const [products, stock, alerts, sold] = await Promise.all([
+  const [products, stock, alerts, sold, costs] = await Promise.all([
     api.select('products', `select=id,name,code,price,lowest_price,low_stock_at&company_id=eq.${me.company_id}&active=is.true&order=name`),
     api.select('stock', `select=product_id,qty,expires_on&branch_id=eq.${shop.id}`),
     api.rpc('stock_alerts', { p_branch: shop.id }),
     api.rpc('shop_sales_summary', { p_branch: shop.id, p_day: today }),
+    mayCosts(me) ? api.select('product_costs', `select=product_id,cost_price&company_id=eq.${me.company_id}`) : [],
   ]);
+  const costOf = new Map(costs.map((c) => [c.product_id, Number(c.cost_price)]));
+  const costValue = stock.reduce((t, s) => t + Math.max(0, s.qty) * (costOf.get(s.product_id) || 0), 0);
   const inShop = new Map(stock.map((s) => [s.product_id, s]));
   const alertOf = new Map(alerts.map((a) => [a.product_id, a.alert]));
   const units = stock.reduce((t, s) => t + Math.max(0, s.qty), 0);
@@ -91,6 +98,7 @@ export async function stockList(me, arg, tabs) {
       <section class="card block" aria-labelledby="st-h">
         <h2 id="st-h" class="sr">Summary</h2>
         <p class="big-line"><b>${plural(units, 'item')}</b> in stock${value ? ` · worth ${naira(value)}` : ''}</p>
+        ${costValue ? `<p class="muted">At cost: ${naira(costValue)}</p>` : ''}
         ${alerts.length ? `<p class="alerts">${[['out', 'out of stock'], ['low', 'running low'], ['expiring', 'expire within 30 days'], ['expired', 'expired']]
           .filter(([k]) => byKind(k)).map(([k, t]) => `<span class="pill ${ALERT[k][1]}">${byKind(k)} ${t}</span>`).join(' ')}</p>` : '<p class="muted">Nothing low or expiring.</p>'}
       </section>
@@ -121,10 +129,11 @@ export async function productForm(me, id, tabs) {
   const shops = await myShops(me);
   const shop = pickShop(shops);
   const tz = me.companies.timezone;
-  const [found, stockRow, changes] = await Promise.all([
+  const [found, stockRow, changes, cost] = await Promise.all([
     isNew ? [{ low_stock_at: 5 }] : api.select('products', `select=*&id=eq.${encodeURIComponent(id)}`),
     !isNew && shop ? api.select('stock', `select=qty,expires_on&branch_id=eq.${shop.id}&product_id=eq.${encodeURIComponent(id)}`) : [],
     !isNew && shop ? api.select('stock_changes', `select=change,qty_after,reason,note,by_name,created_at&branch_id=eq.${shop.id}&product_id=eq.${encodeURIComponent(id)}&order=id.desc&limit=10`) : [],
+    !isNew && mayCosts(me) ? api.select('product_costs', `select=cost_price&product_id=eq.${encodeURIComponent(id)}`) : [],
   ]);
   const p = found[0];
   if (!p) return go('#/stock');
@@ -142,6 +151,7 @@ export async function productForm(me, id, tabs) {
           <label>Lowest price (₦)${moneyInput({ name: 'lowest', value: p.lowest_price, placeholder: '2,300' })}</label>
         </div>
         <p class="hint muted">Lowest price is optional. Staff can sell at any price between the two (customers haggle). Below the lowest price is allowed but flagged for you.</p>
+        ${mayCosts(me) ? `<label><span>Cost price (₦) <span class="muted">(optional, only you${me.role === 'owner' ? ' and managers you allow' : ''} can see it)</span></span>${moneyInput({ name: 'cost', value: cost[0]?.cost_price, placeholder: '2,000' })}</label>` : ''}
         <label>Alert when a shop has this many or fewer<input name="alert" type="number" min="0" step="1" inputmode="numeric" value="${p.low_stock_at}" required></label>
         ${shop ? `
         <h2 class="section">In ${esc(shop.name)}</h2>
@@ -154,11 +164,12 @@ export async function productForm(me, id, tabs) {
         <button type="submit" class="primary">Save</button>
       </form>
       ${changes.length ? `<h2 class="section">Recent changes in ${esc(shop.name)}</h2>
-        <ul class="list">${changes.map((c) => `<li class="card row"><span class="grow"><strong>${WHY[c.reason] || c.reason}</strong> <span class="muted">by ${esc(c.by_name)}</span><br>
+        <ul class="list">${changes.map((c) => `<li class="card row"><span class="grow"><strong>${WHY[c.reason] || c.reason}</strong> <span class="muted">by ${esc(properName(c.by_name))}</span><br>
           <span class="muted small">${fmtDay(c.created_at, tz)} · ${fmtTime(c.created_at, tz)}${c.note ? ` · “${esc(c.note)}”` : ''}</span></span>
           <span class="qty"><b class="${c.change < 0 ? 'late' : 'ok-text'}">${c.change > 0 ? '+' : ''}${c.change}</b><span class="muted small">now ${c.qty_after}</span></span></li>`).join('')}</ul>` : ''}
       ${isNew ? '' : '<button class="link block" id="hide">Stop selling this product</button>'}
-    </main>`, async ({ name, code, price, lowest, alert, qty, expires, note }) => {
+      ${!isNew && mayDelete(me) ? '<button class="link block danger-link" id="del">Delete this product</button>' : ''}
+    </main>`, async ({ name, code, price, lowest, alert, qty, expires, note, cost: costIn }) => {
     const pr = parseMoney(price), lo = parseMoney(lowest);
     if ((price.trim() && pr === null) || (lowest.trim() && lo === null)) throw new Say('Prices should be numbers, like 2,500.');
     if (lo != null && pr == null) throw new Say('Add the selling price too.');
@@ -178,9 +189,21 @@ export async function productForm(me, id, tabs) {
       await api.rpc('set_stock', { p_branch: shop.id, p_product: saved.id, p_qty: qty === '' ? s?.qty ?? 0 : Number(qty), p_expires_on: expires || null, p_note: note || null });
     }
     if (expChanged && !expires && s) await api.rpc('clear_expiry', { p_branch: shop.id, p_product: saved.id });
+    if (mayCosts(me) && costIn !== undefined) {
+      const c = parseMoney(costIn);
+      if (c === null) await api.remove('product_costs', `product_id=eq.${saved.id}`);
+      else await api.upsert('product_costs', { product_id: saved.id, company_id: me.company_id, cost_price: c });
+    }
     toast(isNew ? `${row.name} added` : 'Saved');
     go('#/stock/' + (shop?.id || ''));
   });
+  const del = document.getElementById('del');
+  if (del) {
+    del.onclick = async () => {
+      if (!(await ask(`Delete ${p.name} for good? This can't be undone. (A product that was ever sold can't be deleted: use "Stop selling".)`, { ok: 'Delete', danger: true }))) return;
+      try { await api.rpc('delete_product', { p_product: p.id }); toast(`${p.name} deleted`); go('#/stock'); } catch (x) { toast(friendly(x)); }
+    };
+  }
   const hide = document.getElementById('hide');
   if (hide) {
     hide.onclick = async () => {
@@ -302,7 +325,7 @@ export async function importLog(me) {
       ${list.length ? `<ul class="list">${list.map((i) => `
         <li class="card row"><span class="grow"><strong>${i.kind === 'count' ? 'Stock count' : 'Delivery'}</strong> · ${esc(shopName.get(i.branch_id) || '')}<br>
           <span class="muted">${esc(i.file_name)}</span><br>
-          <span class="muted small">${fmtDay(i.created_at, tz)} · ${fmtTime(i.created_at, tz)} · ${esc(i.by_name)}</span></span>
+          <span class="muted small">${fmtDay(i.created_at, tz)} · ${fmtTime(i.created_at, tz)} · ${esc(properName(i.by_name))}</span></span>
           <span class="qty"><b>${plural(i.rows, 'product')}</b><span class="muted small">${plural(i.units, 'item')}${i.new_products ? ` · ${i.new_products} new` : ''}</span></span></li>`).join('')}</ul>`
         : '<p class="muted center empty">No imports yet.</p>'}
     </main>`);
@@ -323,20 +346,20 @@ export async function shopSales(me, arg) {
   const day = salesDay || today;
   const [sum, list] = await Promise.all([
     api.rpc('shop_sales_summary', { p_branch: shop.id, p_day: day }),
-    api.select('sales', `select=id,happened_at,seller_name,total,discount,flags,payment_method,receipt_code,cancelled_at,cancelled_by_name,mistake_note,sale_items(product_name,qty,line)&branch_id=eq.${shop.id}&local_date=eq.${day}&order=happened_at.desc`),
+    api.select('sales', `select=id,happened_at,seller_name,total,discount,flags,payment_method,receipt_code,cancelled_at,cancelled_by_name,cancel_reason,mistake_note,sale_items(product_name,qty,line)&branch_id=eq.${shop.id}&local_date=eq.${day}&order=happened_at.desc`),
   ]);
   const first = list.filter((x) => !x.cancelled_at && (x.mistake_note || x.flags.length));
   const items = (x) => [...x.sale_items].sort((a, b) => a.line - b.line).map((i) => `${i.qty} × ${esc(i.product_name)}`).join(', ');
-  const pills = (x) => (x.cancelled_at ? `<span class="pill bad">Cancelled${x.cancelled_by_name ? ` by ${esc(x.cancelled_by_name)}` : ''}</span>`
+  const pills = (x) => (x.cancelled_at ? `<span class="pill bad">Cancelled${x.cancelled_by_name ? ` by ${esc(properName(x.cancelled_by_name))}` : ''}${x.cancel_reason ? `: ${esc(x.cancel_reason)}` : ''}</span>`
     : `${x.mistake_note ? '<span class="pill info">Mistake reported</span> ' : ''}${x.flags.map((f) => `<span class="pill warn">${SALE_FLAG[f] || f}</span>`).join(' ')}`);
   const row = (x) => `
     <tr class="sale${x.cancelled_at ? ' cancelled' : ''}" data-href="#/sale/${x.id}">
       <td class="main"><a href="#/sale/${x.id}"><strong>${fmtTime(x.happened_at, tz)}</strong></a>
-        <span class="sub muted small">${esc(x.seller_name)} · ${PAYM[x.payment_method] || 'Cash'}</span>
+        <span class="sub muted small">${esc(properName(x.seller_name))} · ${PAYM[x.payment_method] || 'Cash'}</span>
         <span class="sub muted small">${items(x)}</span><span class="sub">${pills(x)}</span>
-        <span class="sub tab muted small">${esc(x.receipt_code || '')} · ${esc(x.seller_name)}</span><span class="sub tab">${pills(x)}</span></td>
+        <span class="sub tab muted small">${esc(x.receipt_code || '')} · ${esc(properName(x.seller_name))}</span><span class="sub tab">${pills(x)}</span></td>
       <td class="d dx">${esc(x.receipt_code || '')}</td>
-      <td class="d dx">${esc(x.seller_name)}</td>
+      <td class="d dx">${esc(properName(x.seller_name))}</td>
       <td class="d wrap">${items(x)}</td>
       <td class="d">${PAYM[x.payment_method] || 'Cash'}</td>
       <td class="d dx wrap">${pills(x)}</td>
@@ -353,6 +376,7 @@ export async function shopSales(me, arg) {
       <div class="card block">
         <p class="big-line"><b>${naira(sum?.total || 0)}</b> · ${plural(sum?.sales || 0, 'sale')}</p>
         <p class="muted">${Number(sum?.discount) ? `Discounts given: ${naira(sum.discount)}` : 'No discounts'}${sum?.cancelled ? ` · ${sum.cancelled} cancelled` : ''}</p>
+        ${sum?.profit != null ? `<p class="muted">Profit: <b class="ok-text">${naira(sum.profit)}</b> <span class="small">(products with a cost price)</span></p>` : ''}
         ${(() => { const live = list.filter((s) => !s.cancelled_at); const by = (k) => live.filter((s) => (s.payment_method || 'cash') === k).reduce((t, s) => t + Number(s.total), 0);
           const used = Object.entries(PAYM).filter(([k]) => by(k)); return used.length ? `<p class="methods">${used.map(([k, t]) => `<span><span class="muted">${t}</span> <b>${naira(by(k))}</b></span>`).join('')}</p>` : ''; })()}
       </div>
@@ -371,7 +395,7 @@ export async function saleDetail(me, id) {
     <main class="page narrow">
       ${backLink('#/sales/' + x.branch_id, 'Sales')}
       <h1>${naira(x.total)}</h1>
-      <p class="muted">${esc(x.receipt_code)} · ${fmtDay(x.happened_at, tz)} · ${fmtTime(x.happened_at, tz)} · sold by ${esc(x.seller_name)} · ${PAYM[x.payment_method] || 'Cash'}</p>
+      <p class="muted">${esc(x.receipt_code)} · ${fmtDay(x.happened_at, tz)} · ${fmtTime(x.happened_at, tz)} · sold by ${esc(properName(x.seller_name))} · ${PAYM[x.payment_method] || 'Cash'}</p>
       <p><a href="r.html#${esc(x.receipt_token)}" target="_blank" rel="noopener">Open the receipt</a></p>
       ${x.flags.includes('clock_changed') ? '<p class="banner">The phone clock was changed: the time may not be right.</p>' : ''}
       <ul class="board">${lines.map((i) => `
@@ -379,8 +403,8 @@ export async function saleDetail(me, id) {
           <span class="muted small">${naira(i.unit_price)} each${i.list_price != null && Number(i.unit_price) !== Number(i.list_price) ? ` (price list: ${naira(i.list_price)}${i.lowest_price != null ? `, lowest ${naira(i.lowest_price)}` : ''})` : ''}</span>
           ${i.flags.map((f) => `<span class="pill warn">${SALE_FLAG[f] || f}${f === 'out_of_stock' ? ` (${Math.max(0, i.stock_before ?? 0)} in stock)` : ''}</span>`).join(' ')}</span>
           <span class="qty"><b>${naira(i.qty * i.unit_price)}</b></span></li>`).join('')}</ul>
-      ${x.mistake_note ? `<div class="banner tip"><strong>${esc(x.seller_name)} reported a mistake:</strong> “${esc(x.mistake_note)}”<br><span class="small">${fmtTime(x.mistake_at, tz)}. If the sale is wrong, cancel it and ask them to record it again.</span></div>` : ''}
-      ${x.cancelled_at ? `<div class="banner bad-banner">Cancelled by ${esc(x.cancelled_by_name)}, ${fmtDay(x.cancelled_at, tz)} ${fmtTime(x.cancelled_at, tz)}: “${esc(x.cancel_reason)}”. The stock went back.</div>`
+      ${x.mistake_note ? `<div class="banner tip"><strong>${esc(properName(x.seller_name))} reported a mistake:</strong> “${esc(x.mistake_note)}”<br><span class="small">${fmtTime(x.mistake_at, tz)}. If the sale is wrong, cancel it and ask them to record it again.</span></div>` : ''}
+      ${x.cancelled_at ? `<div class="banner bad-banner">Cancelled by ${esc(properName(x.cancelled_by_name))}, ${fmtDay(x.cancelled_at, tz)} ${fmtTime(x.cancelled_at, tz)}: “${esc(x.cancel_reason)}”. The stock went back.</div>`
         : `<form class="stack">
             <label>Reason for cancelling<input name="reason" placeholder="e.g. wrong quantity, customer returned it" maxlength="300"></label>
             <p class="error" role="alert"></p>

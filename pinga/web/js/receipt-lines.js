@@ -5,6 +5,8 @@
 export const PAY = { cash: 'Cash', transfer: 'Transfer', card: 'POS card' };
 export const naira = (n) => '₦' + Number(n).toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
+export const properFirst = (n) => { const f = String(n || '').trim(); return f.charAt(0).toUpperCase() + f.slice(1); };
+
 export function when(r) {
   const d = new Date(r.at);
   const opts = { timeZone: r.timezone || 'Africa/Lagos' };
@@ -26,7 +28,7 @@ export function receiptLines(r) {
     r.cancelled ? { text: 'CANCELLED', bold: true, big: true, center: true, red: true } : null,
     { left: 'Receipt', right: r.number, bold: true },
     { left: t.date, right: t.time },
-    { left: 'Served by', right: r.served_by },
+    { left: 'Served by', right: properFirst(r.served_by) },
     { rule: true },
   ];
   for (const i of r.items) {

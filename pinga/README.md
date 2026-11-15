@@ -121,6 +121,17 @@ One code base, three layouts (tested at 375, 820 and 1440 px in `tests/screens/r
 - The offline outbox uses IndexedDB, which works in both. The service worker is skipped where the app shell doesn't support it.
 - Still to do when packaging: Paystack checkout opens in the system browser and returns to the app by a deep link.
 
+## Roles and permissions (businesses with shops)
+
+Every rule below is enforced in the database (`20261130000001_roles.sql`), not just by hiding buttons; each has a test in `tests/db/test_roles.sql`.
+
+- **Shop staff:** land on Sell. Screens: Sell, Clock, My sales (their own sales). See product names, selling prices and their own shop's stock. Sell only between the lowest allowed price and the selling price; must be clocked in to sell (owner settings in Setup: "Staff must clock in before selling", on by default; "Staff may sell below the lowest price", off by default). A sale made offline before a price change is kept and flagged "price changed". Cannot add, edit, import or delete products, change stock, or see costs, stock value, profit, other staff's sales, other shops, reports, billing or exports.
+- **Managers** (only the shops the owner gave them): add, edit and import products; adjust stock; set prices; cancel sales with a reason; see their shops' sales, stock and attendance; mark attendance (their shops only); close the till. Cannot see billing, add or remove shops, invite or remove managers, change business settings or type, see other shops, delete products for good, or export all data.
+- **Optional rights** (owner switches per manager on the manager's page in Team): see cost prices and profit; invite and remove shop staff (their shops only, never managers); delete products (only products never sold).
+- **Owners:** everything.
+- **Field sales businesses** work as before.
+- Cost prices live in their own table (`product_costs`) that shop staff can never read.
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

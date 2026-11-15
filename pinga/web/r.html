@@ -51,7 +51,7 @@
 <main id="app"><p class="msg muted">Loading your receipt…</p></main>
 <script type="module">
   import { CONFIG } from './js/config.js';
-  import { receiptLines, when, naira, PAY } from './js/receipt-lines.js';
+  import { receiptLines, when, naira, PAY, properFirst } from './js/receipt-lines.js';
   import { saveFile, printPage } from './js/device.js';
 
   const app = document.getElementById('app');
@@ -90,7 +90,7 @@
         <hr>
         <div class="pair"><span class="muted">Receipt</span><span><b>${esc(r.number)}</b></span></div>
         <div class="pair"><span class="muted">Date</span><span>${esc(t.date)}, ${esc(t.time)}</span></div>
-        <div class="pair"><span class="muted">Served by</span><span>${esc(r.served_by)}</span></div>
+        <div class="pair"><span class="muted">Served by</span><span>${esc(properFirst(r.served_by))}</span></div>
         <hr>
         ${r.items.map((i) => `<div class="item"><div class="name">${esc(i.name)}</div>
           <div class="pair"><span class="muted">${i.qty} × ${naira(i.price)}</span><span>${naira(i.qty * i.price)}</span></div></div>`).join('')}

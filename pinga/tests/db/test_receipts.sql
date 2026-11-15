@@ -13,6 +13,8 @@ select tests.act_as('e0000000-0000-0000-0000-000000000001');
 create temp table co as select public.create_company('Mama Put Stores', 'Ada Owner', 'storefront') as id;
 grant all on co to public;
 reset role;
+-- These tests are about selling itself: the owner's till rules (clock in first; nothing below the lowest price) are off here, tested in test_roles.sql.
+update public.companies set sell_requires_clock_in = false, staff_below_lowest = true where id = (select id from co);
 select tests.act_as('e0000000-0000-0000-0000-000000000004');
 create temp table oco as select public.create_company('Other', 'Chi Owner', 'storefront') as id;
 grant all on oco to public;
@@ -79,7 +81,7 @@ select tests.ok((public.receipt('tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1')->>'logo_p
 -- ── Cancelled: the link says so; numbers are never reused ──
 select tests.act_as('e0000000-0000-0000-0000-000000000003');
 select tests.refused($$ update public.branches set logo_path = null where id = '51000000-0000-0000-0000-000000000001' $$, 'managers cannot change a shop logo');
-select tests.refused($$ update public.companies set receipt_note = 'x' $$, 'managers cannot change the receipt note');
+select tests.no_rows($$ update public.companies set receipt_note = 'x' $$, 'managers cannot change the receipt note');
 select public.cancel_sale('5b100000-0000-0000-0000-000000000002', 'Customer changed their mind');
 reset role;
 select tests.eq((public.receipt('tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2')->>'cancelled')::boolean, true, 'a cancelled sale''s receipt says cancelled');

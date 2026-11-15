@@ -176,7 +176,7 @@ function noCompany() {
 const loadMe = () => api.cached('me', async () => {
   const uid = api.getSession().user.id;
   const rows = await api.select('members',
-    'select=id,role,full_name,company_id,branch_id,reference_photo_path,daily_visit_target,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days,status,trial_ends_at,paid_until,business_type,logo_path,receipt_note)' +
+    'select=id,role,full_name,company_id,branch_id,reference_photo_path,daily_visit_target,can_see_costs,can_manage_staff,can_delete_products,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days,status,trial_ends_at,paid_until,business_type,logo_path,receipt_note,sell_requires_clock_in,staff_below_lowest)' +
     `&user_id=eq.${uid}&active=is.true&order=created_at&limit=1`);
   return rows[0] || null;
 });

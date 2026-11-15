@@ -5,7 +5,7 @@ import { watchBest, parseLatLng } from './gps.js';
 import { ICON } from './icons.js';
 import { publicBase, copyText } from './device.js';
 import { ask } from './dialog.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl, setNav, moneyInput, parseMoney } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl, setNav, moneyInput, parseMoney, properName } from './ui.js';
 
 let banner = '';
 let flags = null;   // what's switched on (payments, face check); loaded once per visit
@@ -38,6 +38,16 @@ const navHtml = (on) => {
     ${NAV.map(([h, t, i]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${ICON[i]}<span>${t}</span></a>`).join('')}
   </nav>`;
 };
+// What this person may do. In a business with shops, managers have limited rights (the database enforces
+// every one of these; the app only hides what would be refused). Field sales: as before.
+const can = (me) => {
+  const owner = me.role === 'owner', limited = F.shop && !owner;
+  return { owner, limited, settings: !limited, shops: !limited, export: !limited,
+    staff: !limited || me.can_manage_staff, costs: owner || (F.shop && me.can_see_costs), del: owner || (F.shop && me.can_delete_products) };
+};
+const myShopIds = async (me) => new Set((await api.select('manager_shops', `select=branch_id&manager_id=eq.${me.id}`)).map((x) => x.branch_id));
+export const rights = can;
+
 // Which section a sub-screen belongs to (highlighted in the side nav on tablets and desktops).
 const SECTION = { person: 'Team', invite: 'Team', day: 'Today', product: 'Stock', import: 'Stock', imports: 'Stock', sales: 'Stock', sale: 'Stock' };
 // Main screens: the nav shows on every size. Returns the billing banner (if any) for the top of the page.
@@ -53,6 +63,10 @@ export async function adminRoute(me, name, arg) {
   setNav(navHtml(SECTION[name] || 'Setup'));   // sub-screens keep the side nav on bigger screens
   // Features this business type doesn't use are not reachable.
   if (!F.visits && ['stores', 'store', 'assign'].includes(name)) return go('#/setup');
+  // Business settings and exports are the owner's in a business with shops.
+  if (can(me).limited && ['hours', 'export', 'business', 'brand', 'billing', 'face'].includes(name)) return go('#/setup');
+  if (!can(me).staff && name === 'invite') return go('#/team');
+  if (!can(me).shops && name === 'office' && arg === 'new') return go('#/offices');
   if (F.shop && ['stock', 'product', 'import', 'imports', 'sales', 'sale'].includes(name)) {
     const st = await import('./stock.js');
     if (name === 'sales') return st.shopSales(me, arg);
@@ -95,12 +109,12 @@ async function team(me) {
     <main class="page">
       ${header(me, 'Team')}
       ${tabs('Team')}
-      <a class="primary button" href="#/invite">Invite someone</a>
+      ${can(me).staff ? '<a class="primary button" href="#/invite">Invite someone</a>' : ''}
       <div class="tablewrap"><table class="rtable">
         <thead><tr><th>Name</th><th class="d">Role</th><th class="d">Phone</th>${F.visits ? '<th class="d">Stores</th>' : ''}<th class="num">Status</th></tr></thead>
         <tbody>${people.map((p) => `
           <tr data-href="#/person/${p.id}">
-            <td class="main"><a href="#/person/${p.id}"><strong>${esc(p.full_name)}</strong></a>
+            <td class="main"><a href="#/person/${p.id}"><strong>${esc(properName(p.full_name))}</strong></a>
               <span class="sub muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</span>
               ${p.role === 'rep' ? `<span class="sub muted small">${repLine(p)}</span>` : ''}</td>
             <td class="d">${ROLE[p.role]}</td>
@@ -123,8 +137,10 @@ function inviteRoles() {
 const workplaceLabel = () => (F.type === 'storefront' ? 'Shop' : F.type === 'both' ? 'Works at' : 'Home office');
 
 async function invite(me) {
-  const roles = inviteRoles();
-  const places = F.shop ? await api.select('branches', `select=id,name,kind&company_id=eq.${me.company_id}&order=name`) : [];
+  // Managers in a business with shops invite shop staff only, into their own shops.
+  const roles = inviteRoles().filter(([v]) => !(can(me).limited && v === 'admin'));
+  let places = F.shop ? await api.select('branches', `select=id,name,kind&company_id=eq.${me.company_id}&order=name`) : [];
+  if (can(me).limited) { const mine = await myShopIds(me); places = places.filter((b) => mine.has(b.id)); }
   const placeName = (b) => esc(b.name) + (F.type === 'both' || b.kind === 'office' && F.shop ? (b.kind === 'shop' ? ' (shop)' : ' (office)') : '');
   show(`
     <main class="page narrow">
@@ -171,7 +187,7 @@ function loadPhotos() {
       const url = URL.createObjectURL(await api.download('photos', img.dataset.photo));
       urls.push(url);
       img.src = url;
-    } catch { img.alt = 'Photo not available'; }
+    } catch { const ph = document.createElement('span'); ph.className = img.className; ph.title = 'Photo not available'; img.replaceWith(ph); }
   });
 }
 
@@ -179,7 +195,7 @@ async function person(me, id) {
   const tz = me.companies.timezone;
   const mid = encodeURIComponent(id);
   const [[p], records] = await Promise.all([
-    api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path,daily_visit_target,branch_id&id=eq.${mid}`),
+    api.select('members', `select=id,full_name,phone,role,joined_at,invite_token,reference_photo_path,daily_visit_target,branch_id,can_see_costs,can_manage_staff,can_delete_products&id=eq.${mid}`),
     api.select('attendance', `select=id,kind,happened_at,late_minutes,distance_m,photo_path,flags,face_similarity&member_id=eq.${mid}&order=happened_at.desc&limit=10`),
   ]);
   if (!p) return go('#/team');
@@ -193,6 +209,11 @@ async function person(me, id) {
   ]);
   const shops = offices.filter((b) => b.kind === 'shop');
   const placeName = (b) => esc(b.name) + (F.type === 'both' ? (b.kind === 'shop' ? ' (shop)' : ' (office)') : '');
+  // Can I change this person? (Managers in a business with shops: with the "shop staff" right, their shops' staff only.)
+  const c = can(me);
+  const mine = c.limited ? await myShopIds(me) : null;
+  const mayManage = p.role !== 'owner' && p.id !== me.id && (!c.limited || (c.staff && !['admin', 'owner'].includes(p.role) && (!p.branch_id || mine.has(p.branch_id))));
+  const choosable = c.limited ? offices.filter((o) => mine.has(o.id)) : offices;
   const monthly = pay[0]?.monthly_naira;
   const [assigned, visits, stores] = isRep ? await Promise.all([
     api.select('store_assignments', `select=store_id&member_id=eq.${mid}`),
@@ -209,12 +230,12 @@ async function person(me, id) {
           ${v.flags.length ? '<br>' + v.flags.map((f) => `<span class="pill warn">${esc(flagLabel(f, 'store'))}${f === 'outside_radius' && v.distance_m != null ? ` (${fmtDistance(v.distance_m)})` : ''}${f === 'face_mismatch' && v.face_similarity != null ? ` (${Math.round(v.face_similarity)}% alike)` : ''}</span>`).join(' ') : ''}</span>
         ${v.shelf_photo_path ? `<img class="thumb" data-photo="${esc(v.shelf_photo_path)}" alt="Shelf photo">` : ''}
       </li>`;
-  const details = isRep || isStaff ? `
+  const details = (isRep || isStaff) && mayManage ? `
       <h2 class="section">Details</h2>
       <div class="card stack">
         <form class="stack details">
           ${isRep ? `<label>Visits per day<input name="target" type="number" min="0" max="50" value="${p.daily_visit_target ?? 4}" required></label>` : ''}
-          ${isStaff ? `<label>${workplaceLabel()}<select name="branch"><option value="">Not set</option>${offices.map((o) => `<option value="${o.id}"${o.id === p.branch_id ? ' selected' : ''}>${placeName(o)}</option>`).join('')}</select>
+          ${isStaff ? `<label>${workplaceLabel()}<select name="branch"><option value="">Not set</option>${choosable.map((o) => `<option value="${o.id}"${o.id === p.branch_id ? ' selected' : ''}>${placeName(o)}</option>`).join('')}</select>
             <span class="hint muted">${F.shop ? 'Their shop decides which manager sees them.' : "Used on the owner's dashboard when they haven't clocked in yet."}</span></label>` : ''}
           ${seesPay ? `<label><span>Monthly pay (₦) <span class="muted">(optional)</span></span>${moneyInput({ name: 'pay', value: monthly, placeholder: 'e.g. 150,000' })}
             <span class="hint muted">Only you (the owner) can see this. Used to show the cost of lost time.</span></label>` : ''}
@@ -223,7 +244,21 @@ async function person(me, id) {
         </form>
         ${isRep ? `<a class="row link-row" href="#/assign/${p.id}"><span>Assigned stores</span><span><b>${assigned.length}</b> ${chev}</span></a>` : ''}
       </div>
-      ${visits.length ? `<h2 class="section">Recent visits</h2><ul class="list">${visits.map(visitRow).join('')}</ul>` : ''}` : '';
+      ${visits.length ? `<h2 class="section">Recent visits</h2><ul class="list">${visits.map(visitRow).join('')}</ul>` : ''}` : isStaff && !mayManage && p.branch_id ? `<p class="muted">${workplaceLabel()}: ${esc(offices.find((o) => o.id === p.branch_id)?.name || '')}</p>` : '';
+  // The owner switches a manager's optional rights on or off (a business with shops).
+  const RIGHTS = [['can_see_costs', 'See cost prices and profit', 'Cost price on each product, stock value at cost, and profit on sales.'],
+    ['can_manage_staff', 'Invite and remove shop staff', 'Only for the shops they look after. They can never add or remove managers.'],
+    ['can_delete_products', 'Delete products', 'Permanently, and only products that were never sold. Without this they can still "Stop selling" a product.']];
+  const rightsCard = pickShops ? `
+      <h2 class="section">Rights</h2>
+      <div class="card">
+        <p class="muted">Every manager can: add, edit and import products; adjust stock; set prices; cancel sales with a reason; see their shops' sales, stock and attendance; mark attendance; close the till.</p>
+        <ul class="switches">${RIGHTS.map(([k, t, d]) => `
+          <li><span><strong>${t}</strong><br><span class="muted small">${d}</span></span>
+            <label class="switch"><input type="checkbox" data-right="${k}"${p[k] ? ' checked' : ''} aria-label="${t}"><span></span></label></li>`).join('')}</ul>
+        <p class="muted small">Managers can never see billing, add or remove shops, change business settings, or export all your data.</p>
+      </div>` : '';
+  const removeBtn = mayManage && p.role !== 'owner' ? `<button class="link block danger-link" id="remove">Remove ${esc(firstName(p.full_name))} from the team</button>` : '';
   const shopsCard = pickShops ? `
       <h2 class="section">Shops they look after</h2>
       <form class="card stack shops">
@@ -259,20 +294,22 @@ async function person(me, id) {
       ${backLink('#/team', 'Team')}
       <div class="person">
         ${p.reference_photo_path ? `<img class="face" data-photo="${esc(p.reference_photo_path)}" alt="Reference photo">` : ''}
-        <div><h1>${esc(p.full_name)}</h1>
+        <div><h1>${esc(properName(p.full_name))}</h1>
         <p class="muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</p></div>
       </div>
       <div id="share">
         ${p.role === 'owner' ? '<p>Owners sign in with their email.</p>'
           : p.invite_token ? share(p.invite_token)
-          : `<p>${esc(first)} has joined.</p><button class="secondary" id="reset">Forgot PIN? Create a new PIN link</button>`}
+          : `<p>${esc(first)} has joined.</p>${mayManage ? '<button class="secondary" id="reset">Forgot PIN? Create a new PIN link</button>' : ''}`}
         ${(isRep || isStaff) && p.reference_photo_path ? '<button class="link block" id="retake">Ask for a new reference photo</button>' : ''}
         ${(isRep || isStaff) && p.joined_at && !p.reference_photo_path ? `<p class="muted small">${esc(first)} will be asked for a reference photo next time they open Pinga.</p>` : ''}
       </div>
       ${details}
       ${shopsCard}
+      ${rightsCard}
       ${records.length ? `<h2 class="section">Recent clock-ins</h2><ul class="list">${records.map(row).join('')}</ul>` : ''}
-    </main>`, isRep || isStaff ? async ({ target, branch, pay: newPay }) => {
+      ${removeBtn}
+    </main>`, (isRep || isStaff) && mayManage ? async ({ target, branch, pay: newPay }) => {
     const changes = isRep ? { daily_visit_target: Number(target) } : { branch_id: branch || null };
     await api.update('members', `id=eq.${p.id}`, changes);
     if (seesPay) {
@@ -283,6 +320,21 @@ async function person(me, id) {
     toast(isRep ? `Target saved: ${Number(target)} visits a day` : 'Saved');
   } : undefined);
   loadPhotos();
+  app.querySelectorAll('[data-right]').forEach((sw) => {
+    sw.onchange = async () => {
+      try {
+        await api.update('members', `id=eq.${p.id}`, { [sw.dataset.right]: sw.checked });
+        toast(`${sw.checked ? 'On' : 'Off'}: ${RIGHTS.find(([k]) => k === sw.dataset.right)[1]}`);
+      } catch (x) { sw.checked = !sw.checked; toast(friendly(x)); }
+    };
+  });
+  const rm = document.getElementById('remove');
+  if (rm) {
+    rm.onclick = async () => {
+      if (!(await ask(`Remove ${first} from the team? They won't be able to sign in. Their past clock-ins and sales are kept.`, { ok: 'Remove', danger: true }))) return;
+      try { await api.update('members', `id=eq.${p.id}`, { active: false }); toast(`${first} removed`); go('#/team'); } catch (x) { toast(friendly(x)); }
+    };
+  }
   const shopForm = app.querySelector('form.shops');
   if (shopForm && shops.length) {
     shopForm.addEventListener('submit', async (e) => {
@@ -388,7 +440,7 @@ async function places(me, k) {
       ${header(me, k.plural)}
       ${tabs('Setup')}
       ${backLink('#/setup', 'Setup')}
-      <a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>
+      ${k.table === 'branches' && !can(me).shops ? '' : `<a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>`}
       ${isStores && list.length && !reps.length ? '<p class="banner tip">Invite a sales rep (Team → Invite someone), then tap a store to choose who visits it.</p>' : ''}
       ${isStores && reps.length && unassigned ? `<p class="banner tip">${unassigned} store${unassigned === 1 ? " isn't" : "s aren't"} assigned to a sales rep yet. Tap a store to choose who visits it.</p>` : ''}
       ${list.length ? '' : `<p class="muted center empty">${k.empty}</p>`}
@@ -436,7 +488,7 @@ async function placeForm(me, k, id) {
         <label>${k.area} (metres)<input name="radius_m" type="number" min="20" max="2000" value="${b.radius_m}" required>
           <span class="hint muted">${k.areaHint}</span></label>
         ${isStore ? `<fieldset class="choices"><legend>Sales reps who visit this store</legend>
-          ${reps.length ? reps.map((x) => `<label class="choice"><input type="checkbox" name="rep" value="${x.id}"${hadReps.has(x.id) ? ' checked' : ''}><span><strong>${esc(x.full_name)}</strong>${x.phone ? `<br><span class="muted">${esc(displayPhone(x.phone))}</span>` : ''}</span></label>`).join('')
+          ${reps.length ? reps.map((x) => `<label class="choice"><input type="checkbox" name="rep" value="${x.id}"${hadReps.has(x.id) ? ' checked' : ''}><span><strong>${esc(properName(x.full_name))}</strong>${x.phone ? `<br><span class="muted">${esc(displayPhone(x.phone))}</span>` : ''}</span></label>`).join('')
             : '<p class="muted small">No sales reps yet. Invite one from Team, then come back to choose who visits this store.</p>'}
         </fieldset>` : ''}
         <p class="error" role="alert"></p>
@@ -535,8 +587,9 @@ async function assign(me, id) {
 
 async function setup(me) {
   const isOwner = me.role === 'owner';
+  const c = can(me);
   const [[co], face] = await Promise.all([
-    isOwner ? api.select('companies', `select=summary_email&id=eq.${me.company_id}`) : [{}],
+    isOwner ? api.select('companies', `select=summary_email,sell_requires_clock_in,staff_below_lowest&id=eq.${me.company_id}`) : [{}],
     api.rpc('face_check_status').catch(() => null),
   ]);
   show(`
@@ -548,9 +601,13 @@ async function setup(me) {
         ${isOwner ? `<li><a class="card row" href="#/business"><span><strong>Business type</strong><br><span class="muted">${BUSINESS[F.type].name}</span></span>${chev}</a></li>` : ''}
         <li><a class="card row" href="#/offices"><span><strong>${PLACE.office.plural}</strong><br><span class="muted">${F.type === 'storefront' ? 'Where your staff clock in and sell' : F.type === 'both' ? 'Where staff clock in' : 'Where office staff clock in'}</span></span>${chev}</a></li>
         ${F.visits ? `<li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span>${chev}</a></li>` : ''}
-        <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span>${chev}</a></li>
+        ${c.settings ? `<li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span>${chev}</a></li>` : ''}
         ${isOwner ? `<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">Plan, price for your team, payments</span></span>${chev}</a></li>` : ''}
-        <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span>${chev}</a></li>
+        ${c.export ? `<li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span>${chev}</a></li>` : ''}
+        ${isOwner && F.shop ? `<li class="card row"><span><strong>Staff must clock in before selling</strong><br><span class="muted">The till stays closed for shop staff until they clock in</span></span>
+          <label class="switch"><input type="checkbox" data-co="sell_requires_clock_in"${co.sell_requires_clock_in ? ' checked' : ''} aria-label="Staff must clock in before selling"><span></span></label></li>
+        <li class="card row"><span><strong>Staff may sell below the lowest price</strong><br><span class="muted">Off: staff sell only between the lowest and the selling price. On: lower is allowed but flagged for you</span></span>
+          <label class="switch"><input type="checkbox" data-co="staff_below_lowest"${co.staff_below_lowest ? ' checked' : ''} aria-label="Staff may sell below the lowest price"><span></span></label></li>` : ''}
         ${face ? `<li><${isOwner ? 'a href="#/face"' : 'div'} class="card row"><span><strong>Face check</strong><br><span class="muted">${face.enabled
           ? `On. Selfies must be ${face.match_percent}% alike to the reference photo.${face.waiting ? ` ${face.waiting} waiting.` : ''}`
           : `Off until the AWS keys are added. Clock-ins work as normal.${face.waiting ? ` ${face.waiting} selfie${face.waiting === 1 ? '' : 's'} will be checked when it's switched on.` : ''}`}</span></span>
@@ -560,6 +617,12 @@ async function setup(me) {
       </ul>
     </main>`);
   wireSignOut();
+  app.querySelectorAll('[data-co]').forEach((x) => {
+    x.onchange = async () => {
+      try { await api.update('companies', `id=eq.${me.company_id}`, { [x.dataset.co]: x.checked }); reloadMe(); toast('Saved'); }
+      catch (e) { x.checked = !x.checked; toast(friendly(e)); }
+    };
+  });
   const sw = document.getElementById('summary');
   if (sw) {
     sw.onchange = async () => {

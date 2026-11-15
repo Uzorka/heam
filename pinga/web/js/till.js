@@ -5,7 +5,7 @@ import { copyText } from './device.js';
 import * as api from './api.js';
 import { sync, outbox, uuid, safeToSignOut, waitingText } from './queue.js';
 import { report } from './report.js';
-import { show, esc, toast, header, wireSignOut, onLeave, app, fmtTime, localDate, friendly, moneyInput, parseMoney } from './ui.js';
+import { show, esc, toast, header, wireSignOut, onLeave, app, fmtTime, localDate, friendly, moneyInput, parseMoney, properName } from './ui.js';
 import { ICON } from './icons.js';
 import { makeToken, receiptUrl, receiptMessage, whatsappHref, pendingReceipts, queueReceipt, dropReceipt } from './receipts.js';
 
@@ -14,8 +14,8 @@ const naira = (n) => '₦' + Number(n).toLocaleString('en-NG', { maximumFraction
 
 export const tabBar = (on) => `
   <nav class="tabbar appnav" aria-label="Sections">
-    <a href="#/"${on === 'home' ? ' class="on" aria-current="page"' : ''}>${ICON.clock}<span>Clock</span></a>
     <a href="#/sell"${on === 'sell' ? ' class="on" aria-current="page"' : ''}>${ICON.shop}<span>Sell</span></a>
+    <a href="#/home"${on === 'home' ? ' class="on" aria-current="page"' : ''}>${ICON.clock}<span>Clock</span></a>
     <a href="#/mysales"${on === 'mysales' ? ' class="on" aria-current="page"' : ''}>${ICON.receipt}<span>My sales</span></a>
   </nav>`;
 
@@ -101,7 +101,35 @@ async function leftInShop(me) {
 }
 
 // ── Sell ────────────────────────────────────────────────────
+// Is this person clocked in right now (counting clock-ins still waiting to send)?
+async function clockedIn(me) {
+  const tz = me.companies.timezone, day = localDate(api.serverNow(), tz);
+  const [sent, waiting] = await Promise.all([
+    api.cached('today', () => api.select('attendance', `select=id,kind,happened_at,late_minutes&member_id=eq.${me.id}&local_date=eq.${day}&order=happened_at`)).catch(() => []),
+    outbox.all(),
+  ]);
+  const events = [...sent, ...waiting.filter((w) => !w.type && w.member_id === me.id && localDate(new Date(w.happened_at), tz) === day && !sent.some((x) => x.id === w.id))]
+    .filter((e) => localDate(new Date(e.happened_at), tz) === day).sort((a, b) => a.happened_at.localeCompare(b.happened_at));
+  return events.at(-1)?.kind === 'in';
+}
+
 export async function sell(me) {
+  // The owner's till rules for shop staff (the server enforces them too).
+  const staffRule = me.role === 'staff';
+  const belowOk = !!me.companies.staff_below_lowest;
+  if (staffRule && me.companies.sell_requires_clock_in !== false && !(await clockedIn(me))) {
+    show(`
+      <main class="page narrow has-tabs">
+        ${header(me, 'Sell')}
+        <div class="card stack center">
+          <p><strong>Clock in to start selling</strong></p>
+          <p class="muted">${esc(me.companies.name)} asks staff to clock in before using the till.</p>
+          <a class="primary button big" href="#/clock/in">${ICON.clock}Clock in</a>
+        </div>
+      </main>
+      ${tabBar('sell')}`);
+    return wireSignOut(safeToSignOut);
+  }
   const [products, left] = await Promise.all([loadProducts(me), leftInShop(me)]);
   const byId = new Map(products.map((p) => [p.id, p]));
   basket = basket.filter((b) => byId.has(b.product_id));
@@ -111,7 +139,10 @@ export async function sell(me) {
     const p = byId.get(b.product_id), out = [];
     const n = left.get(b.product_id) ?? 0;
     if (b.qty > n) out.push(`<span class="warn-line">${n <= 0 ? 'Out of stock' : `Only ${n} in stock`}. You can still sell; your manager will see it.</span>`);
-    if (p.lowest_price != null && b.unit_price < p.lowest_price) out.push(`<span class="warn-line">Below the lowest price (${naira(p.lowest_price)}). Your manager will see it.</span>`);
+    if (p.lowest_price != null && b.unit_price < p.lowest_price) out.push(staffRule && !belowOk
+      ? `<span class="warn-line bad-text">Can't go below ${naira(p.lowest_price)} (the lowest price).</span>`
+      : `<span class="warn-line">Below the lowest price (${naira(p.lowest_price)}). Your manager will see it.</span>`);
+    if (staffRule && p.price != null && b.unit_price > p.price) out.push(`<span class="warn-line bad-text">Can't go above ${naira(p.price)} (the selling price).</span>`);
     return out.join('');
   };
   const range = (p) => (p.price == null ? 'No price set: type the price'
@@ -139,13 +170,13 @@ export async function sell(me) {
     document.getElementById('cart').classList.toggle('is-empty', !basket.length);
     document.getElementById('save').disabled = !basket.length;
     document.getElementById('total').textContent = naira(total());
-    document.getElementById('count').textContent = basket.reduce((t, b) => t + b.qty, 0);
+    { const n = basket.reduce((t, b) => t + b.qty, 0); document.getElementById('count').textContent = `${n} item${n === 1 ? '' : 's'}`; }
   };
   const refreshLine = (i) => {
     const li = app.querySelector(`.line[data-i="${i}"]`);
     li.querySelector('.warns').innerHTML = warnings(basket[i]);
     document.getElementById('total').textContent = naira(total());
-    document.getElementById('count').textContent = basket.reduce((t, b) => t + b.qty, 0);
+    { const n = basket.reduce((t, b) => t + b.qty, 0); document.getElementById('count').textContent = `${n} item${n === 1 ? '' : 's'}`; }
   };
 
   // Phones: the sale on top, products underneath. Tablets and desktops: products left, the sale right.
@@ -168,7 +199,7 @@ export async function sell(me) {
       <aside class="till-sale" aria-label="This sale">
       <section id="sendbox" class="card sendbox stack" aria-live="polite" hidden></section>
       <section id="cart" class="card cart is-empty" aria-labelledby="cart-h">
-        <h2 id="cart-h">This sale · <span id="count"></span> items</h2>
+        <h2 id="cart-h">This sale · <span id="count"></span></h2>
         <p class="cart-empty muted">Scan a barcode, or search and tap a product to add it.</p>
         <ul class="lines" id="basket"></ul>
         <div class="cart-total"><span>Total</span><b id="total"></b></div>
@@ -271,6 +302,11 @@ export async function sell(me) {
     const noPrice = basket.find((b) => b.unit_price == null || !(b.unit_price >= 0));
     if (!basket.length) return;
     if (noPrice) { err.textContent = `Type the price for ${byId.get(noPrice.product_id).name}.`; return; }
+    // Shop staff sell between the lowest and the selling price (the owner's rule; the server checks too).
+    if (staffRule) {
+      const bad = basket.find((b) => { const p = byId.get(b.product_id); return (p.price != null && b.unit_price > p.price) || (!belowOk && p.lowest_price != null && b.unit_price < p.lowest_price); });
+      if (bad) { const p = byId.get(bad.product_id); err.textContent = `${p.name}: the price must be between ${naira(p.lowest_price ?? 0)} and ${naira(p.price)}.`; return; }
+    }
     // Above the selling price is unusual (often a typing slip, e.g. 25000 for 2500): check first.
     const high = basket.find((b) => { const p = byId.get(b.product_id); return p.price != null && b.unit_price > p.price; });
     if (high && !(await ask(`${byId.get(high.product_id).name}: ${naira(high.unit_price)} is above the selling price (${naira(byId.get(high.product_id).price)}). Save anyway?`, { ok: 'Save anyway' }))) return;
@@ -318,7 +354,7 @@ export async function mySales(me) {
           <span class="muted small">${items(s)}</span>
           ${s.waiting ? '<span class="pill wait">Waiting to send</span>' : ''}
           ${s.flags.map((f) => `<span class="pill warn">${FLAG[f] || f}</span>`).join(' ')}
-          ${s.cancelled_at ? `<span class="pill bad">Cancelled by ${esc(s.cancelled_by_name)}: ${esc(s.cancel_reason)}</span>`
+          ${s.cancelled_at ? `<span class="pill bad">Cancelled by ${esc(properName(s.cancelled_by_name))}: ${esc(s.cancel_reason)}</span>`
             : s.mistake_note ? `<span class="pill info">Mistake reported: ${esc(s.mistake_note)}</span>`
             : s.waiting ? '' : '<button class="link small mistake">Report a mistake</button>'}
           ${s.receipt_token && !s.cancelled_at ? `<button class="link small resend" data-token="${esc(s.receipt_token)}" data-total="${s.total}" data-pay="${esc(s.payment_method || 'cash')}">Send receipt</button>` : ''}

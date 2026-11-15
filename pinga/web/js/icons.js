@@ -22,15 +22,15 @@ export const ICON = {
 const PIN = 'M24 3C14.6 3 7 10.5 7 19.8c0 12.4 14.2 23.6 15.5 24.6a2.4 2.4 0 0 0 3 0C26.8 43.4 41 32.2 41 19.8 41 10.5 33.4 3 24 3Z';
 export const logo = (size = 28) => `<svg class="logo" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
   <defs><mask id="pinga-cut"><rect width="48" height="48" fill="#fff"/><path d="M16 20.5l5.6 5.6L32.5 15" fill="none" stroke="#000" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/></mask></defs>
-  <path d="${PIN}" fill="var(--mango)" mask="url(#pinga-cut)"/></svg>`;
+  <path d="${PIN}" fill="var(--mango, #FF8A1F)" mask="url(#pinga-cut)"/></svg>`;
 
 export const wordmark = (size = 30) => `<span class="wordmark">${logo(size)}<span>Pinga</span></span>`;
 
 // A small happy pin for empty states and "everyone's in".
 export const happyPin = (size = 88) => `<svg class="happy" width="${size}" height="${size}" viewBox="0 0 96 96" aria-hidden="true">
-  <ellipse cx="48" cy="88" rx="18" ry="4" fill="var(--ink)" opacity=".08"/>
-  <path d="M48 8C30 8 16 22 16 39.5c0 22.5 26 42.5 29 44.7a5 5 0 0 0 6 0C54 82 80 62 80 39.5 80 22 66 8 48 8Z" fill="var(--mango)"/>
+  <ellipse cx="48" cy="88" rx="18" ry="4" fill="var(--ink, #14213D)" opacity=".08"/>
+  <path d="M48 8C30 8 16 22 16 39.5c0 22.5 26 42.5 29 44.7a5 5 0 0 0 6 0C54 82 80 62 80 39.5 80 22 66 8 48 8Z" fill="var(--mango, #FF8A1F)"/>
   <circle cx="48" cy="39" r="21" fill="#fff"/>
-  <circle cx="40.5" cy="35.5" r="3" fill="var(--ink)"/><circle cx="55.5" cy="35.5" r="3" fill="var(--ink)"/>
-  <path d="M39.5 44.5c4.8 5 12.2 5 17 0" fill="none" stroke="var(--ink)" stroke-width="3.4" stroke-linecap="round"/>
-  <circle cx="34" cy="43" r="2.6" fill="var(--mango)" opacity=".35"/><circle cx="62" cy="43" r="2.6" fill="var(--mango)" opacity=".35"/></svg>`;
+  <circle cx="40.5" cy="35.5" r="3" fill="var(--ink, #14213D)"/><circle cx="55.5" cy="35.5" r="3" fill="var(--ink, #14213D)"/>
+  <path d="M39.5 44.5c4.8 5 12.2 5 17 0" fill="none" stroke="var(--ink, #14213D)" stroke-width="3.4" stroke-linecap="round"/>
+  <circle cx="34" cy="43" r="2.6" fill="var(--mango, #FF8A1F)" opacity=".35"/><circle cx="62" cy="43" r="2.6" fill="var(--mango, #FF8A1F)" opacity=".35"/></svg>`;

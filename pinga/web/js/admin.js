@@ -29,7 +29,7 @@ const tabs = (on) => `${banner}
     ${NAV.map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
   </nav>
   <nav class="tabbar manager" aria-label="Sections">
-    ${NAV.map(([h, t, i]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${ICON[i]}${t}</a>`).join('')}
+    ${NAV.map(([h, t, i]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${ICON[i]}<span>${t}</span></a>`).join('')}
   </nav>`;
 
 export async function adminRoute(me, name, arg) {

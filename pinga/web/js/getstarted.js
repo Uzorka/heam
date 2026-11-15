@@ -17,12 +17,16 @@ export function checklist(p) {
   return `
     <section class="card block getstarted" aria-labelledby="gs-h">
       <div class="head">${happyPin(64)}<div><h2 id="gs-h">Get started</h2>
-        <p class="muted">${left === 4 ? 'Four quick steps and your team is on Pinga.' : `${left} of 4 steps left.`}</p></div></div>
+        <p class="muted">${left === 4 ? 'Four quick steps and your team is on Pinga.' : left ? `${left} of 4 steps left.` : 'All done.'}</p></div></div>
       <ol class="checklist">
         ${steps.map((s, i) => {
-          const inner = `<span class="tick">${ICON.checkSmall}</span><span class="label">${esc(s.label)}<small>${esc(s.hint)}</small></span>`;
-          const cls = s.done ? 'done' : i === next ? 'next' : '';
-          return `<li class="${cls}">${s.href && !s.done ? `<a href="${s.href}">${inner}</a>` : `<span class="static">${inner}</span>`}${s.done ? '<span class="sr"> (done)</span>' : ''}</li>`;
+          // Empty circle until a step is really done; a filled tick only when it is.
+          const tick = `<span class="tick">${s.done ? ICON.checkSmall : ''}</span>`;
+          const text = `<span class="text"><span class="title">${esc(s.label)}</span><span class="desc">${esc(s.hint)}</span></span>`;
+          if (s.done) return `<li class="done">${tick}${text}<span class="sr">Done</span></li>`;
+          // Only the next step to do is a link.
+          if (i === next && s.href) return `<li class="next"><a href="${s.href}">${tick}${text}<span class="go">${ICON.chevron}</span></a></li>`;
+          return `<li class="${i === next ? 'next' : 'later'}">${tick}${text}</li>`;
         }).join('')}
       </ol>
     </section>`;

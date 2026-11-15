@@ -214,5 +214,13 @@ start();
 
 // Offline support: keep the app's files on the phone.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
+  // A new version took over: show it now, unless someone is in the middle of clocking in or a store visit.
+  const hadVersion = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadVersion || reloaded || /^#\/(clock|visit)/.test(location.hash)) return;
+    reloaded = true;
+    location.reload();
+  });
 }

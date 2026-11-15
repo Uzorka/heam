@@ -126,11 +126,15 @@ button.link { background: none; color: var(--mango-ink); width: auto; min-height
   background: rgba(255,255,255,.96); border-top: 1px solid var(--line);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); min-height: var(--tabbar);
 }
-.tabbar a { flex: 1; max-width: 120px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 4px; color: var(--muted); font-size: 12px; font-weight: 700; border-radius: 12px; }
-.tabbar a.on { color: var(--mango-ink); }
-.tabbar a.on .ic { color: var(--mango); }
+/* Every tab identical: icon on top in a fixed-size slot, label underneath; only the colour changes. */
+.tabbar a { flex: 1 1 0; min-width: 0; max-width: 120px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px;
+  padding: 4px 0 2px; color: var(--muted); font-size: 12px; line-height: 16px; font-weight: 700; text-align: center; }
+.tabbar a .ic { display: block; width: 24px; height: 24px; margin: 4px 0 2px; }
+.tabbar a span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tabbar a.on { color: var(--mango); font-weight: 800; }
 .has-tabs { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
-@media (min-width: 700px) {
+/* Desktop = a wide screen with a mouse. Phones and tablets (any width) keep the bottom tab bar. */
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
   .tabs { display: flex; }
   .tabbar.manager { display: none; }
   .has-tabs.manager-page { padding-bottom: 48px; }
@@ -236,7 +240,7 @@ fieldset.days { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap
 .has-bulk { padding-bottom: calc(var(--tabbar) + 170px); }
 .bulkbar { position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar) + env(safe-area-inset-bottom)); z-index: 30; background: rgba(255,255,255,.98); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(20,33,61,.08);
   padding: 12px 16px; }
-@media (min-width: 700px) { .bulkbar { bottom: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); } .has-bulk { padding-bottom: 170px; } }
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) { .bulkbar { bottom: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); } .has-bulk { padding-bottom: 170px; } }
 .bulkbar > div { max-width: 720px; margin: 0 auto; }
 .bulk-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .bulk-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
@@ -277,17 +281,22 @@ fieldset.days { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap
 .happy-state p { margin: 0; font-weight: 700; }
 
 /* Get started */
-.getstarted { text-align: left; }
 .getstarted .head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
 .getstarted .head h2 { margin: 0; }
 .checklist { list-style: none; margin: 8px 0 0; padding: 0; }
-.checklist li { border-top: 1px solid var(--line); }
-.checklist a, .checklist .static { display: flex; align-items: center; gap: 12px; padding: 13px 0; color: var(--ink); font-weight: 700; }
-.checklist .tick { width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid var(--line); display: flex; align-items: center; justify-content: center; flex: none; color: transparent; }
+.checklist li { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); color: var(--ink); }
+.checklist li > a { display: flex; align-items: center; gap: 12px; flex: 1; color: var(--ink); }
+.checklist .tick { width: 28px; height: 28px; border-radius: 50%; border: 2.5px solid #D9CFC2; display: flex; align-items: center; justify-content: center; flex: none; background: var(--card); }
+.checklist .tick .ic { display: block; }
+.checklist .text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.checklist .title { display: block; font-weight: 800; font-size: 16px; line-height: 1.3; }
+.checklist .desc { display: block; font-weight: 400; font-size: 13px; line-height: 1.35; color: var(--muted); margin-top: 2px; }
 .checklist .done .tick { background: var(--ok); border-color: var(--ok); color: #fff; }
-.checklist .done .label { color: var(--muted); }
-.checklist .label small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; text-decoration: none; }
+.checklist .done .title { color: var(--muted); }
 .checklist .next .tick { border-color: var(--mango); }
+.checklist .next .title { color: var(--ink); }
+.checklist .next .go { color: var(--mango-ink); flex: none; }
+.checklist .later { opacity: .7; }
 
 /* Setup */
 .switch { position: relative; width: 52px; height: 32px; flex: none; }
@@ -316,4 +325,4 @@ fieldset.days { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap
 .staff-hero { display: flex; align-items: center; gap: 16px; }
 .staff-hero h2 { margin: 0 0 2px; }
 .page:has(.tabbar) { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
-@media (min-width: 700px) { .page:has(.tabbar.manager) { padding-bottom: 48px; } }
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) { .page:has(.tabbar.manager) { padding-bottom: 48px; } }

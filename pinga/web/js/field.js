@@ -47,8 +47,8 @@ const topBar = (me, sub, title) => `
 
 const tabBar = (on) => `
   <nav class="tabbar">
-    <a href="#/"${on === 'today' ? ' class="on" aria-current="page"' : ''}>${ICON.today}Today</a>
-    <a href="#/history"${on === 'history' ? ' class="on" aria-current="page"' : ''}>${ICON.history}History</a>
+    <a href="#/"${on === 'today' ? ' class="on" aria-current="page"' : ''}>${ICON.today}<span>Today</span></a>
+    <a href="#/history"${on === 'history' ? ' class="on" aria-current="page"' : ''}>${ICON.history}<span>History</span></a>
   </nav>`;
 
 // ── Today ───────────────────────────────────────────────────

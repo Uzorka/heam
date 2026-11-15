@@ -524,6 +524,27 @@ assert.ok(await page.locator('.tabbar.manager').isVisible(), 'phones get the bot
 assert.ok(!(await page.locator('nav.tabs').isVisible()), '...and not the top segmented control');
 assert.equal(await page.locator('.tabbar.manager a').count(), 4);
 step('greeting capitalises the name ("elvis uzorka" → "Good …, Elvis"); bottom tab bar on phones');
+const brand = await page.evaluate(async () => {
+  await document.fonts.ready;
+  const css = (sel, prop) => getComputedStyle(document.querySelector(sel))[prop];
+  return {
+    nunito: document.fonts.check('800 16px Nunito') && document.fonts.check('400 16px Nunito') && [...document.fonts].some((f) => f.family.includes('Nunito') && f.status === 'loaded'),
+    font: css('body', 'fontFamily'), bg: css('body', 'backgroundColor'), text: css('h1', 'color'),
+    card: css('.card', 'backgroundColor'), logo: css('.logo > path', 'fill'),
+    tabs: [...document.querySelectorAll('.tabbar.manager a')].map((a) => { const i = a.querySelector('svg').getBoundingClientRect(), l = a.querySelector('span').getBoundingClientRect(), b = a.getBoundingClientRect();
+      return { w: Math.round(b.width), iconAbove: i.bottom <= l.top + 1, color: getComputedStyle(a).color, on: a.classList.contains('on') }; }),
+  };
+});
+assert.ok(brand.nunito, 'Nunito font loaded');
+assert.match(brand.font, /^Nunito/);
+assert.equal(brand.bg, 'rgb(255, 248, 238)', 'cream background');
+assert.equal(brand.text, 'rgb(20, 33, 61)', 'ink navy headings');
+assert.equal(brand.card, 'rgb(255, 255, 255)', 'white cards');
+assert.equal(brand.logo, 'rgb(255, 138, 31)', 'mango logo');
+assert.equal(new Set(brand.tabs.map((t) => t.w)).size, 1, 'all tabs the same width');
+assert.ok(brand.tabs.every((t) => t.iconAbove), 'icon on top, label underneath, on every tab');
+assert.deepEqual(brand.tabs.map((t) => t.color), brand.tabs.map((t) => (t.on ? 'rgb(255, 138, 31)' : 'rgb(91, 100, 120)')), 'active tab mango, others muted');
+step('brand: Nunito loaded, cream background, ink text, white cards, mango logo; tabs identical, active one mango');
 await page.getByRole('link', { name: '1 Late: show on Today' }).click();
 await page.getByRole('heading', { name: 'Today' }).waitFor();
 const chipOn = async () => (await page.locator('.chip.on').textContent()).replace(/\s+/g, ' ').trim();
@@ -718,6 +739,11 @@ await shot('owner-overview-empty');
 await page.getByRole('heading', { name: 'Get started' }).waitFor();
 assert.equal(await page.locator('.tiles').count(), 0, 'no wall of zeros on Overview');
 assert.equal(await page.locator('.checklist li.done').count(), 0, 'nothing ticked yet');
+assert.equal(await page.locator('.checklist .tick svg').count(), 0, 'steps not done show an empty circle (no tick)');
+assert.equal(await page.locator('.checklist a').count(), 1, 'only the next step is a link');
+assert.equal(await page.locator('.checklist a .title').innerText(), 'Add an office or branch');
+const twoLines = await page.locator('.checklist li').first().evaluate((li) => li.querySelector('.desc').getBoundingClientRect().top > li.querySelector('.title').getBoundingClientRect().bottom - 1);
+assert.ok(twoLines, 'title and description on separate lines');
 step('new company: Overview shows "Get started" (office, stores, invite, first clock-in), no zeros');
 await page.goto(base + '#/today');
 await page.getByRole('heading', { name: 'Today' }).waitFor();
@@ -730,7 +756,9 @@ branches.push({ id: 'b9', company_id: 'c1', name: 'Head office', radius_m: 100, 
 await page.getByRole('link', { name: 'Overview', exact: true }).click();
 await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 await page.waitForFunction(() => document.querySelectorAll('.checklist li.done').length === 1);
-assert.equal(await page.locator('.checklist li.done .label').innerText().then((t) => t.split('\n')[0]), 'Add an office or branch', 'adding an office ticks it');
+assert.equal(await page.locator('.checklist li.done .title').innerText(), 'Add an office or branch', 'adding an office ticks it');
+assert.equal(await page.locator('.checklist li.done .tick svg').count(), 1, 'only the finished step shows a tick');
+assert.equal(await page.locator('.checklist a .title').innerText(), 'Add your stores', 'the link moves to the next step');
 step('new company: Today shows the checklist and no filter chips; steps tick as they are done');
 await shot('owner-overview-getting-started');
 await page.getByRole('button', { name: 'Sign out' }).click();

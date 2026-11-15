@@ -8,32 +8,6 @@ const content = {
   visits_done: 9, visits_planned: 12, below_target: [{ name: 'Remi Okafor', visits: 1, target: 4 }], to_review: 2,
 };
 
-test('the email gives the day at a glance', () => {
-  const { subject, text, html } = formatSummary(content, 'https://staging.elvisuzorka.com');
-  assert.equal(subject, 'CHF Heron · Fri, 13 Nov: 8 of 12 present, 2 late');
-  assert.match(text, /8 of 12 present, 2 late, 1 not in, 1 on leave or off\./);
-  assert.match(text, /Late: Sade Bello \(40 min\), Tunde Ade \(18 min\)\./);
-  assert.match(text, /Not in: Kemi Obi\./);
-  assert.match(text, /Store visits: 9 of 12 done\./);
-  assert.match(text, /Below target: Remi Okafor \(1 of 4\)\./);
-  assert.match(text, /2 check-ins flagged for review\./);
-  assert.match(html, /Open Pinga/);
-  assert.ok(!/Face didn't match/.test(text), 'no face line when there are no mismatches');
-});
-
-test('face mismatches are listed in the email', () => {
-  const { text } = formatSummary({ ...content, face_mismatches: [{ name: 'Sade Bello', what: 'clock-in' }, { name: 'Remi Okafor', what: 'visit to Shoprite Ikeja' }] });
-  assert.match(text, /Face didn't match: Sade Bello \(clock-in\), Remi Okafor \(visit to Shoprite Ikeja\)\. Please check the photos\./);
-});
-
-test('names are made safe in the email, and long lists are shortened', () => {
-  const many = Array.from({ length: 9 }, (_, i) => `Person <b>${i}</b>`);
-  const { html, text } = formatSummary({ ...content, absent: many, late: [], below_target: [], to_review: 0, visits_planned: 0 });
-  assert.ok(!html.includes('<b>0</b>'), 'no raw HTML from names');
-  assert.match(text, /and 3 more\./);
-  assert.ok(!/Store visits/.test(text), 'no visits line for an office-only company');
-});
-
 function fake({ keyOk = true, due = [{ company_id: 'c1', day: '2026-11-13' }], c = content, resend = 200 } = {}) {
   const calls = [];
   const fetchFn = async (url, init) => {
@@ -87,37 +61,81 @@ test('a failed send is logged as failed; a company with no owner email is skippe
   assert.match(g.calls.find((c) => c.url.endsWith('/summary_logged')).body.p_detail, /no owner email/);
 });
 
-const shops = {
-  total: 14900, sales: 3, discount: 600, cancelled: 1, mistakes: 1, out_of_stock_sales: 0,
-  shops: [{ name: 'Surulere shop', total: 0, sales: 0 }, { name: 'Yaba shop', total: 14900, sales: 3 }],
-  best: [{ name: 'Indomie Chicken 70g', qty: 42 }, { name: 'Peak Milk 400g', qty: 2 }],
-  below_lowest: [{ product: 'Peak Milk 400g', price: 2200, lowest: 2300, seller: 'Kemi Yaba', shop: 'Yaba shop' }],
-  low_stock: [{ product: 'Golden Penny Sugar', qty: 0, shop: 'Yaba shop' }, { product: 'Indomie Chicken 70g', qty: 8, shop: 'Yaba shop' }],
-  expiring: [{ product: 'Peak Milk 400g', expires_on: '2026-11-22', shop: 'Yaba shop' }],
+
+const busy = {
+  company: 'Mama Put Stores', day: '2026-11-15', to: ['owner@example.com'], people: 6, present: 4,
+  late: [{ name: 'Tolu', minutes: 20 }], absent: ['Bisi'], away: 0, visits_done: 0, visits_planned: 0, below_target: [], to_review: 0,
+  face_mismatches: [{ name: 'Sade', what: 'clock-in' }],
+  shops: { total: 148600, sales: 37, discount: 2400, cancelled: 1, mistakes: 1, out_of_stock_sales: 2,
+    shops: [{ name: 'Surulere shop', total: 61200, sales: 15 }, { name: 'Yaba shop', total: 87400, sales: 22 }],
+    best: [{ name: 'Indomie Chicken 70g', qty: 96 }, { name: 'Peak Milk 400g', qty: 18 }, { name: 'Golden Penny Sugar 500g', qty: 11 }, { name: 'Milo', qty: 2 }],
+    below_lowest: [{ product: 'Peak Milk 400g', price: 2200, lowest: 2300, seller: 'Kemi', shop: 'Yaba shop' }],
+    low_stock: [{ product: 'Golden Penny Sugar 500g', qty: 0, shop: 'Yaba shop' }, { product: 'Milo 400g', qty: 3, shop: 'Surulere shop' }],
+    expiring: [{ product: 'Peak Milk 400g', expires_on: '2026-11-25', shop: 'Yaba shop' }, { product: 'Bread', expires_on: '2026-12-10', shop: 'Yaba shop' }] },
 };
 
-test('Storefront: sales per shop, best sellers, discounts, low stock and expiry come first', () => {
-  const { subject, text } = formatSummary({ ...content, visits_planned: 0, below_target: [], shops });
-  assert.equal(subject, 'CHF Heron · Fri, 13 Nov: ₦14,900 sales, 8 of 12 present, 2 late');
+test('subject is short: company · sales · in · to check', () => {
+  assert.equal(formatSummary(busy).subject, 'Mama Put Stores · ₦148,600 · 5 of 6 in · 9 to check');
+});
+
+test('"Needs your attention" comes first, red before amber, one short line each', () => {
+  const { text } = formatSummary(busy, 'https://pinga.elvisuzorka.com');
   const lines = text.split('\n');
-  assert.equal(lines[2], 'Sales: ₦14,900 from 3 sales in 2 shops.');
-  assert.match(text, /Surulere shop ₦0 \(0\), Yaba shop ₦14,900 \(3\)\./);
-  assert.match(text, /Best sellers: Indomie Chicken 70g \(42\), Peak Milk 400g \(2\)\./);
-  assert.match(text, /Discounts given: ₦600\./);
-  assert.match(text, /Below the lowest price: Peak Milk 400g at ₦2,200 by Kemi Yaba, Yaba shop\./);
-  assert.match(text, /To check: 1 mistake reported by staff, 1 cancelled\./);
-  assert.match(text, /Low stock: Golden Penny Sugar \(out, Yaba shop\), Indomie Chicken 70g \(8 left, Yaba shop\)\./);
-  assert.match(text, /Expiring soon: Peak Milk 400g \(22 Nov, Yaba shop\)\./);
+  assert.equal(lines[2], '₦148,600 sales   ·   5 of 6 in');
+  const at = lines.indexOf('NEEDS YOUR ATTENTION');
+  assert.equal(at, 4, 'attention straight after the headline');
+  assert.deepEqual(lines.slice(at + 1, at + 10), [
+    '● 1 mistake reported by staff',
+    '● Out of stock: Golden Penny Sugar 500g (Yaba shop)',
+    "● Sade's face didn't match (clock-in)",
+    '● 1 person not in',
+    '○ Peak Milk 400g sold at ₦2,200, below the lowest price of ₦2,300 (Kemi, Yaba shop)',
+    '○ 2 sales made while out of stock',
+    '○ 1 sale cancelled',
+    '○ Peak Milk 400g expires in 10 days (Yaba shop)',
+    '○ 1 person late',
+  ]);
+  assert.ok(lines.indexOf('SALES BY SHOP') > at);
 });
 
-test('one shop: no shop names repeated; a quiet day has no discount or stock lines', () => {
-  const one = { ...shops, shops: [shops.shops[1]], discount: 0, below_lowest: [], cancelled: 0, mistakes: 0, low_stock: [], expiring: [] };
-  const { text } = formatSummary({ ...content, shops: one });
-  assert.match(text, /Sales: ₦14,900 from 3 sales\./);
-  assert.ok(!/Yaba shop/.test(text));
-  assert.ok(!/Discounts|To check|Low stock|Expiring/.test(text));
+test('counts are words, not bare numbers in brackets', () => {
+  const { text } = formatSummary(busy);
+  assert.match(text, /Surulere shop: ₦61,200 · 15 sales/);
+  assert.match(text, /Indomie Chicken 70g — 96 sold/);
+  assert.ok(!/Milo — 2 sold/.test(text), 'top 3 best sellers only');
+  assert.match(text, /Milo 400g: 3 left \(Surulere shop\)/);
+  assert.match(text, /Bread: expires 10 Dec/, 'expiring after 14 days goes in Stock, not attention');
+  assert.match(text, /Late: Tolu \(20 min\)/);
+  assert.match(text, /Not in: Bisi/);
+  assert.ok(!/\(\d+\)/.test(text), 'no "(15)"-style counts');
 });
 
-test('Field sales companies get no sales lines', () => {
-  assert.ok(!/Sales:/.test(formatSummary(content).text));
+test('a quiet day: "All good today", empty sections hidden', () => {
+  const quiet = { ...busy, present: 6, late: [], absent: [], face_mismatches: [],
+    shops: { ...busy.shops, cancelled: 0, mistakes: 0, out_of_stock_sales: 0, below_lowest: [], low_stock: [], expiring: [], best: [], shops: [busy.shops.shops[1]] } };
+  const { text, html, subject } = formatSummary(quiet, 'https://pinga.elvisuzorka.com');
+  assert.equal(subject, 'Mama Put Stores · ₦148,600 · 6 of 6 in');
+  assert.match(text, /All good today 🎉/);
+  assert.ok(!/NEEDS YOUR ATTENTION|BEST SELLERS|STOCK\n/.test(text));
+  assert.ok(!/Needs your attention|Best sellers|>Stock</.test(html));
+  assert.match(html, /All good today/);
+});
+
+test('HTML: Pinga logo, brand colours, Open Pinga button, small turn-off line; names made safe', () => {
+  const { html } = formatSummary({ ...busy, absent: ['<b>x</b>'] }, 'https://pinga.elvisuzorka.com/');
+  assert.match(html, /src="https:\/\/pinga\.elvisuzorka\.com\/icons\/icon-192\.png"/);
+  assert.match(html, /#FFF8EE/);
+  assert.match(html, /#FF8A1F/);
+  assert.match(html, />Open Pinga</);
+  assert.match(html, /font-size:12px;color:#5B6478">You can turn this email off/);
+  assert.ok(!html.includes('<b>x</b>'));
+});
+
+test('Field sales company: no sales sections; store visits under attendance', () => {
+  const field = { ...busy, company: 'CHF Heron', shops: undefined, face_mismatches: [], visits_done: 9, visits_planned: 12, below_target: [{ name: 'Remi', visits: 1, target: 4 }] };
+  const { text, subject } = formatSummary(field);
+  assert.equal(subject, 'CHF Heron · 5 of 6 in · 3 to check');
+  assert.ok(!/SALES|sold/.test(text));
+  assert.match(text, /Store visits: 9 of 12 done/);
+  assert.match(text, /○ 1 sales rep below their visit target/);
 });

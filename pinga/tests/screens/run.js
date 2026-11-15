@@ -466,6 +466,11 @@ await page.getByLabel('Password').fill('password1');
 await page.getByRole('button', { name: 'Sign in' }).click();
 await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 step('owner signs in and lands on Overview');
+// CHF Heron is a Field sales business: no shop features anywhere.
+assert.equal(company.business_type, 'field');
+assert.deepEqual(await page.locator('.tabbar.manager span').allInnerTexts(), ['Overview', 'Today', 'Team', 'Setup'], 'Field sales: no Stock tab');
+assert.equal(await page.getByText(/Add your shop|Sales today/).count(), 0, 'Field sales: no shop checklist or sales card');
+step('Field sales (CHF Heron): no Stock tab, no shop checklist, no sales card');
 await page.getByRole('link', { name: 'Today', exact: true }).click();
 await page.getByText('Late · 12 min').waitFor();
 step('Today shows Sade late');
@@ -932,7 +937,9 @@ await dp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-owner-desktop
 await desk.close();
 
 // ── Storefront business: shops, shop staff, managers who look after shops ──
+// A separate pretend business for the Storefront demo (CHF Heron itself stays Field sales).
 company.business_type = 'storefront';
+company.name = 'Mama Put Stores';
 branches.splice(0, branches.length);
 await page.goto(base + '#/owner');
 await page.getByLabel('Email').fill('elvis@chfheron.com');
@@ -957,6 +964,20 @@ await page.getByLabel('Name').fill('Yaba shop');
 await page.getByLabel('Location').fill('6.5095, 3.3711');
 await page.getByRole('button', { name: 'Save' }).click();
 await page.getByText('Shop saved').waitFor();
+// Toasts: shown on the screen the action opened, gone after 3 seconds, cleared when you move on.
+assert.equal(await page.locator('.toast').count(), 1);
+const tb = await page.locator('.toast').boundingBox(), bar = await page.locator('.tabbar.manager').boundingBox();
+assert.ok(tb.y + tb.height <= bar.y && bar.y - (tb.y + tb.height) < 16, 'the toast sits just above the tab bar');
+await page.getByRole('link', { name: 'Team', exact: true }).click();
+await page.getByRole('heading', { name: 'Team' }).waitFor();
+assert.equal(await page.locator('.toast').count(), 0, 'the toast does not follow you to another page');
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await page.getByRole('link', { name: /^Shops/ }).click();
+await page.getByText('Yaba shop').waitFor();
+await page.evaluate(() => import('./js/ui.js').then((m) => m.toast('Test')));
+await page.waitForTimeout(3200);
+assert.equal(await page.locator('.toast').count(), 0, 'a toast goes away after 3 seconds');
+step('Toasts: above the tab bar, 3 seconds, never carried to an unrelated page');
 assert.equal(branches.at(-1).kind, 'shop', 'a new shop is saved as a shop');
 branches.push({ id: 'b8', company_id: 'c1', name: 'Surulere shop', radius_m: 100, lat: 6.5, lng: 3.35, kind: 'shop' });
 await page.getByRole('link', { name: 'Setup', exact: true }).click();
@@ -1150,8 +1171,14 @@ sales.push({ id: 'sale-2', branch_id: sales[0].branch_id, member_id: kemi.id, se
 await page.goto(base + '#/overview');
 await page.getByRole('heading', { name: 'Sales today' }).waitFor();
 assert.match(await page.locator('[aria-labelledby=sales-h] .big-line').innerText(), /₦10,000 · 1 sale/, 'the cancelled sale is left out');
-assert.match(await page.locator('[aria-labelledby=sales-h]').innerText(), /Best sellers: Indomie Chicken 70g \(40\)/);
-assert.match(await page.locator('[aria-labelledby=sales-h]').innerText(), /1 low/, 'stock alerts per shop');
+assert.match(await page.locator('[aria-labelledby=sales-h]').innerText(), /Best sellers: Indomie Chicken 70g, 40 sold/);
+assert.match(await page.locator('.stockrow').innerText(), /^Stock · Yaba shop\s+1 product running low\s+→$/, 'a labelled Stock row');
+await page.locator('.stockrow').click();
+await page.getByRole('heading', { name: 'Stock' }).waitFor();
+await page.goto(base + '#/overview');
+await page.getByRole('heading', { name: 'Sales today' }).waitFor();
+assert.match(await page.locator('[aria-labelledby=sales-h] .shops').innerText(), /₦10,000 · 1 sale/, 'counts in words');
+await page.locator('[aria-labelledby=sales-h]').evaluate((el) => scrollTo(0, el.getBoundingClientRect().top + scrollY - 70));
 await shot('owner-overview-shops');
 step('Overview: today\'s sales per shop, best sellers and stock alerts, each linking to the shop');
 await page.goto(base + '#/billing');
@@ -1178,7 +1205,19 @@ await page.getByRole('button', { name: 'Save' }).click();
 await page.getByText('Location saved').waitFor();
 assert.equal(branches.at(-1).kind, 'office');
 step('Both: Stores come back, locations are marked office or shop');
-company.business_type = 'field';
+// Back to Field sales in the app: the choice is saved and every shop feature goes away.
+await page.goto(base + '#/business');
+await page.getByRole('radio', { name: /^Field sales/ }).check();
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByRole('link', { name: /^Business type/ }).waitFor();
+assert.equal(company.business_type, 'field', 'saved');
+assert.match(await page.getByRole('link', { name: /^Business type/ }).innerText(), /Field sales/);
+assert.deepEqual(await page.locator('.tabbar.manager span').allInnerTexts(), ['Overview', 'Today', 'Team', 'Setup'], 'Stock tab gone');
+await page.goto(base + '#/stock');
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+assert.equal(await page.getByText(/Add your shop|Sales today/).count(), 0, 'no shop features once back to Field sales');
+step('Switching back to Field sales is saved and removes the Stock tab and shop features');
+company.name = 'CHF Heron';
 await page.getByRole('button', { name: 'Sign out' }).click();
 
 // ── The app opens with no signal at all (service worker) ────

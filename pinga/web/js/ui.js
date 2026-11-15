@@ -41,6 +41,7 @@ export function show(html, onSubmit) {
   if (leave) { const fn = leave; leave = null; try { fn(); } catch (e) { report(e); } }
   const sameScreen = app.dataset.hash === location.hash;
   app.dataset.hash = location.hash;
+  if (!sameScreen) carryToast();
   app.innerHTML = html;
   if (!sameScreen) scrollTo(0, 0);   // a new screen starts at the top
   const form = app.querySelector('form');
@@ -61,15 +62,27 @@ export function show(html, onSubmit) {
 export const go = (hash) => (location.hash === hash ? dispatchEvent(new HashChangeEvent('hashchange')) : (location.hash = hash));
 export const reloadMe = () => dispatchEvent(new Event('pinga:reload'));
 
+// Toasts: short, 3 seconds, just above the tab bar, one at a time.
+// A toast from an action that opens another screen ("Shop saved" → the Shops list) shows on that screen;
+// any other change of screen clears it, so a toast never follows you somewhere unrelated.
 let lastToast = null;
+const clearToast = () => { if (lastToast) { lastToast.remove(); lastToast = null; } document.body.classList.remove('toasting'); };
+function carryToast() {
+  if (!lastToast) return;
+  if (!lastToast.moved && Date.now() - lastToast.born < 1500) lastToast.moved = true;
+  else clearToast();
+}
 export function toast(text) {
-  if (lastToast) lastToast.remove();
+  clearToast();
   const t = lastToast = document.createElement('div');
   t.className = 'toast';
   t.setAttribute('role', 'status');
   t.textContent = text;
+  t.born = Date.now();
+  t.moved = false;
   document.body.append(t);
-  setTimeout(() => t.remove(), 4000);
+  document.body.classList.add('toasting');   // room at the bottom of the page so it covers nothing
+  setTimeout(() => { if (lastToast === t) clearToast(); }, 3000);
 }
 
 export const header = (me, title) => `
@@ -83,7 +96,7 @@ export function wireSignOut(guard) {
   document.getElementById('signout').onclick = async () => {
     if (guard && !(await guard())) return;
     await api.signOut();
-    if (lastToast) lastToast.remove();
+    clearToast();
     reloadMe();
     go('#/');
   };

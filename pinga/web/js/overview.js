@@ -129,16 +129,20 @@ export async function overview(me, tabs) {
 // Storefront / Both: today's sales per shop, best sellers, and stock that needs attention.
 function shopsCard(sh) {
   const many = sh.shops.length > 1;
-  const alerts = (x) => [x.out ? `<span class="pill bad">${x.out} out</span>` : '', x.low ? `<span class="pill wait">${x.low} low</span>` : '',
-    x.expiring ? `<span class="pill wait">${x.expiring} expiring</span>` : ''].join(' ');
+  const stockText = (x) => [x.out ? `${plural(x.out, 'product')} out of stock` : '', x.low ? `${plural(x.low, 'product')} running low` : '',
+    x.expiring ? `${plural(x.expiring, 'product')} expiring soon` : ''].filter(Boolean).join(', ');
+  const needStock = sh.shops.filter((x) => x.out || x.low || x.expiring);
   return `
       <section class="card block" aria-labelledby="sales-h">
         <h2 id="sales-h">Sales today</h2>
         <p class="big-line"><b>${naira(sh.total)}</b> · ${plural(sh.sales, 'sale')}${Number(sh.discount) ? ` <span class="muted">· ${naira(sh.discount)} in discounts</span>` : ''}</p>
         <ul class="offices shops">${sh.shops.map((x) => `
           <li><a href="#/sales/${x.id}"><span>${esc(x.name)}${x.to_check ? ` <span class="pill info">${x.to_check} to check</span>` : ''}</span>
-            <span><b>${naira(x.total)}</b> <span class="muted">(${x.sales})</span></span></a>
-            ${x.out || x.low || x.expiring ? `<a class="stockline" href="#/stock/${x.id}">${many ? '' : 'Stock: '}${alerts(x)}</a>` : ''}</li>`).join('')}</ul>
-        ${sh.best.length ? `<p class="small"><span class="muted">Best sellers:</span> ${sh.best.slice(0, 3).map((b) => `${esc(b.name)} (${b.qty})`).join(', ')}</p>` : ''}
+            <span><b>${naira(x.total)}</b> <span class="muted">· ${plural(x.sales, 'sale')}</span></span></a></li>`).join('')}</ul>
+        ${sh.best.length ? `<p class="small best"><span class="muted">Best sellers:</span> ${sh.best.slice(0, 3).map((b) => `${esc(b.name)}, ${b.qty} sold`).join(' · ')}</p>` : ''}
+        ${needStock.map((x) => `
+        <a class="stockrow" href="#/stock/${x.id}">
+          <span class="label">Stock${many ? ` · ${esc(x.name)}` : ''}</span>
+          <span class="what ${x.out ? 'bad-text' : 'late'}">${stockText(x)}</span><span class="chev" aria-hidden="true">→</span></a>`).join('')}
       </section>`;
 }

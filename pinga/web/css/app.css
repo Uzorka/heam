@@ -113,10 +113,15 @@ button.link { background: none; color: var(--mango-ink); width: auto; min-height
 .ok-text { color: var(--ok); font-weight: 800; }
 
 .toast {
-  position: fixed; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); margin: 0 auto; max-width: 420px; z-index: 50;
-  background: var(--ink); color: #fff; padding: 14px 16px; border-radius: 16px; font-size: 15px; font-weight: 700; text-align: center;
+  position: fixed; left: 16px; right: 16px; bottom: max(12px, env(safe-area-inset-bottom)); margin: 0 auto; max-width: 420px; z-index: 50;
+  background: var(--ink); color: #fff; padding: 10px 14px; border-radius: 14px; font-size: 14px; font-weight: 700; text-align: center;
+  box-shadow: 0 4px 14px rgba(20,33,61,.18); animation: toast-in .18s ease-out;
 }
-.has-tabs .toast, body:has(.tabbar) .toast { bottom: calc(var(--tabbar) + 12px + env(safe-area-inset-bottom)); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+/* Just above the bottom tab bar. */
+body:has(.tabbar) .toast { bottom: calc(var(--tabbar) + 8px + env(safe-area-inset-bottom)); }
+/* While a toast shows, the page gets room at the bottom so the last button can scroll clear of it. */
+body.toasting #app > main { padding-bottom: calc(var(--tabbar) + 88px + env(safe-area-inset-bottom)); }
 
 /* Navigation: top segmented control on desktop, bottom tab bar on phones */
 .tabs { display: none; gap: 4px; background: #F3E9DB; border-radius: 14px; padding: 4px; margin-bottom: 20px; }
@@ -139,7 +144,7 @@ button.link { background: none; color: var(--mango-ink); width: auto; min-height
   .tabs { display: flex; }
   .tabbar.manager { display: none; }
   .has-tabs.manager-page { padding-bottom: 48px; }
-  .manager-page ~ .toast { bottom: max(16px, env(safe-area-inset-bottom)); }
+  body:has(.tabbar.manager) .toast { bottom: max(16px, env(safe-area-inset-bottom)); }
 }
 
 .banner { background: var(--late-bg); color: var(--late); font-weight: 700; font-size: 14px; padding: 11px 14px; border-radius: 14px; }
@@ -374,4 +379,9 @@ button.danger { background: var(--bad-bg); color: var(--bad); border: 1.5px soli
 .banner + .banner, .banner + form { margin-top: 12px; }
 .shops li { flex-wrap: wrap; }
 .shops li > a:first-child { display: flex; justify-content: space-between; gap: 10px; width: 100%; color: inherit; text-decoration: none; }
-.shops .stockline { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 4px; text-decoration: none; }
+.best { margin: 12px 0 0; }
+.stockrow { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--late-bg); color: var(--ink); text-decoration: none; }
+.stockrow .label { font-weight: 800; flex: none; }
+.stockrow .what { flex: 1; font-weight: 700; font-size: 15px; text-align: right; }
+.stockrow .chev { font-weight: 800; color: var(--ink); }
+.bad-text { color: var(--bad); }

@@ -31,7 +31,7 @@ async function worksInShop(me) {
   if (me.role !== 'staff' || !me.branch_id || !['storefront', 'both'].includes(type)) return false;
   const b = (await api.cached('mybranch', () => api.select('branches', `select=kind,logo_path&id=eq.${me.branch_id}`)).catch(() => []))[0];
   me.shop_logo = b?.logo_path || null;
-  return type === 'storefront' || b?.kind === 'shop';
+  return b?.kind === 'shop';   // offices never sell
 }
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };

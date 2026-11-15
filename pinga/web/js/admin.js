@@ -5,7 +5,7 @@ import { watchBest, parseLatLng } from './gps.js';
 import { ICON } from './icons.js';
 import { publicBase, copyText } from './device.js';
 import { ask } from './dialog.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl, setNav } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl, setNav, moneyInput, parseMoney } from './ui.js';
 
 let banner = '';
 let flags = null;   // what's switched on (payments, face check); loaded once per visit
@@ -125,7 +125,7 @@ const workplaceLabel = () => (F.type === 'storefront' ? 'Shop' : F.type === 'bot
 async function invite(me) {
   const roles = inviteRoles();
   const places = F.shop ? await api.select('branches', `select=id,name,kind&company_id=eq.${me.company_id}&order=name`) : [];
-  const placeName = (b) => esc(b.name) + (F.type === 'both' ? (b.kind === 'shop' ? ' (shop)' : ' (office)') : '');
+  const placeName = (b) => esc(b.name) + (F.type === 'both' || b.kind === 'office' && F.shop ? (b.kind === 'shop' ? ' (shop)' : ' (office)') : '');
   show(`
     <main class="page narrow">
       ${backLink('#/team', 'Team')}
@@ -191,7 +191,7 @@ async function person(me, id) {
     seesPay ? api.select('pay_rates', `select=monthly_naira&member_id=eq.${mid}`) : [],
     pickShops ? api.select('manager_shops', `select=branch_id&manager_id=eq.${mid}`) : [],
   ]);
-  const shops = offices.filter((b) => F.type === 'storefront' || b.kind === 'shop');
+  const shops = offices.filter((b) => b.kind === 'shop');
   const placeName = (b) => esc(b.name) + (F.type === 'both' ? (b.kind === 'shop' ? ' (shop)' : ' (office)') : '');
   const monthly = pay[0]?.monthly_naira;
   const [assigned, visits, stores] = isRep ? await Promise.all([
@@ -216,7 +216,7 @@ async function person(me, id) {
           ${isRep ? `<label>Visits per day<input name="target" type="number" min="0" max="50" value="${p.daily_visit_target ?? 4}" required></label>` : ''}
           ${isStaff ? `<label>${workplaceLabel()}<select name="branch"><option value="">Not set</option>${offices.map((o) => `<option value="${o.id}"${o.id === p.branch_id ? ' selected' : ''}>${placeName(o)}</option>`).join('')}</select>
             <span class="hint muted">${F.shop ? 'Their shop decides which manager sees them.' : "Used on the owner's dashboard when they haven't clocked in yet."}</span></label>` : ''}
-          ${seesPay ? `<label><span>Monthly pay (₦) <span class="muted">(optional)</span></span><input name="pay" type="number" min="0" step="1" inputmode="numeric" value="${monthly ?? ''}" placeholder="e.g. 150000">
+          ${seesPay ? `<label><span>Monthly pay (₦) <span class="muted">(optional)</span></span>${moneyInput({ name: 'pay', value: monthly, placeholder: 'e.g. 150,000' })}
             <span class="hint muted">Only you (the owner) can see this. Used to show the cost of lost time.</span></label>` : ''}
           <p class="error" role="alert"></p>
           <button type="submit" class="secondary">Save</button>
@@ -276,8 +276,9 @@ async function person(me, id) {
     const changes = isRep ? { daily_visit_target: Number(target) } : { branch_id: branch || null };
     await api.update('members', `id=eq.${p.id}`, changes);
     if (seesPay) {
-      if (newPay === '' || newPay === undefined) await api.remove('pay_rates', `member_id=eq.${p.id}`);
-      else await api.upsert('pay_rates', { member_id: p.id, company_id: me.company_id, monthly_naira: Number(newPay) });
+      const pay = parseMoney(newPay);
+      if (pay === null) await api.remove('pay_rates', `member_id=eq.${p.id}`);
+      else await api.upsert('pay_rates', { member_id: p.id, company_id: me.company_id, monthly_naira: Math.round(pay) });
     }
     toast(isRep ? `Target saved: ${Number(target)} visits a day` : 'Saved');
   } : undefined);
@@ -394,7 +395,7 @@ async function places(me, k) {
       <ul class="list">
         ${list.map((b) => `
           <li><a class="card row" href="#/${k.path}/${b.id}">
-            <span><strong>${esc(b.name)}</strong>${k.kind === 'choose' ? ` <span class="pill">${b.kind === 'shop' ? 'Shop' : 'Office'}</span>` : ''}<br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span>
+            <span><strong>${esc(b.name)}</strong>${k.kind === 'choose' || (k.kind === 'shop' && b.kind === 'office') ? ` <span class="pill">${b.kind === 'shop' ? 'Shop' : 'Office (no sales)'}</span>` : ''}<br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span>
               ${isStores ? `<br>${coveredBy(b.id).length ? `<span class="small">Visited by ${esc(coveredBy(b.id).join(', '))}</span>` : '<span class="pill wait">Not assigned yet</span>'}` : ''}</span>
             ${chev}
           </a></li>`).join('')}

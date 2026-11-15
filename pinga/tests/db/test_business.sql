@@ -92,5 +92,19 @@ select tests.act_as_server();
 select tests.eq((public.summary_content((select id from co), current_date)->>'people')::int, 3, 'evening email covers staff in every shop');
 reset role;
 
+-- Offices never count as shops, whatever the business type.
+select tests.act_as('a0000000-0000-0000-0000-000000000001');
+select public.set_business_type('storefront');
+insert into public.branches (id, company_id, name, kind, lat, lng) values ('5b000000-0000-0000-0000-000000000009', (select id from co), 'Head office', 'office', 6.5, 3.37);
+insert into public.branches (id, company_id, name, lat, lng) values ('5b000000-0000-0000-0000-000000000010', (select id from co), 'New shop', 6.51, 3.37);
+reset role;
+select tests.eq(private.branch_is_shop('5b000000-0000-0000-0000-000000000009'), false, 'Storefront: a location marked office is not a shop (no sales, stock or till there)');
+select tests.eq((select kind from public.branches where id = '5b000000-0000-0000-0000-000000000010'), 'shop', 'Storefront: a new location is a shop unless marked otherwise');
+select tests.eq((select kind from public.branches where company_id = (select id from fco) limit 1), 'office', 'Field sales: a new location is an office');
+select tests.act_as('a0000000-0000-0000-0000-000000000001');
+select tests.refused($$ select public.import_stock('5b000000-0000-0000-0000-000000000009', 'count', 'x.csv', '[{"name": "Milo", "qty": 1}]') $$, 'no stock in an office');
+select tests.eq((public.setup_progress()->>'first_sale')::boolean, false, 'Get started knows whether anything has been sold yet');
+reset role;
+
 rollback;
 \echo 'All business type database tests passed.'

@@ -160,6 +160,56 @@ export const chev = `<span class="chev">${ICON.chevron}</span>`;
 export const fmtTime = (iso, tz) => new Date(iso).toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
 export const fmtDay = (iso, tz) => new Date(iso).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz });
 export const localDate = (d, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+// Nigerian date format everywhere: "15 Nov 2026" (never 11/15/2026).
+export const fmtDate = (d) => {
+  const iso = typeof d === 'string' ? d.slice(0, 10) : localDate(d, 'Africa/Lagos');
+  return new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+};
+
+// A date box that always reads "15 Nov 2026"; tapping it opens the phone's or computer's own date picker.
+export const dateField = ({ id = '', name = '', value = '', max = '', min = '', label, empty = 'Choose a date', hideLabel = false }) => `
+  <label class="datefield"><span class="${hideLabel ? 'sr' : 'dlabel'}">${esc(label)}</span>
+    <span class="dbox"><span class="dval" data-empty="${esc(empty)}">${value ? fmtDate(value) : esc(empty)}</span>${ICON.today}
+      <input type="date"${id ? ` id="${id}"` : ''}${name ? ` name="${name}"` : ''} value="${esc(value)}"${max ? ` max="${max}"` : ''}${min ? ` min="${min}"` : ''} aria-label="${esc(label)}"></span></label>`;
+
+// Money boxes show commas as you type: 2500 → 2,500. Read them with parseMoney().
+export const fmtMoney = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 }));
+export const parseMoney = (v) => { const t = String(v ?? '').replace(/[₦,\s]/g, ''); return t === '' || !/^\d*\.?\d*$/.test(t) ? null : Number(t); };
+export const moneyInput = ({ name = '', value = '', label = '', placeholder = '', extra = '' }) =>
+  `<input type="text" inputmode="decimal" autocomplete="off" data-money${name ? ` name="${name}"` : ''} value="${fmtMoney(value)}"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}${label ? ` aria-label="${esc(label)}"` : ''} ${extra}>`;
+
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (el.matches?.('.datefield input[type=date]')) {
+    const out = el.parentElement.querySelector('.dval');
+    out.textContent = el.value ? fmtDate(el.value) : out.dataset.empty;
+  }
+  if (el.matches?.('input[data-money]')) {
+    // Keep the cursor after the same number of digits once the commas move.
+    const caret = el.selectionStart ?? el.value.length;
+    const before = el.value.slice(0, caret).replace(/[^\d.]/g, '').length;
+    let raw = el.value.replace(/[^\d.]/g, '');
+    const dot = raw.indexOf('.');
+    if (dot >= 0) raw = raw.slice(0, dot + 1) + raw.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+    const [whole, frac] = raw.split('.');
+    const pretty = (whole ? Number(whole).toLocaleString('en-NG') : (frac !== undefined ? '0' : '')) + (frac !== undefined ? '.' + frac : '');
+    if (pretty === el.value) return;
+    el.value = pretty;
+    let seen = 0, pos = 0;
+    while (pos < pretty.length && seen < before) { if (/[\d.]/.test(pretty[pos])) seen++; pos++; }
+    try { el.setSelectionRange(pos, pos); } catch { /* not focused */ }
+  }
+}, true);
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (el.matches?.('.datefield input[type=date]')) el.dispatchEvent(new Event('input', { bubbles: true }));
+}, true);
+// On computers a click on the box should open the calendar straight away.
+document.addEventListener('click', (e) => {
+  const el = e.target;
+  if (el.matches?.('.datefield input[type=date]')) { try { el.showPicker(); } catch { /* the phone opens its own */ } }
+});
+
 export const fmtDistance = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 // Plain-English reasons a record was flagged for the manager.

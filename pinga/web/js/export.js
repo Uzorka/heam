@@ -1,7 +1,7 @@
 // Export the attendance register for a period: real Excel (.xlsx), or a clean page to save as PDF.
 import { saveFile, printPage } from './device.js';
 import * as api from './api.js';
-import { show, esc, Say, wireSignOut, app, ROLE, fmtTime, fmtDay, localDate, backLink } from './ui.js';
+import { show, esc, Say, wireSignOut, app, ROLE, fmtTime, fmtDay, localDate, backLink, dateField } from './ui.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
 
 const STATUS = { present: 'Present', late: 'Late', absent: 'Absent', none: 'No check-in', leave: 'Leave', off: 'Off' };
@@ -17,8 +17,8 @@ export function exportScreen(me) {
       <p class="muted">Everyone's status for each day: present, late, absent, leave or off, with times and visits.</p>
       <form class="stack">
         <div class="pair">
-          <label>From<input type="date" name="from" value="${monthStart}" max="${today}" required></label>
-          <label>To<input type="date" name="to" value="${today}" max="${today}" required></label>
+          ${dateField({ name: 'from', value: monthStart, max: today, label: 'From' })}
+          ${dateField({ name: 'to', value: today, max: today, label: 'To' })}
         </div>
         <p class="error" role="alert"></p>
         <button type="submit" class="primary" name="how" value="xlsx">Download Excel file</button>

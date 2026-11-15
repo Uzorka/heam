@@ -127,7 +127,7 @@ body.toasting #app > main { padding-bottom: calc(var(--tabbar) + 88px + env(safe
 /* Navigation: one nav. Phones: bottom tab bar. Tablets: side rail. Desktops: sidebar. (Sizes at the end.) */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: space-around;
-  background: rgba(255,255,255,.96); border-top: 1px solid var(--line);
+  background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -2px 10px rgba(20,33,61,.06);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); min-height: var(--tabbar);
 }
 /* Every tab identical: icon on top in a fixed-size slot, label underneath; only the colour changes. */
@@ -143,7 +143,7 @@ body.toasting #app > main { padding-bottom: calc(var(--tabbar) + 88px + env(safe
 /* "Skip to content": invisible until a keyboard user reaches it. */
 .appnav a.skip { position: absolute; left: -9999px; top: 0; width: auto; }
 .appnav a.skip:focus { left: 12px; top: 12px; position: fixed; z-index: 100; display: block; background: var(--ink); color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 15px; }
-body.nav-phone #app > main { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
+body.nav-phone #app > main { padding-bottom: calc(var(--tabbar) + 48px + env(safe-area-inset-bottom)); }
 
 .banner { background: var(--late-bg); color: var(--late); font-weight: 700; font-size: 14px; padding: 11px 14px; border-radius: 14px; }
 a.banner { display: block; color: var(--late); margin-bottom: 14px; }
@@ -550,3 +550,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
   #picks li[hidden] { display: none; }
   #q { height: 58px; font-size: 19px; }
 }
+
+/* Date boxes: our "15 Nov 2026" text, the phone's own date picker underneath. */
+.datefield { gap: 6px; }
+.dbox { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 54px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--card); font-weight: 400; color: var(--ink); cursor: pointer; }
+.dbox .ic { color: var(--muted); }
+.dbox input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.dbox:focus-within { outline: 3px solid var(--mango); outline-offset: 1px; }
+.dayrow .datefield { width: auto; min-width: 190px; }
+.dayrow .dbox { height: 46px; }

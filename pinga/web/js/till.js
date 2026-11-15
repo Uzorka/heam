@@ -5,7 +5,7 @@ import { copyText } from './device.js';
 import * as api from './api.js';
 import { sync, outbox, uuid, safeToSignOut, waitingText } from './queue.js';
 import { report } from './report.js';
-import { show, esc, toast, header, wireSignOut, onLeave, app, fmtTime, localDate, friendly } from './ui.js';
+import { show, esc, toast, header, wireSignOut, onLeave, app, fmtTime, localDate, friendly, moneyInput, parseMoney } from './ui.js';
 import { ICON } from './icons.js';
 import { makeToken, receiptUrl, receiptMessage, whatsappHref, pendingReceipts, queueReceipt, dropReceipt } from './receipts.js';
 
@@ -130,7 +130,7 @@ export async function sell(me) {
             <input type="number" inputmode="numeric" min="1" step="1" value="${b.qty}" data-act="qty" aria-label="Quantity">
             <button type="button" data-act="plus" aria-label="One more">+</button>
           </div>
-          <label class="price">₦<input type="number" inputmode="decimal" min="0" step="any" value="${b.unit_price ?? ''}" data-act="price" aria-label="Price each for ${esc(p.name)}" placeholder="Price"></label>
+          <label class="price">₦${moneyInput({ value: b.unit_price, label: `Price each for ${p.name}`, placeholder: 'Price', extra: 'data-act="price"' })}</label>
         </div>
         <span class="muted small">Price: ${range(p)}</span>
         <div class="warns">${warnings(b)}</div>
@@ -260,7 +260,7 @@ export async function sell(me) {
     if (!li) return;
     const i = Number(li.dataset.i), v = e.target.value;
     if (act === 'qty') basket[i].qty = Math.max(1, Math.floor(Number(v) || 1));
-    if (act === 'price') basket[i].unit_price = v === '' ? null : Number(v);
+    if (act === 'price') basket[i].unit_price = parseMoney(v);
     keep(); refreshLine(i);
   });
   document.getElementById('clear').onclick = async () => { if (await ask('Clear this sale?', { ok: 'Clear sale', danger: true })) { basket = []; keep(); draw(); } };

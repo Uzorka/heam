@@ -3,7 +3,7 @@
 import { saveFile } from './device.js';
 import { ask } from './dialog.js';
 import * as api from './api.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev, dateField, fmtDate, moneyInput, parseMoney } from './ui.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
 import { readFile, readStockList, TEMPLATE_HEADER } from './sheet.js';
 
@@ -16,7 +16,7 @@ const plural = (n, w, ws = w + 's') => `${Number(n).toLocaleString('en-NG')} ${n
 // The shops this person can manage.
 async function myShops(me) {
   const all = await api.select('branches', `select=id,name,kind&company_id=eq.${me.company_id}&order=name`);
-  const shops = me.companies.business_type === 'both' ? all.filter((b) => b.kind === 'shop') : all;
+  const shops = all.filter((b) => b.kind === 'shop');   // offices never sell or keep stock
   if (me.role === 'owner') return shops;
   const mine = new Set((await api.select('manager_shops', `select=branch_id&manager_id=eq.${me.id}`)).map((x) => x.branch_id));
   return shops.filter((b) => mine.has(b.id));
@@ -63,7 +63,7 @@ export async function stockList(me, arg, tabs) {
     const s = inShop.get(p.id), al = alertOf.get(p.id);
     const qty = s ? s.qty : null;
     const price = p.price != null ? naira(p.price) : '<span class="late">No price yet</span>';
-    const exp = s?.expires_on ? fmtDay(s.expires_on + 'T12:00:00Z', tz) : '';
+    const exp = s?.expires_on ? fmtDate(s.expires_on) : '';
     // A table row on tablets and desktops; a card on phones (the .sub line shows what the hidden columns hold).
     return `<tr data-href="#/product/${p.id}" data-name="${esc((p.name + ' ' + (p.code || '')).toLowerCase())}">
       <td class="main"><a href="#/product/${p.id}"><strong>${esc(p.name)}</strong></a>
@@ -138,8 +138,8 @@ export async function productForm(me, id, tabs) {
         <label>Product name<input name="name" value="${esc(p.name)}" placeholder="e.g. Peak Milk 400g" required maxlength="120"></label>
         <label><span>Code <span class="muted">(optional)</span></span><input name="code" value="${esc(p.code)}" placeholder="Your own code or SKU" maxlength="60"></label>
         <div class="pair">
-          <label>Selling price (₦)<input name="price" type="number" min="0" step="any" inputmode="decimal" value="${p.price ?? ''}" placeholder="2500"></label>
-          <label>Lowest price (₦)<input name="lowest" type="number" min="0" step="any" inputmode="decimal" value="${p.lowest_price ?? ''}" placeholder="2300"></label>
+          <label>Selling price (₦)${moneyInput({ name: 'price', value: p.price, placeholder: '2,500' })}</label>
+          <label>Lowest price (₦)${moneyInput({ name: 'lowest', value: p.lowest_price, placeholder: '2,300' })}</label>
         </div>
         <p class="hint muted">Lowest price is optional. Staff can sell at any price between the two (customers haggle). Below the lowest price is allowed but flagged for you.</p>
         <label>Alert when a shop has this many or fewer<input name="alert" type="number" min="0" step="1" inputmode="numeric" value="${p.low_stock_at}" required></label>
@@ -147,7 +147,7 @@ export async function productForm(me, id, tabs) {
         <h2 class="section">In ${esc(shop.name)}</h2>
         <div class="pair">
           <label>Quantity<input name="qty" type="number" min="0" step="1" inputmode="numeric" value="${s ? s.qty : ''}" placeholder="${isNew ? 'e.g. 24' : '0'}"></label>
-          <label>Expiry date<input name="expires" type="date" value="${s?.expires_on || ''}"></label>
+          ${dateField({ name: 'expires', value: s?.expires_on || '', label: 'Expiry date', empty: 'No expiry date' })}
         </div>
         ${isNew ? '' : '<label><span>Reason for a change <span class="muted">(optional)</span></span><input name="note" placeholder="e.g. 2 tins damaged" maxlength="200"></label>'}` : ''}
         <p class="error" role="alert"></p>
@@ -159,7 +159,8 @@ export async function productForm(me, id, tabs) {
           <span class="qty"><b class="${c.change < 0 ? 'late' : 'ok-text'}">${c.change > 0 ? '+' : ''}${c.change}</b><span class="muted small">now ${c.qty_after}</span></span></li>`).join('')}</ul>` : ''}
       ${isNew ? '' : '<button class="link block" id="hide">Stop selling this product</button>'}
     </main>`, async ({ name, code, price, lowest, alert, qty, expires, note }) => {
-    const pr = price === '' ? null : Number(price), lo = lowest === '' ? null : Number(lowest);
+    const pr = parseMoney(price), lo = parseMoney(lowest);
+    if ((price.trim() && pr === null) || (lowest.trim() && lo === null)) throw new Say('Prices should be numbers, like 2,500.');
     if (lo != null && pr == null) throw new Say('Add the selling price too.');
     if (lo != null && lo > pr) throw new Say('The lowest price must be the same as or below the selling price.');
     const row = { name: name.trim(), code: code.trim() || null, price: pr, lowest_price: lo, low_stock_at: Number(alert) };
@@ -256,7 +257,7 @@ async function preview(me) {
     const p = find(i), was = p ? qtyOf.get(p.id) ?? 0 : 0;
     const after = count ? i.qty : was + i.qty;
     return `<li class="brow"><span class="grow"><span><strong>${esc(i.name || p?.name || i.code)}</strong>${p ? '' : ' <span class="pill info">New</span>'}</span>
-      <span class="muted small">${i.price != null ? naira(i.price) : ''}${i.expires_on ? ` · Exp ${i.expires_on.split('-').reverse().join('/')}` : ''}</span></span>
+      <span class="muted small">${i.price != null ? naira(i.price) : ''}${i.expires_on ? ` · Exp ${fmtDate(i.expires_on)}` : ''}</span></span>
       <span class="qty"><b>${after.toLocaleString('en-NG')}</b><span class="muted small">${count ? `was ${was}` : `${was} + ${i.qty}`}</span></span></li>`;
   };
   show(`
@@ -348,7 +349,7 @@ export async function shopSales(me, arg) {
     <main class="page">
       ${backLink('#/stock/' + shop.id, 'Stock')}
       <h1>Sales · ${esc(shop.name)}</h1>
-      <div class="dayrow"><label class="sr" for="day">Date</label><input type="date" id="day" value="${day}" max="${today}"></div>
+      <div class="dayrow">${dateField({ id: 'day', value: day, max: today, label: 'Date', hideLabel: true })}</div>
       <div class="card block">
         <p class="big-line"><b>${naira(sum?.total || 0)}</b> · ${plural(sum?.sales || 0, 'sale')}</p>
         <p class="muted">${Number(sum?.discount) ? `Discounts given: ${naira(sum.discount)}` : 'No discounts'}${sum?.cancelled ? ` · ${sum.cancelled} cancelled` : ''}</p>

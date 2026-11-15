@@ -225,7 +225,7 @@ async function fakeSupabase(route) {
   }
   if (p === '/rest/v1/rpc/shops_overview') {
     const live = sales.filter((x) => x.local_date === body.p_day && !x.cancelled_at);
-    const shopsList = branches.filter((b) => company.business_type === 'storefront' || b.kind === 'shop');
+    const shopsList = branches.filter((b) => b.kind === 'shop');   // like the database: offices are never shops
     const qty = new Map(); live.flatMap((x) => x.sale_items).forEach((i) => qty.set(i.product_name, (qty.get(i.product_name) || 0) + i.qty));
     const alertsOf = (b) => [...stockRows].filter(([k]) => k.startsWith(b + '|')).map(([k, v]) => ({ v, x: products.find((y) => y.id === k.split('|')[1]) })).filter(({ v, x }) => v.qty <= x.low_stock_at);
     return json(route, { total: live.reduce((t, x) => t + x.total, 0), sales: live.length, discount: live.reduce((t, x) => t + x.discount, 0),
@@ -318,7 +318,7 @@ async function fakeSupabase(route) {
       card: bill.card, invoices: bill.invoices });
   }
   if (p === '/rest/v1/rpc/setup_progress') return json(route, { offices: branches.length > 0, stores: stores.length > 0,
-    people: people.filter((x) => ['staff', 'rep'].includes(x.role)).length, first_check_in: attendance.length + visits.length > 0 });
+    people: people.filter((x) => ['staff', 'rep'].includes(x.role)).length, first_check_in: attendance.length + visits.length > 0, first_sale: sales.length > 0 });
   if (p === '/rest/v1/rpc/app_flags') return json(route, { payments: bill.paymentsOn, face_check: false });
   if (p === '/functions/v1/billing/status') return json(route, { enabled: bill.paymentsOn });
   if (p === '/functions/v1/billing/checkout') {
@@ -503,6 +503,7 @@ step('owner signs in and lands on Overview');
 assert.equal(company.business_type, 'field');
 assert.deepEqual(await page.locator('.tabbar.manager a[href^="#/"] span').allInnerTexts(), ['Overview', 'Today', 'Team', 'Setup'], 'Field sales: no Stock tab');
 assert.equal(await page.getByText(/Add your shop|Sales today/).count(), 0, 'Field sales: no shop checklist or sales card');
+assert.equal(await page.locator('header .company svg.logo').count(), 1, 'no logo uploaded: the Pinga pin, not an empty space');
 step('Field sales (CHF Heron): no Stock tab, no shop checklist, no sales card');
 await page.getByRole('link', { name: 'Today', exact: true }).click();
 await page.getByText('Late · 12 min').waitFor();
@@ -796,6 +797,7 @@ step('Clear removes only what managers set: Sade is back to Late from her clock-
 const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date(Date.now() - 864e5));
 await page.locator('#day').fill(yesterday);
 await page.getByRole('link', { name: 'Back to today' }).waitFor();
+assert.match(await page.locator('.dayrow .dval').innerText(), /^\d{1,2} [A-Z][a-z]{2} \d{4}$/, 'dates read like "14 Nov 2026", never 11/14/2026');
 await statusIs('Tunde Ade', /Absent/);
 await page.getByRole('checkbox', { name: 'Select Tunde Ade' }).check();
 await page.getByRole('button', { name: 'Off', exact: true }).click();
@@ -1223,16 +1225,18 @@ step('Billing: priced per shop (₦5,000 incl. 3 staff; ₦1,000 per extra)');
 company.receipt_note = 'Thank you for shopping with us!';
 const bigLogo = out + 'big-logo.png';
 execFileSync('python3', ['-c', `
-import random, sys
-from PIL import Image, ImageDraw
-random.seed(1)
+import sys
+from PIL import Image, ImageDraw, ImageFont
+# A realistic shop logo, 1600 × 1200: a mango badge with "MP" and the shop name.
 im = Image.new('RGB', (1600, 1200), (255, 248, 238))
 d = ImageDraw.Draw(im)
-d.ellipse((200, 100, 1400, 1100), fill=(255, 138, 31))
-d.text((560, 520), 'MAMA PUT', fill=(20, 33, 61))
-for _ in range(60000):
-    x, y = random.randrange(1600), random.randrange(1200)
-    im.putpixel((x, y), (random.randrange(256), random.randrange(256), random.randrange(256)))
+d.rounded_rectangle((500, 140, 1100, 740), radius=150, fill=(255, 138, 31))
+big = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 300)
+small = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 120)
+d.text((800, 440), 'MP', font=big, fill=(20, 33, 61), anchor='mm')
+d.text((800, 930), 'MAMA PUT', font=small, fill=(20, 33, 61), anchor='mm')
+for k in range(0, 1600, 8):
+    d.line((k, 1180, k + 4, 1180), fill=(255, 138, 31), width=6)
 im.save(sys.argv[1])`, bigLogo]);
 await page.goto(base + '#/setup');
 await page.getByRole('link', { name: /^Logo and receipts/ }).click();
@@ -1242,7 +1246,7 @@ await page.getByText(/^Ready: /).waitFor();
 const ready = await page.locator('.logo-status').innerText();
 const [, w, h, kb] = /Ready: (\d+) × (\d+) px, (\d+) KB/.exec(ready);
 assert.ok(Math.max(w, h) <= 512 && Number(kb) <= 200, `shrunk to ${w}×${h}, ${kb} KB`);
-assert.equal(Math.max(w, h), 512, 'a busy picture keeps the full 512 px (as a JPEG)');
+assert.equal(Math.max(w, h), 512, 'the logo keeps the full 512 px');
 await page.getByLabel('Thank-you note on receipts').fill('Thank you! Goods sold are not returnable after 7 days.');
 await shot('setup-logo');
 await page.getByRole('button', { name: 'Save' }).click();
@@ -1390,7 +1394,21 @@ for (const [size, width, height, extra] of SIZES) {
     }
     const skipOnScreen = await pg.evaluate(() => { const r = document.querySelector('.skip')?.getBoundingClientRect(); return !!r && r.right > 0 && r.left < innerWidth && r.width > 2; });
     assert.ok(!skipOnScreen, `${size} ${name}: "Skip to content" only shows for keyboard users`);
-    await pg.screenshot({ path: `${out}size-${size}-${name}.png`, fullPage: full });
+    if (size === 'phone' && full) {
+      // The last thing on the page scrolls clear of the tab bar.
+      const clear = await pg.evaluate(() => { scrollTo(0, document.documentElement.scrollHeight); const nav = document.getElementById('appnav');
+        const last = [...document.querySelectorAll('main > *')].filter((e) => e.offsetHeight).pop();
+        const ok = !nav || nav.classList.contains('sub') || last.getBoundingClientRect().bottom <= nav.getBoundingClientRect().top; scrollTo(0, 0); return ok; });
+      assert.ok(clear, `phone ${name}: the bottom of the page scrolls clear of the tab bar`);
+    }
+    // Screenshot the whole page the way the screen shows it: menus stay where they really are.
+    if (full) {
+      const tall = await pg.evaluate(() => document.documentElement.scrollHeight);
+      await pg.setViewportSize({ width, height: Math.max(height, tall) });
+      await pg.waitForTimeout(150);
+      await pg.screenshot({ path: `${out}size-${size}-${name}.png` });
+      await pg.setViewportSize({ width, height });
+    } else await pg.screenshot({ path: `${out}size-${size}-${name}.png` });
   };
   const signIn = async (who) => {
     if (who === 'owner') {
@@ -1422,6 +1440,7 @@ for (const [size, width, height, extra] of SIZES) {
     const outline = await pg.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
     assert.notEqual(outline, 'none', 'the focused link has a visible outline');
   }
+  assert.ok(!(await pg.locator('[aria-labelledby=sales-h]').innerText()).includes('Head office'), 'offices never appear in Sales today');
   await snap('overview');
   await pg.getByRole('link', { name: 'Today', exact: true }).click();
   await pg.getByRole('heading', { name: 'Today' }).waitFor();
@@ -1430,6 +1449,8 @@ for (const [size, width, height, extra] of SIZES) {
   await pg.locator('#plist').waitFor();
   const headerShown = await pg.locator('#plist thead').isVisible();
   assert.equal(headerShown, size !== 'phone', size === 'phone' ? 'phone: stock as cards' : `${size}: stock as a table`);
+  assert.ok(branches.some((b) => b.kind === 'office'), 'the business has an office too');
+  assert.ok(!(await pg.locator('.chips').innerText()).includes('Head office'), 'offices never appear as shops in Stock');
   await snap('stock');
   await pg.goto(base + '#/sales/' + shopId);
   await pg.getByRole('heading', { name: /^Sales/ }).waitFor();
@@ -1481,6 +1502,9 @@ for (const [size, width, height, extra] of SIZES) {
   } else {
     await pg.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
     await pg.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
+    assert.equal(await pg.getByLabel('Price each for Peak Milk 400g').inputValue(), '2,500', 'prices in boxes have commas');
+    await pg.getByLabel('Price each for Peak Milk 400g').fill('2400');
+    assert.equal(await pg.getByLabel('Price each for Peak Milk 400g').inputValue(), '2,400', 'commas appear as you type');
     await pg.getByText('Transfer', { exact: true }).click();
     await snap('sell', false);
   }

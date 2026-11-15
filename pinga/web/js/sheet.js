@@ -170,7 +170,7 @@ export function readStockList(rows) {
     if (qty === undefined || qty < 0 || !Number.isInteger(qty)) return say(`quantity "${get('qty')}" should be a whole number, 0 or more`);
     if (price === undefined || price < 0) return say(`selling price "${get('price')}" is not a number`);
     if (low === undefined || low < 0) return say(`lowest price "${get('lowest_price')}" is not a number`);
-    if (low != null && price != null && low > price) return say(`lowest price (₦${low}) is above the selling price (₦${price})`);
+    if (low != null && price != null && low > price) return say(`lowest price (₦${low.toLocaleString('en-NG')}) is above the selling price (₦${price.toLocaleString('en-NG')})`);
     if (alert === undefined || (alert !== null && (alert < 0 || !Number.isInteger(alert)))) return say(`alert level "${get('low_stock_at')}" should be a whole number`);
     if (exp === undefined) return say(`expiry date "${get('expires_on')}" isn't a date. Use 31/03/2027`);
     const key = (code || name).toLowerCase();

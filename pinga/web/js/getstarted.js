@@ -13,7 +13,8 @@ const stepsFor = (p, type = 'field') => [
   { done: p.first_check_in, label: 'First clock-in', hint: type === 'storefront' ? 'Ask someone to clock in at the shop' : 'Ask someone to clock in or check in at a store', href: null },
 ].filter(Boolean);
 
-export const setupDone = (p, type) => !!p && stepsFor(p, type).every((s) => s.done);
+// Hidden once every step is done, or as soon as the business is working (a sale or a clock-in).
+export const setupDone = (p, type) => !!p && (stepsFor(p, type).every((s) => s.done) || p.first_check_in || p.first_sale);
 
 const WORDS = ['', 'One', 'Two', 'Three', 'Four'];
 

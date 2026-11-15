@@ -2,7 +2,7 @@
 // Same flow as the CHF Heron tracker's admin page. Pick a past date to fix it.
 import { ask } from './dialog.js';
 import * as api from './api.js';
-import { show, go, esc, toast, header, wireSignOut, friendly, app, ROLE, fmtTime, fmtDay, localDate } from './ui.js';
+import { show, go, esc, toast, header, wireSignOut, friendly, app, ROLE, fmtTime, fmtDay, localDate, dateField } from './ui.js';
 import { happyPin } from './icons.js';
 import { checklist } from './getstarted.js';
 
@@ -59,8 +59,7 @@ export async function today(me, arg, tabs) {
       ${tabs('Today')}
       ${rows.length ? `
       <div class="dayrow">
-        <label class="sr" for="day">Date</label>
-        <input type="date" id="day" value="${day}" max="${now}">
+        ${dateField({ id: 'day', value: day, max: now, label: 'Date', hideLabel: true })}
         ${isToday ? '<span class="muted small">Pick a past date to fix it</span>' : '<a href="#/today" class="small">Back to today</a>'}
       </div>
       <div class="chips" role="group" aria-label="Show">

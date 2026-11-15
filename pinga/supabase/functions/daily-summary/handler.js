@@ -48,6 +48,7 @@ export function summaryParts(c) {
   return {
     sh, inNow, attention,
     shops: sh ? sh.shops.map((x) => [x.name, `${naira(x.total)} · ${count(x.sales, 'sale')}`]) : [],
+    methods: sh && sh.by_method ? [['cash', 'Cash'], ['transfer', 'Transfer'], ['card', 'POS card']].filter(([k]) => Number(sh.by_method[k])).map(([k, t]) => [t, naira(sh.by_method[k])]) : [],
     best: sh ? sh.best.slice(0, 3).map((x) => `${x.name} — ${Number(x.qty).toLocaleString('en-NG')} sold`) : [],
     stock: [...low, ...later],
     attendance: {
@@ -71,7 +72,7 @@ export function formatSummary(c, appUrl) {
   t.push([x.sh ? `${naira(x.sh.total)} sales` : '', `${x.inNow} of ${c.people} in`].filter(Boolean).join('   ·   '), '');
   if (x.attention.length) t.push('NEEDS YOUR ATTENTION', ...x.attention.map(([lv, s]) => `${lv === 'red' ? '●' : '○'} ${s}`), '');
   else t.push('All good today 🎉', '');
-  if (x.shops.length) t.push('SALES BY SHOP', ...x.shops.map(([a, b]) => `${a}: ${b}`), '');
+  if (x.shops.length) t.push('SALES BY SHOP', ...x.shops.map(([a, b]) => `${a}: ${b}`), ...(x.methods.length ? [x.methods.map(([a, b]) => `${a} ${b}`).join(' · ')] : []), '');
   if (x.best.length) t.push('BEST SELLERS', ...x.best, '');
   if (x.stock.length) t.push('STOCK', ...x.stock, '');
   t.push('ATTENDANCE', x.attendance.line);
@@ -104,10 +105,9 @@ export function formatSummary(c, appUrl) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.cream}"><tr><td align="center" style="padding:20px 0">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;font-family:${FONT};color:${C.ink}">
 <tr><td style="padding:0 18px 14px">
-  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-    ${base ? `<td style="padding-right:8px;vertical-align:middle"><img src="${esc(base)}icons/icon-192.png" width="28" height="28" alt="" style="display:block;border-radius:7px"></td>` : ''}
-    <td style="vertical-align:middle;font-size:22px;font-weight:800;color:${C.ink}">Pinga</td></tr></table>
-  <div style="margin-top:10px;font-size:15px;color:${C.muted};font-weight:700">${esc(c.company)} · ${esc(day)}</div>
+  ${c.logo_url ? `<img src="${esc(c.logo_url)}" height="48" alt="${esc(c.company)}" style="display:block;height:48px;width:auto;max-width:200px;border-radius:8px;margin:0 0 8px">` : ''}
+  <div style="font-size:22px;font-weight:800;color:${C.ink}">${esc(c.company)}</div>
+  <div style="margin-top:2px;font-size:15px;color:${C.muted};font-weight:700">${esc(day)}</div>
 </td></tr>
 ${card('', `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
   ${x.sh ? big(naira(x.sh.total), 'sales', true) : ''}
@@ -117,7 +117,8 @@ ${card('', `<table role="presentation" width="100%" cellpadding="0" cellspacing=
 ${x.attention.length
     ? card('Needs your attention', rows(x.attention, ([lv, s], i) => `<td style="${cell(i)}">${dot(lv)}${esc(s)}</td>`))
     : card('', `<div style="font-size:17px;font-weight:800;color:${C.green}">All good today 🎉</div>`)}
-${x.shops.length ? card('Sales by shop', rows(x.shops, ([a, b], i) => `<td style="${cell(i)}">${esc(a)}</td><td align="right" style="${cell(i)};font-weight:800;white-space:nowrap">${esc(b)}</td>`)) : ''}
+${x.shops.length ? card('Sales by shop', rows(x.shops, ([a, b], i) => `<td style="${cell(i)}">${esc(a)}</td><td align="right" style="${cell(i)};font-weight:800;white-space:nowrap">${esc(b)}</td>`)
+    + (x.methods.length ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid ${C.line};font-size:14px;color:${C.muted}">${x.methods.map(([a, b]) => `${esc(a)} <b style="color:${C.ink}">${esc(b)}</b>`).join(' &nbsp;·&nbsp; ')}</div>` : '')) : ''}
 ${x.best.length ? card('Best sellers', rows(x.best, (s, i) => `<td style="${cell(i)}">${esc(s)}</td>`)) : ''}
 ${x.stock.length ? card('Stock', rows(x.stock, (s, i) => `<td style="${cell(i)}">${esc(s)}</td>`)) : ''}
 ${card('Attendance', `<div style="font-size:16px;font-weight:800;margin:0 0 6px">${esc(x.attendance.line)}</div>
@@ -127,6 +128,10 @@ ${card('Attendance', `<div style="font-size:16px;font-weight:800;margin:0 0 6px"
 ${appUrl ? `<tr><td align="center" style="padding:8px 16px 6px">
   <a href="${esc(appUrl)}" style="display:block;background:${C.mango};color:${C.ink};font-size:18px;font-weight:800;text-decoration:none;padding:16px 20px;border-radius:14px;text-align:center">Open Pinga</a></td></tr>` : ''}
 <tr><td align="center" style="padding:10px 16px 0;font-size:12px;color:${C.muted}">You can turn this email off in Pinga under Setup.</td></tr>
+<tr><td align="center" style="padding:14px 16px 0">
+  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+    ${base ? `<td style="padding-right:6px;vertical-align:middle"><img src="${esc(base)}icons/icon-192.png" width="18" height="18" alt="" style="display:block;border-radius:4px"></td>` : ''}
+    <td style="vertical-align:middle;font-size:13px;font-weight:800;color:${C.muted}">Sent by Pinga</td></tr></table></td></tr>
 </table></td></tr></table></body></html>`;
   return { subject: x.subject, text, html };
 }
@@ -154,6 +159,7 @@ export async function handle(req, env, fetchFn = fetch) {
         result.skipped++;
         continue;
       }
+      if (c.logo_path) c.logo_url = `${env.url}/storage/v1/object/public/logos/${c.logo_path}`;
       const { subject, text, html } = formatSummary(c, env.appUrl);
       const r = await fetchFn('https://api.resend.com/emails', {
         method: 'POST',

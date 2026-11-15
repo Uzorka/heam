@@ -303,6 +303,7 @@ export async function importLog(me) {
 
 
 // ── Sales (owners and the shop's managers) ──────────────────
+const PAYM = { cash: 'Cash', transfer: 'Transfer', card: 'POS card' };
 const SALE_FLAG = { below_lowest: 'Below lowest price', out_of_stock: 'Sold when out of stock', clock_changed: 'Phone clock was changed' };
 let salesDay = null;
 
@@ -315,13 +316,13 @@ export async function shopSales(me, arg) {
   const day = salesDay || today;
   const [sum, list] = await Promise.all([
     api.rpc('shop_sales_summary', { p_branch: shop.id, p_day: day }),
-    api.select('sales', `select=id,happened_at,seller_name,total,discount,flags,cancelled_at,cancelled_by_name,mistake_note,sale_items(product_name,qty,line)&branch_id=eq.${shop.id}&local_date=eq.${day}&order=happened_at.desc`),
+    api.select('sales', `select=id,happened_at,seller_name,total,discount,flags,payment_method,receipt_code,cancelled_at,cancelled_by_name,mistake_note,sale_items(product_name,qty,line)&branch_id=eq.${shop.id}&local_date=eq.${day}&order=happened_at.desc`),
   ]);
   const first = list.filter((x) => !x.cancelled_at && (x.mistake_note || x.flags.length));
   const items = (x) => [...x.sale_items].sort((a, b) => a.line - b.line).map((i) => `${i.qty} × ${esc(i.product_name)}`).join(', ');
   const row = (x) => `
     <li><a class="card row sale${x.cancelled_at ? ' cancelled' : ''}" href="#/sale/${x.id}">
-      <span class="grow"><strong>${fmtTime(x.happened_at, tz)}</strong> · ${esc(x.seller_name)}<br><span class="muted small">${items(x)}</span>
+      <span class="grow"><strong>${fmtTime(x.happened_at, tz)}</strong> · ${esc(x.seller_name)} <span class="muted small">· ${PAYM[x.payment_method] || 'Cash'}</span><br><span class="muted small">${items(x)}</span>
         ${x.cancelled_at ? `<br><span class="pill bad">Cancelled by ${esc(x.cancelled_by_name)}</span>` : ''}
         ${!x.cancelled_at && x.mistake_note ? `<br><span class="pill info">Mistake reported</span>` : ''}
         ${!x.cancelled_at ? x.flags.map((f) => `<span class="pill warn">${SALE_FLAG[f] || f}</span>`).join(' ') : ''}</span>
@@ -335,6 +336,8 @@ export async function shopSales(me, arg) {
       <div class="card block">
         <p class="big-line"><b>${naira(sum?.total || 0)}</b> · ${plural(sum?.sales || 0, 'sale')}</p>
         <p class="muted">${Number(sum?.discount) ? `Discounts given: ${naira(sum.discount)}` : 'No discounts'}${sum?.cancelled ? ` · ${sum.cancelled} cancelled` : ''}</p>
+        ${(() => { const live = list.filter((s) => !s.cancelled_at); const by = (k) => live.filter((s) => (s.payment_method || 'cash') === k).reduce((t, s) => t + Number(s.total), 0);
+          const used = Object.entries(PAYM).filter(([k]) => by(k)); return used.length ? `<p class="methods">${used.map(([k, t]) => `<span><span class="muted">${t}</span> <b>${naira(by(k))}</b></span>`).join('')}</p>` : ''; })()}
       </div>
       ${first.length ? `<h2 class="section">To check (${first.length})</h2><ul class="list">${first.map(row).join('')}</ul><h2 class="section">All sales</h2>` : ''}
       ${list.length ? `<ul class="list">${list.map(row).join('')}</ul>` : '<p class="muted center empty">No sales on this day.</p>'}
@@ -351,7 +354,8 @@ export async function saleDetail(me, id) {
     <main class="page narrow">
       ${backLink('#/sales/' + x.branch_id, 'Sales')}
       <h1>${naira(x.total)}</h1>
-      <p class="muted">${fmtDay(x.happened_at, tz)} · ${fmtTime(x.happened_at, tz)} · sold by ${esc(x.seller_name)}</p>
+      <p class="muted">${esc(x.receipt_code)} · ${fmtDay(x.happened_at, tz)} · ${fmtTime(x.happened_at, tz)} · sold by ${esc(x.seller_name)} · ${PAYM[x.payment_method] || 'Cash'}</p>
+      <p><a href="r.html#${esc(x.receipt_token)}" target="_blank" rel="noopener">Open the receipt</a></p>
       ${x.flags.includes('clock_changed') ? '<p class="banner">The phone clock was changed: the time may not be right.</p>' : ''}
       <ul class="board">${lines.map((i) => `
         <li class="brow"><span class="grow"><strong>${i.qty} × ${esc(i.product_name)}</strong>

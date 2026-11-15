@@ -2,6 +2,7 @@
 import * as api from './api.js';
 import { report } from './report.js';
 import { logo, ICON } from './icons.js';
+import { CONFIG } from './config.js';
 
 export const app = document.getElementById('app');
 export const ROLE = { owner: 'Owner', admin: 'Manager', staff: 'Office staff', rep: 'Sales rep' };
@@ -85,11 +86,18 @@ export function toast(text) {
   setTimeout(() => { if (lastToast === t) clearToast(); }, 3000);
 }
 
-export const header = (me, title) => `
+// Business logos are public files (receipts and emails show them without signing in).
+export const logoUrl = (path) => (path ? `${CONFIG.url}/storage/v1/object/public/logos/${path}` : '');
+
+// The business's own logo at the top (a shop's logo for its staff); the name in text if there's none.
+export const header = (me, title) => {
+  const src = logoUrl(me.shop_logo || me.companies.logo_path);
+  return `
   <header class="bar">
-    <div><div class="company">${logo(18)}${esc(me.companies.name)}</div><h1>${esc(title)}</h1></div>
+    <div><div class="company">${src ? `<img class="biz-logo" src="${esc(src)}" alt="" onerror="this.remove()">` : logo(18)}${esc(me.companies.name)}</div><h1>${esc(title)}</h1></div>
     <button class="link" id="signout">Sign out</button>
   </header>`;
+};
 
 // guard: optional check that can stop signing out (returns false).
 export function wireSignOut(guard) {

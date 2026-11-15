@@ -126,6 +126,13 @@ export async function overview(me, tabs) {
   }
 }
 
+// Cash / Transfer / POS card totals (only the ones used today).
+const METHOD = [['cash', 'Cash'], ['transfer', 'Transfer'], ['card', 'POS card']];
+const methods = (m) => {
+  const used = m ? METHOD.filter(([k]) => Number(m[k])) : [];
+  return used.length ? `<p class="methods">${used.map(([k, t]) => `<span><span class="muted">${t}</span> <b>${naira(m[k])}</b></span>`).join('')}</p>` : '';
+};
+
 // Storefront / Both: today's sales per shop, best sellers, and stock that needs attention.
 function shopsCard(sh) {
   const many = sh.shops.length > 1;
@@ -136,6 +143,7 @@ function shopsCard(sh) {
       <section class="card block" aria-labelledby="sales-h">
         <h2 id="sales-h">Sales today</h2>
         <p class="big-line"><b>${naira(sh.total)}</b> · ${plural(sh.sales, 'sale')}${Number(sh.discount) ? ` <span class="muted">· ${naira(sh.discount)} in discounts</span>` : ''}</p>
+        ${methods(sh.by_method)}
         <ul class="offices shops">${sh.shops.map((x) => `
           <li><a href="#/sales/${x.id}"><span>${esc(x.name)}${x.to_check ? ` <span class="pill info">${x.to_check} to check</span>` : ''}</span>
             <span><b>${naira(x.total)}</b> <span class="muted">· ${plural(x.sales, 'sale')}</span></span></a></li>`).join('')}</ul>

@@ -34,6 +34,8 @@ const stockRows = new Map();     // `${branch}|${product}` -> { qty, expires_on 
 const stockChanges = [];
 const stockImports = [];
 const sales = [];
+const logos = new Map();
+const receiptNo = new Map();
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
 const payRates = new Map();
@@ -99,6 +101,7 @@ async function fakeSupabase(route) {
   }
   if (p === '/rest/v1/companies' && m === 'PATCH') { Object.assign(company, body, body.work_starts ? { work_starts: body.work_starts + ':00' } : {}); return json(route, [company]); }
   if (p === '/rest/v1/branches' && m === 'GET') return json(route, param(q, 'id') ? branches.filter((b) => b.id === param(q, 'id')) : branches);
+  if (p === '/rest/v1/branches' && m === 'PATCH') { Object.assign(branches.find((x) => x.id === param(q, 'id')), body); return json(route, []); }
   if (p === '/rest/v1/branches' && m === 'POST') { const b = { id: 'b' + (branches.length + 1), ...body }; branches.push(b); return json(route, [b]); }
   if (p === '/rest/v1/attendance' && m === 'GET') {
     const mid = param(q, 'member_id'), day = param(q, 'local_date');
@@ -199,7 +202,11 @@ async function fakeSupabase(route) {
       applyStock(body.p_branch, x.id, -i.qty, true, null, 'sale');
       return { line: n + 1, product_id: x.id, product_name: x.name, qty: i.qty, unit_price: i.unit_price, list_price: x.price, lowest_price: x.lowest_price, stock_before: before, flags: f };
     });
+    const shopName = branches.find((b) => b.id === body.p_branch).name, n = (receiptNo.get(body.p_branch) || 0) + 1;
+    receiptNo.set(body.p_branch, n);
     const row = { id: body.p_id, branch_id: body.p_branch, member_id: me.id, seller_name: me.full_name, happened_at: body.p_happened_at, local_date: lagosDate(body.p_happened_at),
+      payment_method: body.p_payment || 'cash', receipt_token: body.p_receipt_token || 'server' + 'x'.repeat(20) + sales.length,
+      receipt_code: shopName.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() + '-' + String(n).padStart(6, '0'),
       total, discount, flags: [...flags], cancelled_at: null, cancelled_by_name: null, cancel_reason: null, mistake_note: null, mistake_at: null, sale_items };
     sales.push(row);
     return json(route, row);
@@ -332,6 +339,22 @@ async function fakeSupabase(route) {
   if (p.startsWith('/storage/v1/object/authenticated/photos/')) {
     const bytes = photos.get(p.replace('/storage/v1/object/authenticated/photos/', ''));
     return bytes ? route.fulfill({ status: 200, contentType: 'image/jpeg', body: bytes }) : json(route, { message: 'Not found' }, 404);
+  }
+  // Logos: public files.
+  if (p.startsWith('/storage/v1/object/logos/') && m === 'POST') { logos.set(p.replace('/storage/v1/object/logos/', ''), req.postDataBuffer()); return json(route, { Key: p }); }
+  if (p.startsWith('/storage/v1/object/logos/') && m === 'DELETE') { logos.delete(p.replace('/storage/v1/object/logos/', '')); return json(route, {}); }
+  if (p.startsWith('/storage/v1/object/public/logos/')) {
+    const bytes = logos.get(p.replace('/storage/v1/object/public/logos/', ''));
+    return bytes ? route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: bytes }) : route.fulfill({ status: 404 });
+  }
+  if (p === '/rest/v1/rpc/receipt') {
+    const x = sales.find((y) => y.receipt_token === body.p_token);
+    if (!x) return json(route, null);
+    const b = branches.find((y) => y.id === x.branch_id);
+    return json(route, { business: company.name, logo_path: b.logo_path || company.logo_path || null, shop: b.name, address: b.address || null, phone: b.phone || null,
+      number: x.receipt_code, at: x.happened_at, timezone: 'Africa/Lagos', served_by: x.seller_name.split(' ')[0],
+      items: x.sale_items.map((i) => ({ name: i.product_name, qty: i.qty, price: i.unit_price })), discount: x.discount, total: x.total,
+      payment: x.payment_method, note: company.receipt_note, cancelled: !!x.cancelled_at });
   }
   if (p.startsWith('/storage/v1/object/photos/') && m === 'POST') {
     const path = p.replace('/storage/v1/object/photos/', '');
@@ -1186,6 +1209,121 @@ await page.getByRole('heading', { name: 'Billing' }).waitFor();
 assert.match(await page.locator('.offices').innerText(), /Shops · 1 × ₦5,000/);
 await shot('owner-billing-shops');
 step('Billing: priced per shop (₦5,000 incl. 3 staff; ₦1,000 per extra)');
+
+// ── Logo and receipts ──
+company.receipt_note = 'Thank you for shopping with us!';
+const bigLogo = out + 'big-logo.png';
+execFileSync('python3', ['-c', `
+import random, sys
+from PIL import Image, ImageDraw
+random.seed(1)
+im = Image.new('RGB', (1600, 1200), (255, 248, 238))
+d = ImageDraw.Draw(im)
+d.ellipse((200, 100, 1400, 1100), fill=(255, 138, 31))
+d.text((560, 520), 'MAMA PUT', fill=(20, 33, 61))
+for _ in range(60000):
+    x, y = random.randrange(1600), random.randrange(1200)
+    im.putpixel((x, y), (random.randrange(256), random.randrange(256), random.randrange(256)))
+im.save(sys.argv[1])`, bigLogo]);
+await page.goto(base + '#/setup');
+await page.getByRole('link', { name: /^Logo and receipts/ }).click();
+await page.getByRole('heading', { name: 'Logo and receipts' }).waitFor();
+await page.locator('.logo-file').setInputFiles(bigLogo);
+await page.getByText(/^Ready: /).waitFor();
+const ready = await page.locator('.logo-status').innerText();
+const [, w, h, kb] = /Ready: (\d+) × (\d+) px, (\d+) KB/.exec(ready);
+assert.ok(Math.max(w, h) <= 512 && Number(kb) <= 200, `shrunk to ${w}×${h}, ${kb} KB`);
+assert.equal(Math.max(w, h), 512, 'a busy picture keeps the full 512 px (as a JPEG)');
+await page.getByLabel('Thank-you note on receipts').fill('Thank you! Goods sold are not returnable after 7 days.');
+await shot('setup-logo');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('Saved').waitFor();
+assert.ok(company.logo_path && company.logo_path.startsWith('c1/logo-'), 'logo saved in the business\'s own folder');
+assert.ok(logos.get(company.logo_path).length <= 200 * 1024, 'the uploaded file is under 200 KB');
+await page.goto(base + '#/setup');
+await page.waitForFunction(() => document.querySelector('header .biz-logo')?.naturalWidth > 0);
+await shot('setup-logo-saved');
+rmSync(bigLogo);
+step(`Logo: a ${'1600×1200'} picture is shrunk to ${w}×${h}, ${kb} KB before upload; shown at the top of the app`);
+// The shop's phone for its receipts.
+const yaba = branches.find((b) => b.name === 'Yaba shop');
+await page.goto(base + '#/office/' + yaba.id);
+await page.getByLabel(/Shop phone/).fill('0803 000 0001');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('Shop saved').waitFor();
+assert.equal(yaba.phone, '0803 000 0001');
+step('Shop phone (for receipts) saved on the shop');
+
+// Kemi sells and sends a receipt.
+await page.getByRole('button', { name: 'Sign out' }).click();
+await page.getByRole('heading', { name: 'Sign in' }).waitFor();
+await page.getByLabel('Phone number').fill('0803 555 0101');
+await page.getByLabel('PIN').fill('482913');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('link', { name: 'Record a sale' }).click();
+await page.getByRole('heading', { name: 'Sell' }).waitFor();
+assert.ok(await page.locator('header .biz-logo').count(), 'the business logo at the top of the staff app');
+await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
+await page.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
+await page.getByText('Transfer', { exact: true }).click();
+await shot('till-payment');
+await page.getByRole('button', { name: 'Save sale' }).click();
+await page.getByRole('heading', { name: /^Sale saved · ₦2,750$/ }).waitFor();
+const sold = sales.at(-1);
+assert.equal(sold.payment_method, 'transfer', 'payment method saved with the sale');
+assert.match(sold.receipt_token, /^[A-Za-z0-9_-]{32}$/, 'the receipt link was made on the phone');
+await page.getByLabel(/Customer's WhatsApp number/).fill('0803 123 4567');
+await page.waitForFunction(() => /YAB-000/.test(decodeURIComponent(document.getElementById('wa').href)));
+const wa = decodeURIComponent(await page.getByRole('link', { name: 'Send receipt on WhatsApp' }).getAttribute('href'));
+assert.ok(wa.startsWith('https://wa.me/2348031234567?text=Thank you for shopping at Mama Put Stores (Yaba shop). Your receipt YAB-'), wa);
+assert.ok(wa.endsWith(`r.html#${sold.receipt_token}`), 'the message carries the receipt link');
+await shot('till-send-receipt');
+step('Sale: payment method chosen; "Send receipt" opens WhatsApp to the customer with the receipt number and link');
+
+// No signal: the receipt waits, then is ready to send.
+await page.getByRole('button', { name: 'Next sale' }).click();
+networkDown = true;
+await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
+await page.getByRole('button', { name: 'Save sale' }).click();
+await page.getByRole('button', { name: 'Send receipt when online' }).waitFor();
+await page.getByLabel(/Customer's WhatsApp number/).fill('0803 765 4321');
+await page.getByRole('button', { name: 'Send receipt when online' }).click();
+await page.getByText('Receipt will send when online').first().waitFor();
+await shot('till-receipt-offline');
+networkDown = false;
+await page.evaluate(() => dispatchEvent(new Event('online')));
+await page.getByRole('link', { name: 'Send on WhatsApp' }).waitFor();
+assert.match(decodeURIComponent(await page.getByRole('link', { name: 'Send on WhatsApp' }).getAttribute('href')), /^https:\/\/wa\.me\/2348037654321\?text=.*YAB-0000\d\d/);
+await shot('till-receipt-ready');
+step('No signal: "Receipt will send when online"; once the sale is sent, the receipt is ready to send on WhatsApp');
+
+// The receipt page: no sign-in, any phone.
+const rp = await ctx.newPage();
+await rp.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
+await rp.goto(base + 'r.html#' + sold.receipt_token);
+await rp.getByText(sold.receipt_code).waitFor();
+const rtext = await rp.locator('.paper').innerText();
+for (const want of ['Mama Put Stores', 'Yaba shop', '0803 000 0001', 'Kemi', '1 × ₦250', 'Total', '₦2,750', 'Transfer', 'Thank you! Goods sold are not returnable after 7 days.']) assert.ok(rtext.includes(want), `receipt shows ${want}`);
+await rp.waitForFunction(() => document.querySelector('.head img')?.naturalWidth > 0);
+await rp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-receipt.png`, fullPage: true });
+const [img] = await Promise.all([rp.waitForEvent('download'), rp.getByRole('button', { name: 'Save as image' }).click()]);
+assert.equal(img.suggestedFilename(), `Receipt-${sold.receipt_code}.png`);
+step('Receipt page: opens with no sign-in; logo, shop, number, staff, items, total, payment, thank-you note; saves as an image');
+sold.cancelled_at = new Date().toISOString();
+await rp.reload();
+await rp.getByRole('alert').getByText('CANCELLED').waitFor();
+await rp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-receipt-cancelled.png`, fullPage: true });
+await rp.goto(base + 'r.html#notarealreceiptlinknotareal00');
+await rp.getByRole('heading', { name: 'Receipt not found' }).waitFor();
+await rp.close();
+step('Receipt page: a cancelled sale shows CANCELLED; a wrong link shows "Receipt not found"');
+await page.getByRole('button', { name: 'Sign out' }).click();
+await page.getByRole('heading', { name: 'Sign in' }).waitFor();
+await page.goto(base + '#/owner');
+await page.getByLabel('Email').fill('elvis@chfheron.com');
+await page.getByLabel('Password').fill('password1');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 
 // Switch to Both: offices and shops, stores and reps back.
 await page.goto(base + '#/business');

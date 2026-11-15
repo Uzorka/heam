@@ -90,6 +90,17 @@ Shop staff get a Sell tab: search or scroll the price list, tap to add, change t
 - **Evening email**: sales first (total, per shop, best sellers, discounts and every below-lowest sale with who sold it, sales made when out of stock, mistakes reported, cancellations, low stock, expiring soon), then attendance as before.
 - **Billing per shop**. PLACEHOLDER prices, all in the one `billing_prices` table: ₦5,000 per shop a month including up to 3 shop staff (`included_staff`), ₦1,000 per extra staff member. A shop counts once one of its staff has joined. Staff not in a shop yet are counted as extra staff (Storefront) or office staff (Both). Office staff, reps, the volume discount and free owners/managers work as before. To change a price: `update public.billing_prices set naira_per_seat = 6000, included_staff = 4 where module = 'shop';`
 
+## Business logo and receipts
+
+- **Logo** (owner, Setup → Logo and receipts): PNG or JPG. The browser shrinks it before upload (`web/js/image.js`): 512 px on the longest side and under 200 KB (PNG if it has see-through parts, otherwise JPEG). Stored in the public `logos` bucket under the business's own folder; only the owner can upload or change it. Shown at the top of the app (a shop's own logo for its staff), on receipts, and at the top of the evening email; without one, the business name is shown. A shop can have its own logo and phone number (owner, on the shop's page).
+- **Payment method** on every sale: Cash / Transfer / POS card. Totals per method on the Overview, the shop's Sales screen and in the evening email.
+- **Receipt numbers** run in order per shop (YAB-000123), kept where nobody can edit them; a cancelled sale keeps its number, numbers are never reused.
+- **Send receipt** after each sale: WhatsApp (with the customer's number if given, or choose the chat) or copy the link. The link is made on the phone (32 random characters), so it exists even with no signal; then the receipt waits ("Receipt will send when online") and appears under "Receipts to send" once the sale has reached the server. The customer's number is never stored on the server.
+- **Receipt page** `r.html#<link>`: no sign-in, any phone, small. Logo, shop, address and phone, receipt number, date and time, staff first name, items, discount, total, payment, the owner's thank-you note. "Save as image" (a picture the width of an 80 mm till roll) and "Save as PDF" (the phone's print → Save as PDF). A cancelled sale shows CANCELLED. The link shows that one receipt and nothing else (`public.receipt`).
+- Bluetooth thermal printing later: `web/js/receipt-lines.js` already lays the receipt out as printer-style lines (used for the image today).
+- Older app versions with sales still waiting on a phone keep working (cash, link made by the server).
+- Tests: `tests/db/test_receipts.sql`, `tests/unit/receipts.test.js`.
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

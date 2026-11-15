@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#FFF8EE">
+<title>Receipt</title>
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  @font-face { font-family: Nunito; font-weight: 400; font-display: swap; src: url(fonts/nunito-400.woff2) format("woff2"); }
+  @font-face { font-family: Nunito; font-weight: 800; font-display: swap; src: url(fonts/nunito-800.woff2) format("woff2"); }
+  :root { --mango: #FF8A1F; --ink: #14213D; --cream: #FFF8EE; --muted: #5B6478; --line: #F0E6D6; --red: #C62828; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); font: 16px/1.45 Nunito, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 440px; margin: 0 auto; padding: 20px 16px 40px; }
+  .paper { background: #fff; border-radius: 18px; border: 1px solid var(--line); padding: 22px 20px; box-shadow: 0 2px 10px rgba(20,33,61,.06); position: relative; overflow: hidden; }
+  .head { text-align: center; }
+  .head img { max-height: 64px; max-width: 160px; object-fit: contain; display: block; margin: 0 auto 8px; }
+  .biz { font-size: 22px; font-weight: 800; margin: 0; }
+  .shop { margin: 2px 0 0; font-weight: 800; }
+  .small { font-size: 14px; color: var(--muted); margin: 0; }
+  hr { border: 0; border-top: 1.5px dashed var(--line); margin: 16px 0; }
+  .pair { display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }
+  .pair span:last-child { text-align: right; }
+  .muted { color: var(--muted); }
+  .item { margin: 10px 0; }
+  .item .name { font-weight: 800; }
+  .total { font-size: 22px; font-weight: 800; margin-top: 8px; }
+  .note { text-align: center; margin: 0; font-weight: 800; }
+  .by { text-align: center; font-size: 12px; color: var(--muted); margin: 14px 0 0; }
+  .cancelled-banner { background: #FDECEC; color: var(--red); border: 2px solid var(--red); border-radius: 12px; text-align: center; font-weight: 800; font-size: 22px; letter-spacing: .08em; padding: 10px; margin: 0 0 14px; }
+  .cancelled-banner small { display: block; font-size: 14px; letter-spacing: 0; font-weight: 700; }
+  .is-cancelled .total span:last-child { text-decoration: line-through; }
+  .is-cancelled::after { content: "CANCELLED"; position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-24deg); font-size: 56px; font-weight: 800; color: rgba(198,40,40,.07); pointer-events: none; white-space: nowrap; }
+  .actions { display: flex; gap: 10px; margin-top: 16px; }
+  button { flex: 1; font: inherit; font-weight: 800; font-size: 16px; min-height: 50px; border-radius: 14px; border: 1.5px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--mango); border-color: var(--mango); }
+  .msg { text-align: center; padding: 40px 10px; }
+  .msg h1 { font-size: 22px; }
+  @media print {
+    body { background: #fff; }
+    main { padding: 0; }
+    .paper { border: 0; box-shadow: none; }
+    .actions { display: none; }
+  }
+</style>
+</head>
+<body>
+<main id="app"><p class="msg muted">Loading your receipt…</p></main>
+<script type="module">
+  import { CONFIG } from './js/config.js';
+  import { receiptLines, when, naira, PAY } from './js/receipt-lines.js';
+
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const token = location.hash.replace(/^#/, '');
+  const logoUrl = (p) => (p ? `${CONFIG.url}/storage/v1/object/public/logos/${p}` : '');
+  const message = (title, text) => { app.innerHTML = `<div class="msg"><h1>${esc(title)}</h1><p class="muted">${esc(text)}</p></div>`; };
+
+  async function load() {
+    let r;
+    try {
+      const res = await fetch(`${CONFIG.url}/rest/v1/rpc/receipt`, { method: 'POST',
+        headers: { apikey: CONFIG.key, 'content-type': 'application/json' }, body: JSON.stringify({ p_token: token }) });
+      if (!res.ok) throw new Error(String(res.status));
+      r = await res.json();
+    } catch {
+      return message('No signal', 'Connect to the internet and open this link again.');
+    }
+    if (!r) return message('Receipt not found', 'If you bought something just now, the shop may still be sending it. Try again in a few minutes.');
+    show(r);
+  }
+
+  function show(r) {
+    const t = when(r);
+    document.title = `Receipt ${r.number} · ${r.business}`;
+    app.innerHTML = `
+      <article class="paper${r.cancelled ? ' is-cancelled' : ''}">
+        ${r.cancelled ? '<div class="cancelled-banner" role="alert">CANCELLED<small>This sale was cancelled by the shop.</small></div>' : ''}
+        <header class="head">
+          ${r.logo_path ? `<img src="${esc(logoUrl(r.logo_path))}" alt="${esc(r.business)} logo" crossorigin="anonymous" onerror="this.remove()">` : ''}
+          <p class="biz">${esc(r.business)}</p>
+          ${r.shop ? `<p class="shop">${esc(r.shop)}</p>` : ''}
+          ${r.address ? `<p class="small">${esc(r.address)}</p>` : ''}
+          ${r.phone ? `<p class="small">${esc(r.phone)}</p>` : ''}
+        </header>
+        <hr>
+        <div class="pair"><span class="muted">Receipt</span><span><b>${esc(r.number)}</b></span></div>
+        <div class="pair"><span class="muted">Date</span><span>${esc(t.date)}, ${esc(t.time)}</span></div>
+        <div class="pair"><span class="muted">Served by</span><span>${esc(r.served_by)}</span></div>
+        <hr>
+        ${r.items.map((i) => `<div class="item"><div class="name">${esc(i.name)}</div>
+          <div class="pair"><span class="muted">${i.qty} × ${naira(i.price)}</span><span>${naira(i.qty * i.price)}</span></div></div>`).join('')}
+        <hr>
+        ${Number(r.discount) ? `<div class="pair"><span class="muted">Discount</span><span>−${naira(r.discount)}</span></div>` : ''}
+        <div class="pair total"><span>Total</span><span>${naira(r.total)}</span></div>
+        <div class="pair"><span class="muted">Paid by</span><span>${esc(PAY[r.payment] || r.payment)}</span></div>
+        ${r.note ? `<hr><p class="note">${esc(r.note)}</p>` : ''}
+        <p class="by">Receipt by Pinga</p>
+      </article>
+      <div class="actions">
+        <button class="primary" id="img">Save as image</button>
+        <button id="pdf">Save as PDF</button>
+      </div>`;
+    document.getElementById('pdf').onclick = () => print();   // the phone's own "Save as PDF"
+    document.getElementById('img').onclick = () => saveImage(r);
+  }
+
+  // Draws the receipt lines on a picture the size of an 80 mm till roll, then downloads it.
+  async function saveImage(r) {
+    const W = 576, pad = 28, lines = receiptLines(r);
+    let logo = null;
+    if (r.logo_path) {
+      logo = await new Promise((ok) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = () => ok(null); i.src = logoUrl(r.logo_path); });
+    }
+    const size = (l) => (l.big ? 34 : l.small ? 20 : 24);
+    const height = pad * 2 + (logo ? 110 : 0) + lines.reduce((h, l) => h + (l.rule ? 24 : size(l) + 14), 0);
+    const c = document.createElement('canvas');
+    c.width = W; c.height = height;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, height);
+    let y = pad;
+    if (logo) {
+      const s = Math.min(90 / logo.height, 240 / logo.width);
+      g.drawImage(logo, (W - logo.width * s) / 2, y, logo.width * s, logo.height * s);
+      y += 110;
+    }
+    for (const l of lines) {
+      if (l.rule) { g.strokeStyle = '#ccc'; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(pad, y + 12); g.lineTo(W - pad, y + 12); g.stroke(); y += 24; continue; }
+      const px = size(l);
+      g.font = `${l.bold || l.big ? 800 : 400} ${px}px Nunito, Arial, sans-serif`;
+      g.fillStyle = l.red ? '#C62828' : '#14213D';
+      y += px;
+      if (l.text != null) {
+        g.textAlign = l.center ? 'center' : 'left';
+        g.fillText(l.text, l.center ? W / 2 : pad, y, W - pad * 2);
+      } else {
+        g.textAlign = 'left'; g.fillText(l.left, pad, y);
+        g.textAlign = 'right'; g.fillText(l.right ?? '', W - pad, y);
+        if (l.strike) { const w = g.measureText(l.right).width; g.fillRect(W - pad - w, y - px / 3, w, 2); }
+      }
+      y += 14;
+    }
+    c.toBlob((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `Receipt-${r.number}.png`;
+      document.body.append(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }, 'image/png');
+  }
+
+  addEventListener('hashchange', () => location.reload());   // another receipt link opened in the same tab
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) message('Receipt not found', 'This link looks incomplete. Ask the shop to send it again.');
+  else load();
+</script>
+</body>
+</html>

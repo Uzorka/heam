@@ -156,3 +156,15 @@ test('a sale with no signal stays on the phone and goes later', async () => {
   assert.equal(t.sent[0].fn, 'record_sale');
   assert.equal(await t.sync.count(), 0);
 });
+
+test('a sale from this version carries its payment method and receipt link; an older queued sale still sends', async () => {
+  const t = setup();
+  await t.sync.add({ type: 'sale', id: 'n1', member_id: 'me', company_id: 'co', branch_id: 'shop1', happened_at: '2026-11-16T10:00:00Z', total: 250,
+    payment: 'card', receipt_token: 'tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', items: [{ product_id: 'p2', name: 'Indomie', qty: 1, unit_price: 250 }] });
+  await t.sync.add({ type: 'sale', id: 'o1', member_id: 'me', company_id: 'co', branch_id: 'shop1', happened_at: '2026-11-16T11:00:00Z', total: 250,
+    items: [{ product_id: 'p2', name: 'Indomie', qty: 1, unit_price: 250 }] });
+  await t.sync.flush();
+  assert.equal(t.sent[0].p_payment, 'card');
+  assert.equal(t.sent[0].p_receipt_token, 'tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  assert.ok(!('p_payment' in t.sent[1]) && !('p_receipt_token' in t.sent[1]), 'older sale: the server picks cash and makes the link');
+});

@@ -139,3 +139,18 @@ test('Field sales company: no sales sections; store visits under attendance', ()
   assert.match(text, /Store visits: 9 of 12 done/);
   assert.match(text, /○ 1 sales rep below their visit target/);
 });
+
+test('the business logo heads the email; totals per payment method under sales', () => {
+  const { html, text } = formatSummary({ ...busy, logo_url: 'https://p.supabase.co/storage/v1/object/public/logos/c1/logo.png',
+    shops: { ...busy.shops, by_method: { cash: 90000, transfer: 58600, card: 0 } } }, 'https://pinga.elvisuzorka.com/');
+  assert.match(html, /<img src="https:\/\/p\.supabase\.co\/storage\/v1\/object\/public\/logos\/c1\/logo\.png" height="48" alt="Mama Put Stores"/);
+  assert.match(text, /Cash ₦90,000 · Transfer ₦58,600/);
+  assert.ok(!/POS card ₦0/.test(text), 'unused methods are left out');
+  assert.match(html, /Sent by Pinga/);
+});
+
+test('no logo: the business name in text', () => {
+  const { html } = formatSummary(busy, 'https://pinga.elvisuzorka.com/');
+  assert.ok(!/height="48"/.test(html));
+  assert.match(html, /font-size:22px;font-weight:800;color:#14213D">Mama Put Stores</);
+});

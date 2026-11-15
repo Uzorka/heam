@@ -3,7 +3,7 @@ import * as api from './api.js';
 import { normalizePhone, displayPhone } from './phone.js';
 import { watchBest, parseLatLng } from './gps.js';
 import { ICON } from './icons.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl } from './ui.js';
 
 let banner = '';
 let flags = null;   // what's switched on (payments, face check); loaded once per visit
@@ -53,6 +53,7 @@ export async function adminRoute(me, name, arg) {
     return st.importLog(me);
   }
   if (name === 'business') return businessType(me);
+  if (name === 'brand') return brand(me);
   if (name === 'billing') return import('./billing.js').then((m) => m.billing(me, arg));
   if (name === 'invite') return invite(me);
   if (name === 'person') return person(me, arg);
@@ -398,6 +399,8 @@ async function placeForm(me, k, id) {
   ]);
   const b = found[0];
   if (!b) return go(k.back);
+  // Shops (not offices or stores) have a phone number and, optionally, their own logo for receipts.
+  const shopish = k.table === 'branches' && (k.kind === 'shop' || (k.kind === 'choose' && F.shop));
   const hadReps = new Set(had.map((a) => a.member_id));
   show(`
     <main class="page narrow">
@@ -410,6 +413,8 @@ async function placeForm(me, k, id) {
           <label class="choice"><input type="radio" name="kind" value="shop"${b.kind === 'shop' ? ' checked' : ''}><span><strong>Shop</strong><br><span class="muted">Staff clock in and sell here; managers see only their shops</span></span></label>
         </fieldset>` : ''}
         <label><span>Address <span class="muted">(optional)</span></span><input name="address" value="${esc(b.address)}"></label>
+        ${shopish ? `<label><span>Shop phone <span class="muted">(optional, shown on receipts)</span></span><input name="phone" type="tel" value="${esc(b.phone)}" placeholder="0803 123 4567" maxlength="30"></label>` : ''}
+        ${shopish && me.role === 'owner' ? logoField('Shop logo <span class="muted">(optional)</span>', b.logo_path, 'Only if this shop uses a different logo from the business. Shown on this shop\'s receipts and its staff\'s app.') : ''}
         <label><span>Location${k.needsLocation ? '' : ' <span class="muted">(optional)</span>'}</span><input name="where" id="where" value="${b.lat != null ? `${b.lat}, ${b.lng}` : ''}" placeholder="6.5095, 3.3711" inputmode="decimal"${k.needsLocation ? ' required' : ''}>
           <span class="hint muted">${b.location_source === 'first_visit' ? 'Saved from the first visit. Change it if it looks wrong.' : k.hint}</span></label>
         <button type="button" class="secondary" id="here">Use my current location</button>
@@ -422,11 +427,12 @@ async function placeForm(me, k, id) {
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Save</button>
       </form>
-    </main>`, async ({ name, address, where, radius_m, kind }, form) => {
+    </main>`, async ({ name, address, where, radius_m, kind, phone }, form) => {
     const pos = where.trim() ? parseLatLng(where) : null;
     if (where.trim() && !pos) throw new Say('Location should look like 6.5095, 3.3711.');
     if (k.needsLocation && !pos) throw new Say('Please add the location.');
     const row = { name: name.trim(), address: address.trim() || null, lat: pos?.lat ?? null, lng: pos?.lng ?? null, radius_m: Number(radius_m) };
+    if (shopish) row.phone = (phone || '').trim() || null;
     if (k.kind === 'choose') row.kind = kind === 'shop' ? 'shop' : 'office';
     if (k.kind === 'shop' && isNew) row.kind = 'shop';
     if (k.table === 'stores') {
@@ -441,6 +447,11 @@ async function placeForm(me, k, id) {
       if (x.code === '23505') throw new Say(`You already have ${/^[aeiou]/.test(k.one) ? 'an' : 'a'} ${k.one} with this name.`);
       throw x;
     }
+    if (shopLogo.ready) {
+      const path = await saveLogo(me, shopLogo.ready, 'shop');
+      await api.update('branches', `id=eq.${saved.id}`, { logo_path: path });
+      if (b.logo_path) api.removeFile('logos', b.logo_path).catch(() => {});
+    }
     if (isStore) {
       const now = new Set(new FormData(form).getAll('rep'));
       const add = [...now].filter((r) => !hadReps.has(r));
@@ -451,6 +462,7 @@ async function placeForm(me, k, id) {
     toast(`${k.one[0].toUpperCase() + k.one.slice(1)} saved`);
     go(k.back);
   });
+  const shopLogo = wireLogo(app);
   const btn = document.getElementById('here');
   btn.onclick = () => {
     btn.disabled = true;
@@ -517,6 +529,7 @@ async function setup(me) {
       ${header(me, 'Setup')}
       ${tabs('Setup')}
       <ul class="list">
+        ${isOwner ? `<li><a class="card row" href="#/brand"><span><strong>Logo${F.shop ? ' and receipts' : ''}</strong><br><span class="muted">${me.companies.logo_path ? 'Your logo is on' : 'Add your logo to'} the app${F.shop ? ', receipts' : ''} and the evening email</span></span>${chev}</a></li>` : ''}
         ${isOwner ? `<li><a class="card row" href="#/business"><span><strong>Business type</strong><br><span class="muted">${BUSINESS[F.type].name}</span></span>${chev}</a></li>` : ''}
         <li><a class="card row" href="#/offices"><span><strong>${PLACE.office.plural}</strong><br><span class="muted">${F.type === 'storefront' ? 'Where your staff clock in and sell' : F.type === 'both' ? 'Where staff clock in' : 'Where office staff clock in'}</span></span>${chev}</a></li>
         ${F.visits ? `<li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span>${chev}</a></li>` : ''}
@@ -539,6 +552,88 @@ async function setup(me) {
         await api.update('companies', `id=eq.${me.company_id}`, { summary_email: sw.checked });
         toast(sw.checked ? 'Evening summary on' : 'Evening summary off');
       } catch (x) { sw.checked = !sw.checked; toast(friendly(x)); }
+    };
+  }
+}
+
+// ── Logo and receipts (owner) ───────────────────────────────
+
+const logoField = (label, path, hint) => `
+  <div class="logo-field"><span class="label">${label}</span>
+    <div class="logo-row"><span class="logo-box">${path ? `<img src="${esc(logoUrl(path))}" alt="Current logo">` : '<span class="muted small">No logo</span>'}</span>
+      <label class="secondary button file">${path ? 'Change picture' : 'Choose picture'}<input type="file" accept="image/png,image/jpeg" class="logo-file"></label></div>
+    <p class="hint muted logo-status">${hint}</p></div>`;
+
+// Shrinks the chosen picture straight away and shows it; it's uploaded when the form is saved.
+function wireLogo(root) {
+  const state = { ready: null };
+  const input = root.querySelector('.logo-file');
+  if (!input) return state;
+  input.addEventListener('change', async () => {
+    const status = root.querySelector('.logo-status'), box = root.querySelector('.logo-box');
+    const file = input.files[0];
+    input.value = '';   // the file itself is never sent with the form
+    if (!file) return;
+    status.textContent = 'Making it smaller…';
+    try {
+      const { shrinkLogo } = await import('./image.js');
+      state.ready = await shrinkLogo(file);
+      box.innerHTML = `<img src="${URL.createObjectURL(state.ready.blob)}" alt="New logo">`;
+      status.textContent = `Ready: ${state.ready.width} × ${state.ready.height} px, ${Math.max(1, Math.round(state.ready.blob.size / 1024))} KB. Tap Save to use it.`;
+    } catch (x) {
+      state.ready = null;
+      status.textContent = x.message === 'not-an-image' ? 'Please choose a PNG or JPG picture.' : 'That picture is too detailed to make small enough. Try a simpler version of the logo.';
+    }
+  });
+  return state;
+}
+
+async function saveLogo(me, ready, name) {
+  const path = `${me.company_id}/${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.${ready.type === 'image/png' ? 'png' : 'jpg'}`;
+  await api.upload('logos', path, ready.blob);
+  return path;
+}
+
+function brand(me) {
+  if (me.role !== 'owner') return go('#/setup');
+  const c = me.companies;
+  show(`
+    <main class="page narrow">
+      ${backLink('#/setup', 'Setup')}
+      <h1>Logo${F.shop ? ' and receipts' : ''}</h1>
+      <form class="stack">
+        ${logoField('Business logo', c.logo_path, `PNG or JPG. We make it small (about 512 px, under 200 KB) so it loads fast on any phone. Shown at the top of the app${F.shop ? ', on receipts' : ''} and in the evening email. Without a logo, your business name is shown.`)}
+        ${c.logo_path ? '<button type="button" class="link" id="nologo">Remove logo</button>' : ''}
+        ${F.shop ? `<label>Thank-you note on receipts<textarea name="note" rows="2" maxlength="200">${esc(c.receipt_note)}</textarea>
+          <span class="hint muted">Up to 200 characters. E.g. "Thank you! Goods sold are not returnable after 7 days."</span></label>` : ''}
+        <p class="error" role="alert"></p>
+        <button type="submit" class="primary">Save</button>
+      </form>
+      ${F.shop ? '<p class="muted small">A shop can have its own logo on its receipts: open the shop in Setup → Shops.</p>' : ''}
+    </main>`, async ({ note }) => {
+    const changes = {};
+    if (logo.ready) changes.logo_path = await saveLogo(me, logo.ready, 'logo');
+    if (F.shop && note !== undefined) changes.receipt_note = note.trim() || 'Thank you for shopping with us!';
+    if (Object.keys(changes).length) await api.update('companies', `id=eq.${me.company_id}`, changes);
+    if (changes.logo_path && c.logo_path) api.removeFile('logos', c.logo_path).catch(() => {});
+    Object.assign(c, changes);
+    reloadMe();
+    toast('Saved');
+    brand(me);
+  });
+  const logo = wireLogo(app);
+  const rm = document.getElementById('nologo');
+  if (rm) {
+    rm.onclick = async () => {
+      if (!confirm('Remove your logo? Your business name will be shown instead.')) return;
+      try {
+        await api.update('companies', `id=eq.${me.company_id}`, { logo_path: null });
+        api.removeFile('logos', c.logo_path).catch(() => {});
+        c.logo_path = null;
+        reloadMe();
+        toast('Logo removed');
+        brand(me);
+      } catch (x) { toast(friendly(x)); }
     };
   }
 }

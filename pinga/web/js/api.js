@@ -119,6 +119,7 @@ export const rpc = (fn, args = {}) => data(`/rest/v1/rpc/${fn}`, { method: 'POST
 // Photos (private storage).
 export const upload = (bucket, path, file) =>
   data(`/storage/v1/object/${bucket}/${path}`, { method: 'POST', body: file, extra: { 'content-type': file.type || 'image/jpeg' } });
+export const removeFile = (bucket, path) => data(`/storage/v1/object/${bucket}/${path}`, { method: 'DELETE' });
 export const download = (bucket, path) => data(`/storage/v1/object/authenticated/${bucket}/${path}`, { blob: true });
 
 // ── Server time ──────────────────────────────────────────────

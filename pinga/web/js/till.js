@@ -5,6 +5,7 @@ import { sync, outbox, uuid, safeToSignOut, waitingText } from './queue.js';
 import { report } from './report.js';
 import { show, esc, toast, header, wireSignOut, onLeave, app, fmtTime, localDate, friendly } from './ui.js';
 import { ICON } from './icons.js';
+import { makeToken, receiptUrl, receiptMessage, whatsappHref, pendingReceipts, queueReceipt, dropReceipt } from './receipts.js';
 
 const BASKET = 'pinga.basket';
 const naira = (n) => '₦' + Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 });
@@ -25,6 +26,69 @@ const loadStock = (me) => api.cached('shopstock', () => api.select('stock', `sel
 let basket = [];
 try { basket = JSON.parse(sessionStorage.getItem(BASKET)) || []; } catch { /* empty */ }
 const keep = () => { try { sessionStorage.setItem(BASKET, JSON.stringify(basket)); } catch { /* fine */ } };
+
+const PAY = { cash: 'Cash', transfer: 'Transfer', card: 'POS card' };
+let payment = 'cash';
+let justSold = null;   // the sale just saved: { id, token, total, payment } → "Send receipt"
+
+// Has this sale reached the server yet?
+const isSent = async (id) => !(await outbox.all()).some((w) => w.id === id);
+// The receipt's number and names, once the sale is on the server (null if it isn't yet or there's no signal).
+const receiptInfo = (token) => api.rpc('receipt', { p_token: token }).catch(() => null);
+
+// "Send receipt": WhatsApp (with the customer's number if given) or copy the link.
+// With no signal, the receipt waits and is offered again once the sale has been sent.
+async function receiptPanel(me, sale, onDone) {
+  const sent = await isSent(sale.id);
+  const url = receiptUrl(sale.token);
+  const el = document.getElementById('sendbox');
+  el.hidden = false;
+  el.innerHTML = `
+    <h2>Sale saved · ${naira(sale.total)}</h2>
+    <p class="muted">Paid by ${PAY[sale.payment] || 'Cash'}</p>
+    <label><span>Customer's WhatsApp number <span class="muted">(optional)</span></span><input id="cphone" type="tel" inputmode="tel" placeholder="0803 123 4567" autocomplete="off"></label>
+    ${sent ? `<a class="primary button" id="wa" target="_blank" rel="noopener" href="#">Send receipt on WhatsApp</a>
+      <button class="secondary" id="copy">Copy receipt link</button>`
+      : `<button class="primary" id="later">Send receipt when online</button>
+      <p class="muted small">No signal right now. The receipt will be ready to send as soon as you're online.</p>`}
+    <button class="link block" id="next">Next sale</button>`;
+  let text = receiptMessage({ business: me.companies.name, total: sale.total, url });
+  const phone = () => document.getElementById('cphone').value.trim();
+  const wa = document.getElementById('wa');
+  const setHref = () => { if (wa) wa.href = whatsappHref(phone(), text); };
+  if (sent) receiptInfo(sale.token).then((r) => { if (r) { text = receiptMessage({ business: r.business, shop: r.shop, number: r.number, total: r.total, url }); setHref(); } });
+  setHref();
+  document.getElementById('cphone').addEventListener('input', setHref);
+  if (wa) wa.addEventListener('click', () => { dropReceipt(sale.token); setTimeout(onDone, 300); });
+  const copy = document.getElementById('copy');
+  if (copy) copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(url); } catch { prompt('Copy this receipt link:', url); }
+    copy.textContent = 'Link copied';
+  };
+  const later = document.getElementById('later');
+  if (later) later.onclick = () => {
+    queueReceipt({ token: sale.token, sale_id: sale.id, member_id: me.id, total: sale.total, phone: phone(), at: Date.now() });
+    toast('Receipt will send when online');
+    onDone();
+  };
+  document.getElementById('next').onclick = onDone;
+}
+
+// Receipts asked for with no signal: "will send when online", then "ready to send" once the sale is in.
+async function pendingList(me) {
+  const list = pendingReceipts(me.id);
+  if (!list.length) return '';
+  const waiting = new Set((await outbox.all()).map((w) => w.id));
+  const rows = await Promise.all(list.map(async (r) => {
+    if (waiting.has(r.sale_id)) return `<li class="brow"><span class="grow"><strong>${naira(r.total)}</strong><span class="muted small">Receipt will send when online${r.phone ? ` · ${esc(r.phone)}` : ''}</span></span></li>`;
+    const info = await receiptInfo(r.token);
+    const text = info ? receiptMessage({ business: info.business, shop: info.shop, number: info.number, total: info.total, url: receiptUrl(r.token) })
+      : receiptMessage({ business: me.companies.name, total: r.total, url: receiptUrl(r.token) });
+    return `<li class="brow"><span class="grow"><strong>${naira(r.total)}${info ? ` · ${esc(info.number)}` : ''}</strong><span class="muted small">Receipt ready to send${r.phone ? ` · ${esc(r.phone)}` : ''}</span></span>
+      <a class="button primary small-btn" target="_blank" rel="noopener" data-token="${esc(r.token)}" href="${esc(whatsappHref(r.phone, text))}">Send on WhatsApp</a></li>`;
+  }));
+  return `<section class="card pending" aria-labelledby="pr-h"><h2 id="pr-h">Receipts to send</h2><ul class="board">${rows.join('')}</ul></section>`;
+}
 
 // What the phone thinks is left: the last copy from the server minus sales still waiting to send.
 async function leftInShop(me) {
@@ -84,10 +148,15 @@ export async function sell(me) {
   show(`
     <main class="page narrow has-tabs">
       ${header(me, 'Sell')}
+      <section id="sendbox" class="card sendbox stack" aria-live="polite" hidden></section>
+      <div id="pending">${await pendingList(me)}</div>
       <section id="cart" class="card cart" aria-labelledby="cart-h" hidden>
         <h2 id="cart-h">This sale · <span id="count"></span> items</h2>
         <ul class="lines" id="basket"></ul>
         <div class="cart-total"><span>Total</span><b id="total"></b></div>
+        <fieldset class="pay"><legend>Paid by</legend>
+          ${Object.entries(PAY).map(([v, t]) => `<label><input type="radio" name="pay" value="${v}"${payment === v ? ' checked' : ''}><span>${t}</span></label>`).join('')}
+        </fieldset>
         <p class="error" id="err" role="alert"></p>
         <button class="primary" id="save">Save sale</button>
         <button class="link block" id="clear">Clear this sale</button>
@@ -104,9 +173,21 @@ export async function sell(me) {
     ${tabBar('sell')}`);
   wireSignOut(safeToSignOut);
   draw();
-  const setWaiting = (n) => { const el = document.getElementById('waiting'); if (el) el.textContent = waitingText(n); };
+  const refreshPending = async () => { const el = document.getElementById('pending'); if (el) el.innerHTML = await pendingList(me); };
+  const setWaiting = (n) => { const el = document.getElementById('waiting'); if (el) el.textContent = waitingText(n); refreshPending().catch(report); };
   sync.count().then(setWaiting);
   onLeave(sync.onChange(setWaiting));
+  document.getElementById('pending').addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-token]');
+    if (a) setTimeout(() => { dropReceipt(a.dataset.token); refreshPending().catch(report); }, 300);
+  });
+  app.querySelectorAll('input[name=pay]').forEach((x) => x.addEventListener('change', () => { payment = x.value; }));
+  if (justSold) {
+    const sale = justSold;
+    justSold = null;
+    document.getElementById('cart').hidden = true;
+    receiptPanel(me, sale, () => sell(me).catch(report)).catch(report);
+  }
 
   document.getElementById('q').addEventListener('input', (e) => {
     const t = e.target.value.trim().toLowerCase();
@@ -153,14 +234,16 @@ export async function sell(me) {
     save.disabled = true;
     try {
       const sum = total();
-      await sync.add({
+      const rec = {
         type: 'sale', id: uuid(), member_id: me.id, company_id: me.company_id, branch_id: me.branch_id,
-        happened_at: api.serverNow().toISOString(), total: sum,
+        happened_at: api.serverNow().toISOString(), total: sum, payment, receipt_token: makeToken(),
         items: basket.map((b) => ({ product_id: b.product_id, name: byId.get(b.product_id).name, qty: b.qty, unit_price: b.unit_price })),
-      });
-      basket = []; keep();
-      toast(`Sale saved · ${naira(sum)}`);
-      sync.flush();
+      };
+      await sync.add(rec);
+      basket = []; keep(); payment = 'cash';
+      justSold = { id: rec.id, token: rec.receipt_token, total: sum, payment: rec.payment };
+      save.textContent = 'Saving…';
+      await sync.flush();   // with signal the sale is sent now, so the receipt can go straight away
       sell(me).catch(report);
     } catch (x) { err.textContent = friendly(x); save.disabled = false; }
   };
@@ -173,11 +256,11 @@ export async function mySales(me) {
   const tz = me.companies.timezone;
   const day = localDate(api.serverNow(), tz);
   const [sent, waiting] = await Promise.all([
-    api.cached('mysales', () => api.select('sales', `select=id,happened_at,total,flags,cancelled_at,cancelled_by_name,cancel_reason,mistake_note,sale_items(product_name,qty,unit_price,line)&member_id=eq.${me.id}&local_date=eq.${day}&order=happened_at.desc`)).catch(quiet),
+    api.cached('mysales', () => api.select('sales', `select=id,happened_at,total,flags,payment_method,receipt_token,receipt_code,cancelled_at,cancelled_by_name,cancel_reason,mistake_note,sale_items(product_name,qty,unit_price,line)&member_id=eq.${me.id}&local_date=eq.${day}&order=happened_at.desc`)).catch(quiet),
     outbox.all(),
   ]);
   const mine = waiting.filter((w) => w.type === 'sale' && w.member_id === me.id && !sent.some((s) => s.id === w.id))
-    .map((w) => ({ id: w.id, happened_at: w.happened_at, total: w.total, flags: [], waiting: true, sale_items: w.items.map((i) => ({ product_name: i.name, qty: i.qty, unit_price: i.unit_price })) }));
+    .map((w) => ({ id: w.id, happened_at: w.happened_at, total: w.total, flags: [], waiting: true, payment_method: w.payment, receipt_token: w.receipt_token, sale_items: w.items.map((i) => ({ product_name: i.name, qty: i.qty, unit_price: i.unit_price })) }));
   const all = [...mine, ...sent].sort((a, b) => b.happened_at.localeCompare(a.happened_at));
   const live = all.filter((s) => !s.cancelled_at);
   const sum = live.reduce((t, s) => t + Number(s.total), 0);
@@ -188,17 +271,24 @@ export async function mySales(me) {
       <div class="card hero"><div><p class="muted">Today</p><p class="big-line"><b>${naira(sum)}</b> · ${live.length} sale${live.length === 1 ? '' : 's'}</p></div></div>
       ${all.length ? `<ul class="list">${all.map((s) => `
         <li class="card stack sale${s.cancelled_at ? ' cancelled' : ''}" data-id="${s.id}">
-          <div class="row"><strong>${fmtTime(s.happened_at, tz)}</strong><b>${naira(s.total)}</b></div>
+          <div class="row"><strong>${fmtTime(s.happened_at, tz)}${s.receipt_code ? ` <span class="muted small">${esc(s.receipt_code)}</span>` : ''}</strong><b>${naira(s.total)}</b></div>
           <span class="muted small">${items(s)}</span>
           ${s.waiting ? '<span class="pill wait">Waiting to send</span>' : ''}
           ${s.flags.map((f) => `<span class="pill warn">${FLAG[f] || f}</span>`).join(' ')}
           ${s.cancelled_at ? `<span class="pill bad">Cancelled by ${esc(s.cancelled_by_name)}: ${esc(s.cancel_reason)}</span>`
             : s.mistake_note ? `<span class="pill info">Mistake reported: ${esc(s.mistake_note)}</span>`
             : s.waiting ? '' : '<button class="link small mistake">Report a mistake</button>'}
+          ${s.receipt_token && !s.cancelled_at ? `<button class="link small resend" data-token="${esc(s.receipt_token)}" data-total="${s.total}" data-pay="${esc(s.payment_method || 'cash')}">Send receipt</button>` : ''}
         </li>`).join('')}</ul>` : '<p class="muted center empty">No sales yet today.</p>'}
     </main>
     ${tabBar('mysales')}`);
   wireSignOut(safeToSignOut);
+  app.querySelectorAll('.resend').forEach((btn) => {
+    btn.onclick = () => {
+      justSold = { id: btn.closest('.sale').dataset.id, token: btn.dataset.token, total: Number(btn.dataset.total), payment: btn.dataset.pay };
+      location.hash = '#/sell';
+    };
+  });
   app.querySelectorAll('.mistake').forEach((btn) => {
     btn.onclick = async () => {
       const note = prompt('What went wrong? Your manager will see this and can fix the sale.');

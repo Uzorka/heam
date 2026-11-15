@@ -20,11 +20,14 @@ export function createSync({ store, api, report, memberId }) {
 
   async function send(rec) {
     if (rec.type === 'sale') {
-      return api.rpc('record_sale', {
+      const args = {
         p_id: rec.id, p_branch: rec.branch_id, p_happened_at: rec.happened_at,
         p_items: rec.items.map((i) => ({ product_id: i.product_id, qty: i.qty, unit_price: i.unit_price })),
         p_device_now: api.serverNow().toISOString(),
-      });
+      };
+      // Sales saved by this version also carry the payment method and the receipt link made on the phone.
+      if (rec.receipt_token) Object.assign(args, { p_payment: rec.payment || 'cash', p_receipt_token: rec.receipt_token });
+      return api.rpc('record_sale', args);
     }
     if (rec.type === 'visit') {
       const selfie = await upload(rec, rec.selfie, rec.id);

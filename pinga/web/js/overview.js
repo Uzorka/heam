@@ -42,9 +42,11 @@ async function drawMap(el, stores) {
 export async function overview(me, tabs) {
   const tz = me.companies.timezone;
   const day = localDate(api.serverNow(), tz);
-  const [d, progress] = await Promise.all([
+  const sells = ['storefront', 'both'].includes(me.companies.business_type);
+  const [d, progress, sh] = await Promise.all([
     api.rpc('owner_overview', { p_day: day }),
     api.rpc('setup_progress').catch(() => null),
+    sells ? api.rpc('shops_overview', { p_day: day }).catch(() => null) : null,
   ]);
   const h = new Date().getHours();
   const hello = `${h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}, ${firstName(me.full_name)}`;
@@ -68,6 +70,8 @@ export async function overview(me, tabs) {
       <p class="muted dateline">${fmtDay(day + 'T12:00:00Z', tz)}</p>
 
       ${progress && !setupDone(progress, me.companies.business_type) ? checklist(progress, me.companies.business_type) : ''}
+
+      ${sh && sh.shops.length ? shopsCard(sh) : ''}
 
       ${nobody ? '' : `
       <section class="card block" aria-labelledby="now-h">
@@ -120,4 +124,21 @@ export async function overview(me, tabs) {
     drawMap(el, d.stores).then((r) => { if (document.body.contains(el)) remove = r; else r(); })
       .catch(() => { el.outerHTML = '<p class="tiny muted">The map could not load. Check your connection.</p>'; });
   }
+}
+
+// Storefront / Both: today's sales per shop, best sellers, and stock that needs attention.
+function shopsCard(sh) {
+  const many = sh.shops.length > 1;
+  const alerts = (x) => [x.out ? `<span class="pill bad">${x.out} out</span>` : '', x.low ? `<span class="pill wait">${x.low} low</span>` : '',
+    x.expiring ? `<span class="pill wait">${x.expiring} expiring</span>` : ''].join(' ');
+  return `
+      <section class="card block" aria-labelledby="sales-h">
+        <h2 id="sales-h">Sales today</h2>
+        <p class="big-line"><b>${naira(sh.total)}</b> · ${plural(sh.sales, 'sale')}${Number(sh.discount) ? ` <span class="muted">· ${naira(sh.discount)} in discounts</span>` : ''}</p>
+        <ul class="offices shops">${sh.shops.map((x) => `
+          <li><a href="#/sales/${x.id}"><span>${esc(x.name)}${x.to_check ? ` <span class="pill info">${x.to_check} to check</span>` : ''}</span>
+            <span><b>${naira(x.total)}</b> <span class="muted">(${x.sales})</span></span></a>
+            ${x.out || x.low || x.expiring ? `<a class="stockline" href="#/stock/${x.id}">${many ? '' : 'Stock: '}${alerts(x)}</a>` : ''}</li>`).join('')}</ul>
+        ${sh.best.length ? `<p class="small"><span class="muted">Best sellers:</span> ${sh.best.slice(0, 3).map((b) => `${esc(b.name)} (${b.qty})`).join(', ')}</p>` : ''}
+      </section>`;
 }

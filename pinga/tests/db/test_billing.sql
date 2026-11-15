@@ -26,7 +26,7 @@ update public.members set active = false where id = 'ea000000-0000-0000-0000-000
 
 select tests.act_as('a0000000-0000-0000-0000-000000000001');
 create temp table o as select public.billing_overview() as j;
-select tests.eq((select j->'quote' from o), '{"staff_seats": 2, "rep_seats": 1, "staff_price": 1500, "rep_price": 2500, "gross_kobo": 550000, "discount_percent": 0, "discount_min_people": null, "amount_kobo": 550000}'::jsonb,
+select tests.eq((select j->'quote' from o), '{"staff_seats": 2, "rep_seats": 1, "staff_price": 1500, "rep_price": 2500, "shop_seats": 0, "shop_price": 5000, "shop_included_staff": 3, "shop_staff": 0, "shop_extra_staff": 0, "loose_staff": 0, "extra_staff_price": 1000, "gross_kobo": 550000, "discount_percent": 0, "discount_min_people": null, "amount_kobo": 550000}'::jsonb,
   'price: 2 office staff × ₦1,500 + 1 rep × ₦2,500 = ₦5,500 (owners, managers, not-joined and inactive people are free)');
 select tests.eq((select j->>'status' from o), 'trial', 'starts on the free trial');
 select tests.eq((select (j->>'trial_days_left')::int from o), 5, '5 days of trial left');

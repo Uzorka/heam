@@ -41,12 +41,15 @@ export async function billing(me, arg) {
       <section class="card block">
         <h2>Your monthly price</h2>
         <ul class="offices">
-          ${q.staff_seats || !q.rep_seats ? `<li><span>Office staff · ${q.staff_seats} × ${naira(q.staff_price * 100)}</span><span>${naira(q.staff_seats * q.staff_price * 100)}</span></li>` : ''}
+          ${q.shop_seats ? `<li><span>Shops · ${q.shop_seats} × ${naira(q.shop_price * 100)} <span class="muted">(up to ${q.shop_included_staff} staff each)</span></span><span>${naira(q.shop_seats * q.shop_price * 100)}</span></li>` : ''}
+          ${q.shop_extra_staff ? `<li><span>Extra shop staff · ${q.shop_extra_staff} × ${naira(q.extra_staff_price * 100)}</span><span>${naira(q.shop_extra_staff * q.extra_staff_price * 100)}</span></li>` : ''}
+          ${q.loose_staff ? `<li><span>Staff not in a shop yet · ${q.loose_staff} × ${naira(q.extra_staff_price * 100)}</span><span>${naira(q.loose_staff * q.extra_staff_price * 100)}</span></li>` : ''}
+          ${q.staff_seats || (!q.rep_seats && !q.shop_seats && !q.loose_staff) ? `<li><span>Office staff · ${q.staff_seats} × ${naira(q.staff_price * 100)}</span><span>${naira(q.staff_seats * q.staff_price * 100)}</span></li>` : ''}
           ${q.rep_seats ? `<li><span>Sales reps · ${q.rep_seats} × ${naira(q.rep_price * 100)}</span><span>${naira(q.rep_seats * q.rep_price * 100)}</span></li>` : ''}
           ${q.discount_percent > 0 ? `<li><span>Volume discount (${q.discount_min_people}+ people) · ${Number(q.discount_percent)}% off</span><span>−${naira(q.gross_kobo - q.amount_kobo)}</span></li>` : ''}
           <li class="total"><span>Total a month</span><span>${naira(q.amount_kobo)}</span></li>
         </ul>
-        <p class="tiny muted">Counted from people who have joined and are active. Owners and managers are free.</p>
+        <p class="tiny muted">Counted from people who have joined and are active. Owners and managers are free.${me.companies.business_type !== 'field' ? ` A shop is counted once one of its staff has joined.` : ''}</p>
       </section>
       ${!payments ? `<p class="muted center">Online payment isn't switched on yet. Your trial continues and your team keeps working as normal.</p>`
         : q.amount_kobo && !paidAhead ? `

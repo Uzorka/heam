@@ -216,6 +216,17 @@ async function fakeSupabase(route) {
     return json(route, { sales: live.length, total: live.reduce((t, x) => t + x.total, 0), discount: live.reduce((t, x) => t + x.discount, 0),
       cancelled: day.length - live.length, flagged: live.filter((x) => x.flags.length).length, mistakes: live.filter((x) => x.mistake_note).length });
   }
+  if (p === '/rest/v1/rpc/shops_overview') {
+    const live = sales.filter((x) => x.local_date === body.p_day && !x.cancelled_at);
+    const shopsList = branches.filter((b) => company.business_type === 'storefront' || b.kind === 'shop');
+    const qty = new Map(); live.flatMap((x) => x.sale_items).forEach((i) => qty.set(i.product_name, (qty.get(i.product_name) || 0) + i.qty));
+    const alertsOf = (b) => [...stockRows].filter(([k]) => k.startsWith(b + '|')).map(([k, v]) => ({ v, x: products.find((y) => y.id === k.split('|')[1]) })).filter(({ v, x }) => v.qty <= x.low_stock_at);
+    return json(route, { total: live.reduce((t, x) => t + x.total, 0), sales: live.length, discount: live.reduce((t, x) => t + x.discount, 0),
+      shops: shopsList.map((b) => { const mine = live.filter((x) => x.branch_id === b.id), al = alertsOf(b.id);
+        return { id: b.id, name: b.name, total: mine.reduce((t, x) => t + x.total, 0), sales: mine.length, to_check: mine.filter((x) => x.flags.length || x.mistake_note).length,
+          low: al.filter(({ v }) => v.qty > 0).length, out: al.filter(({ v }) => v.qty <= 0).length, expiring: 0 }; }),
+      best: [...qty].sort((a, b) => b[1] - a[1]).map(([name, n]) => ({ name, qty: n })) });
+  }
   if (p === '/rest/v1/rpc/set_business_type') { company.business_type = body.p_type; return json(route, null); }
   if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
   if (p === '/rest/v1/store_assignments' && m === 'DELETE') {
@@ -288,7 +299,13 @@ async function fakeSupabase(route) {
     const joined = people.filter((x) => x.joined_at && ['staff', 'rep'].includes(x.role));
     const staff = joined.filter((x) => x.role === 'staff').length, reps = joined.filter((x) => x.role === 'rep').length;
     return json(route, { status: bill.status, trial_ends: company.trial_ends_at.slice(0, 10), trial_days_left: 2, paid_until: bill.paid_until,
-      quote: bill.bigTeam
+      quote: company.business_type === 'storefront' ? (() => {
+        const per = new Map(); joined.filter((x) => x.role === 'staff' && x.branch_id).forEach((x) => per.set(x.branch_id, (per.get(x.branch_id) || 0) + 1));
+        const extra = [...per.values()].reduce((t, k) => t + Math.max(0, k - 3), 0), loose = joined.filter((x) => x.role === 'staff' && !x.branch_id).length;
+        const gross = per.size * 5000 + (extra + loose) * 1000;
+        return { staff_seats: 0, rep_seats: 0, staff_price: 1500, rep_price: 2500, shop_seats: per.size, shop_price: 5000, shop_included_staff: 3, shop_extra_staff: extra,
+          loose_staff: loose, extra_staff_price: 1000, gross_kobo: gross * 100, discount_percent: 0, discount_min_people: null, amount_kobo: gross * 100 };
+      })() : bill.bigTeam
         ? { staff_seats: 99, rep_seats: 1, staff_price: 1500, rep_price: 2500, gross_kobo: 15100000, discount_percent: 10, discount_min_people: 100, amount_kobo: 13590000 }
         : { staff_seats: staff, rep_seats: reps, staff_price: 1500, rep_price: 2500, gross_kobo: (staff * 1500 + reps * 2500) * 100, discount_percent: 0, discount_min_people: null, amount_kobo: (staff * 1500 + reps * 2500) * 100 },
       card: bill.card, invoices: bill.invoices });
@@ -1126,6 +1143,22 @@ await page.getByText(/Cancelled by elvis uzorka, .*Wrong quantity of sugar/).wai
 assert.equal(stockRows.get(sales[0].branch_id + '|' + sales[0].sale_items[1].product_id).qty, 3, 'stock went back');
 await shot('owner-sale-cancelled');
 step('Owner: sees the day\'s sales, discounts and what to check; cancels with a reason; stock goes back');
+
+// A second sale today, then the Overview and Billing.
+sales.push({ id: 'sale-2', branch_id: sales[0].branch_id, member_id: kemi.id, seller_name: 'Kemi Yaba', happened_at: new Date().toISOString(), local_date: sales[0].local_date,
+  total: 10000, discount: 0, flags: [], cancelled_at: null, mistake_note: null, sale_items: [{ line: 1, product_name: 'Indomie Chicken 70g', qty: 40, unit_price: 250, flags: [] }] });
+await page.goto(base + '#/overview');
+await page.getByRole('heading', { name: 'Sales today' }).waitFor();
+assert.match(await page.locator('[aria-labelledby=sales-h] .big-line').innerText(), /₦10,000 · 1 sale/, 'the cancelled sale is left out');
+assert.match(await page.locator('[aria-labelledby=sales-h]').innerText(), /Best sellers: Indomie Chicken 70g \(40\)/);
+assert.match(await page.locator('[aria-labelledby=sales-h]').innerText(), /1 low/, 'stock alerts per shop');
+await shot('owner-overview-shops');
+step('Overview: today\'s sales per shop, best sellers and stock alerts, each linking to the shop');
+await page.goto(base + '#/billing');
+await page.getByRole('heading', { name: 'Billing' }).waitFor();
+assert.match(await page.locator('.offices').innerText(), /Shops · 1 × ₦5,000/);
+await shot('owner-billing-shops');
+step('Billing: priced per shop (₦5,000 incl. 3 staff; ₦1,000 per extra)');
 
 // Switch to Both: offices and shops, stores and reps back.
 await page.goto(base + '#/business');

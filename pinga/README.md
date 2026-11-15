@@ -84,6 +84,12 @@ Shop staff get a Sell tab: search or scroll the price list, tap to add, change t
 - Managers and owners: Stock → Sales today (total, discounts, what to check), each sale with its products and flags; Cancel needs a reason, puts the stock back, and keeps who, when and why.
 - Rules in the database (`record_sale`, `cancel_sale`, `report_sale_mistake`), tested in `tests/db/test_sales.sql`.
 
+## Shops on the dashboard, in the evening email, and in billing
+
+- **Overview** (Storefront and Both): Sales today: the total, discounts, each shop's sales (with how many to check) and stock alerts (out, low, expiring), best sellers. Managers see only their shops (`shops_overview`).
+- **Evening email**: sales first (total, per shop, best sellers, discounts and every below-lowest sale with who sold it, sales made when out of stock, mistakes reported, cancellations, low stock, expiring soon), then attendance as before.
+- **Billing per shop**. PLACEHOLDER prices, all in the one `billing_prices` table: ₦5,000 per shop a month including up to 3 shop staff (`included_staff`), ₦1,000 per extra staff member. A shop counts once one of its staff has joined. Staff not in a shop yet are counted as extra staff (Storefront) or office staff (Both). Office staff, reps, the volume discount and free owners/managers work as before. To change a price: `update public.billing_prices set naira_per_seat = 6000, included_staff = 4 where module = 'shop';`
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

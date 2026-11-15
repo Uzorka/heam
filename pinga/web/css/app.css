@@ -372,3 +372,6 @@ button.danger { background: var(--bad-bg); color: var(--bad); border: 1.5px soli
 .brow .grow .pill { align-self: flex-start; }
 .button.big + .button.big { margin-top: 12px; }
 .banner + .banner, .banner + form { margin-top: 12px; }
+.shops li { flex-wrap: wrap; }
+.shops li > a:first-child { display: flex; justify-content: space-between; gap: 10px; width: 100%; color: inherit; text-decoration: none; }
+.shops .stockline { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 4px; text-decoration: none; }

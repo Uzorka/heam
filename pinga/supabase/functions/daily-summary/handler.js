@@ -6,12 +6,31 @@ export const keyHeaders = (key) => (key.startsWith('sb_') ? { apikey: key } : { 
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+const naira = (n) => '₦' + Math.round(Number(n)).toLocaleString('en-NG');
+const shortDay = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NG', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const list = (names, max = 6) => (names.length > max ? `${names.slice(0, max).join(', ')} and ${names.length - max} more` : names.join(', '));
 
 // The words of the email. Short: the owner should get the day in a glance.
 export function formatSummary(c, appUrl) {
   const day = new Date(c.day + 'T12:00:00Z').toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   const lines = [];
+  const sh = c.shops;
+  // Storefront / Both: the shops' day first.
+  if (sh && sh.shops.length) {
+    const many = sh.shops.length > 1;
+    lines.push(`Sales: ${naira(sh.total)} from ${plural(sh.sales, 'sale')}${many ? ` in ${sh.shops.length} shops` : ''}.`);
+    if (many) lines.push(sh.shops.map((x) => `${x.name} ${naira(x.total)} (${x.sales})`).join(', ') + '.');
+    if (sh.best.length) lines.push(`Best sellers: ${list(sh.best.map((x) => `${x.name} (${x.qty})`), 5)}.`);
+    if (Number(sh.discount)) {
+      lines.push(`Discounts given: ${naira(sh.discount)}.`);
+      if (sh.below_lowest.length) lines.push(`Below the lowest price: ${list(sh.below_lowest.map((x) => `${x.product} at ${naira(x.price)} by ${x.seller}${many ? `, ${x.shop}` : ''}`), 4)}.`);
+    }
+    const checks = [sh.out_of_stock_sales ? plural(sh.out_of_stock_sales, 'sale') + ' made when out of stock' : '',
+      sh.mistakes ? plural(sh.mistakes, 'mistake') + ' reported by staff' : '', sh.cancelled ? `${sh.cancelled} cancelled` : ''].filter(Boolean);
+    if (checks.length) lines.push(`To check: ${checks.join(', ')}.`);
+    if (sh.low_stock.length) lines.push(`Low stock: ${list(sh.low_stock.map((x) => `${x.product} (${x.qty <= 0 ? 'out' : x.qty + ' left'}${many ? `, ${x.shop}` : ''})`))}.`);
+    if (sh.expiring.length) lines.push(`Expiring soon: ${list(sh.expiring.map((x) => `${x.product} (${shortDay(x.expires_on)}${many ? `, ${x.shop}` : ''})`))}.`);
+  }
   lines.push(`${c.present} of ${c.people} present${c.late.length ? `, ${c.late.length} late` : ''}${c.absent.length ? `, ${c.absent.length} not in` : ''}${c.away ? `, ${c.away} on leave or off` : ''}.`);
   if (c.late.length) lines.push(`Late: ${list(c.late.map((x) => `${x.name} (${x.minutes} min)`))}.`);
   if (c.absent.length) lines.push(`Not in: ${list(c.absent)}.`);
@@ -22,12 +41,12 @@ export function formatSummary(c, appUrl) {
   const faces = c.face_mismatches || [];
   if (faces.length) lines.push(`Face didn't match: ${list(faces.map((x) => `${x.name} (${x.what})`))}. Please check the photos.`);
   if (c.to_review) lines.push(`${plural(c.to_review, 'check-in')} flagged for review.`);
-  const subject = `${c.company} · ${day}: ${c.present} of ${c.people} present${c.late.length ? `, ${c.late.length} late` : ''}`;
+  const subject = `${c.company} · ${day}: ${sh && sh.shops.length ? `${naira(sh.total)} sales, ` : ''}${c.present} of ${c.people} present${c.late.length ? `, ${c.late.length} late` : ''}`;
   const text = [`${c.company}, ${day}`, '', ...lines, '', appUrl ? `Open Pinga: ${appUrl}` : '', '', 'You can turn this email off in Pinga under Setup.'].join('\n');
   const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:16px;line-height:1.5;color:#1d1d1f;max-width:520px">
 <p style="color:#6e6e73;margin:0 0 4px">${esc(c.company)} · ${esc(day)}</p>
 ${lines.map((l, i) => `<p style="margin:0 0 10px${i === 0 ? ';font-size:20px;font-weight:600' : ''}">${esc(l)}</p>`).join('')}
-${appUrl ? `<p style="margin:18px 0"><a href="${esc(appUrl)}" style="background:#0b7a5c;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Open Pinga</a></p>` : ''}
+${appUrl ? `<p style="margin:18px 0"><a href="${esc(appUrl)}" style="background:#FF8A1F;color:#14213D;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:600">Open Pinga</a></p>` : ''}
 <p style="color:#6e6e73;font-size:13px">You can turn this email off in Pinga under Setup.</p></div>`;
   return { subject, text, html };
 }

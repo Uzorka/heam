@@ -86,3 +86,38 @@ test('a failed send is logged as failed; a company with no owner email is skippe
   assert.deepEqual(await (await handle(req(), env, g.fetchFn)).json(), { sent: 0, failed: 0, skipped: 1 });
   assert.match(g.calls.find((c) => c.url.endsWith('/summary_logged')).body.p_detail, /no owner email/);
 });
+
+const shops = {
+  total: 14900, sales: 3, discount: 600, cancelled: 1, mistakes: 1, out_of_stock_sales: 0,
+  shops: [{ name: 'Surulere shop', total: 0, sales: 0 }, { name: 'Yaba shop', total: 14900, sales: 3 }],
+  best: [{ name: 'Indomie Chicken 70g', qty: 42 }, { name: 'Peak Milk 400g', qty: 2 }],
+  below_lowest: [{ product: 'Peak Milk 400g', price: 2200, lowest: 2300, seller: 'Kemi Yaba', shop: 'Yaba shop' }],
+  low_stock: [{ product: 'Golden Penny Sugar', qty: 0, shop: 'Yaba shop' }, { product: 'Indomie Chicken 70g', qty: 8, shop: 'Yaba shop' }],
+  expiring: [{ product: 'Peak Milk 400g', expires_on: '2026-11-22', shop: 'Yaba shop' }],
+};
+
+test('Storefront: sales per shop, best sellers, discounts, low stock and expiry come first', () => {
+  const { subject, text } = formatSummary({ ...content, visits_planned: 0, below_target: [], shops });
+  assert.equal(subject, 'CHF Heron · Fri, 13 Nov: ₦14,900 sales, 8 of 12 present, 2 late');
+  const lines = text.split('\n');
+  assert.equal(lines[2], 'Sales: ₦14,900 from 3 sales in 2 shops.');
+  assert.match(text, /Surulere shop ₦0 \(0\), Yaba shop ₦14,900 \(3\)\./);
+  assert.match(text, /Best sellers: Indomie Chicken 70g \(42\), Peak Milk 400g \(2\)\./);
+  assert.match(text, /Discounts given: ₦600\./);
+  assert.match(text, /Below the lowest price: Peak Milk 400g at ₦2,200 by Kemi Yaba, Yaba shop\./);
+  assert.match(text, /To check: 1 mistake reported by staff, 1 cancelled\./);
+  assert.match(text, /Low stock: Golden Penny Sugar \(out, Yaba shop\), Indomie Chicken 70g \(8 left, Yaba shop\)\./);
+  assert.match(text, /Expiring soon: Peak Milk 400g \(22 Nov, Yaba shop\)\./);
+});
+
+test('one shop: no shop names repeated; a quiet day has no discount or stock lines', () => {
+  const one = { ...shops, shops: [shops.shops[1]], discount: 0, below_lowest: [], cancelled: 0, mistakes: 0, low_stock: [], expiring: [] };
+  const { text } = formatSummary({ ...content, shops: one });
+  assert.match(text, /Sales: ₦14,900 from 3 sales\./);
+  assert.ok(!/Yaba shop/.test(text));
+  assert.ok(!/Discounts|To check|Low stock|Expiring/.test(text));
+});
+
+test('Field sales companies get no sales lines', () => {
+  assert.ok(!/Sales:/.test(formatSummary(content).text));
+});

@@ -1,4 +1,4 @@
-// The one outbox for this phone (clock-ins and store visits), and when to send it.
+// The one outbox for this phone (clock-ins, store visits and sales), and when to send it.
 import * as api from './api.js';
 import { outbox } from './outbox.js';
 import { createSync } from './sync.js';
@@ -21,7 +21,7 @@ export const uuid = () => (crypto.randomUUID ? crypto.randomUUID()
 // Signing out with unsent records would lose them.
 export const safeToSignOut = async () => {
   if (!(await sync.count())) return true;
-  toast("Some check-ins haven't been sent yet. Connect to the internet first.");
+  toast("Some records haven't been sent yet. Connect to the internet first.");
   return false;
 };
 

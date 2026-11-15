@@ -1,7 +1,7 @@
 // Stock (Storefront and Both): products and prices, stock per shop, Excel/CSV imports, the import log.
 // Owners see every shop; managers see the shops the owner gave them.
 import * as api from './api.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev } from './ui.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
 import { readFile, readStockList, TEMPLATE_HEADER } from './sheet.js';
 
@@ -45,10 +45,12 @@ export async function stockList(me, arg, tabs) {
   if (!shops.length) { noShops(me, tabs); return wireSignOut(); }
   const shop = pickShop(shops, arg);
   const tz = me.companies.timezone;
-  const [products, stock, alerts] = await Promise.all([
+  const today = localDate(new Date(), tz);
+  const [products, stock, alerts, sold] = await Promise.all([
     api.select('products', `select=id,name,code,price,lowest_price,low_stock_at&company_id=eq.${me.company_id}&active=is.true&order=name`),
     api.select('stock', `select=product_id,qty,expires_on&branch_id=eq.${shop.id}`),
     api.rpc('stock_alerts', { p_branch: shop.id }),
+    api.rpc('shop_sales_summary', { p_branch: shop.id, p_day: today }),
   ]);
   const inShop = new Map(stock.map((s) => [s.product_id, s]));
   const alertOf = new Map(alerts.map((a) => [a.product_id, a.alert]));
@@ -68,6 +70,9 @@ export async function stockList(me, arg, tabs) {
       ${header(me, 'Stock')}
       ${tabs('Stock')}
       ${shops.length > 1 ? `<nav class="chips" aria-label="Shop">${shops.map((b) => `<a class="chip${b.id === shop.id ? ' on' : ''}" href="#/stock/${b.id}"${b.id === shop.id ? ' aria-current="page"' : ''}>${esc(b.name)}</a>`).join('')}</nav>` : `<p class="muted">${esc(shop.name)}</p>`}
+      <a class="card row salescard" href="#/sales/${shop.id}">
+        <span class="grow"><span class="muted">Sales today</span><br><b class="big">${naira(sold?.total || 0)}</b> · ${plural(sold?.sales || 0, 'sale')}
+          ${sold?.mistakes ? `<br><span class="pill info">${plural(sold.mistakes, 'mistake')} reported</span>` : ''}${sold?.flagged ? ` <span class="pill warn">${sold.flagged} to check</span>` : ''}</span>${chev}</a>
       <div class="btn-pair">
         <a class="primary button" href="#/import">Import stock</a>
         <a class="secondary button" href="#/product/new">Add product</a>
@@ -296,3 +301,75 @@ export async function importLog(me) {
     </main>`);
 }
 
+
+// ── Sales (owners and the shop's managers) ──────────────────
+const SALE_FLAG = { below_lowest: 'Below lowest price', out_of_stock: 'Sold when out of stock', clock_changed: 'Phone clock was changed' };
+let salesDay = null;
+
+export async function shopSales(me, arg) {
+  const shops = await myShops(me);
+  const shop = pickShop(shops, arg);
+  if (!shop) return go('#/stock');
+  const tz = me.companies.timezone;
+  const today = localDate(new Date(), tz);
+  const day = salesDay || today;
+  const [sum, list] = await Promise.all([
+    api.rpc('shop_sales_summary', { p_branch: shop.id, p_day: day }),
+    api.select('sales', `select=id,happened_at,seller_name,total,discount,flags,cancelled_at,cancelled_by_name,mistake_note,sale_items(product_name,qty,line)&branch_id=eq.${shop.id}&local_date=eq.${day}&order=happened_at.desc`),
+  ]);
+  const first = list.filter((x) => !x.cancelled_at && (x.mistake_note || x.flags.length));
+  const items = (x) => [...x.sale_items].sort((a, b) => a.line - b.line).map((i) => `${i.qty} × ${esc(i.product_name)}`).join(', ');
+  const row = (x) => `
+    <li><a class="card row sale${x.cancelled_at ? ' cancelled' : ''}" href="#/sale/${x.id}">
+      <span class="grow"><strong>${fmtTime(x.happened_at, tz)}</strong> · ${esc(x.seller_name)}<br><span class="muted small">${items(x)}</span>
+        ${x.cancelled_at ? `<br><span class="pill bad">Cancelled by ${esc(x.cancelled_by_name)}</span>` : ''}
+        ${!x.cancelled_at && x.mistake_note ? `<br><span class="pill info">Mistake reported</span>` : ''}
+        ${!x.cancelled_at ? x.flags.map((f) => `<span class="pill warn">${SALE_FLAG[f] || f}</span>`).join(' ') : ''}</span>
+      <span class="qty"><b>${naira(x.total)}</b>${Number(x.discount) ? `<span class="muted small">−${naira(x.discount)}</span>` : ''}</span>
+    </a></li>`;
+  show(`
+    <main class="page narrow">
+      ${backLink('#/stock/' + shop.id, 'Stock')}
+      <h1>Sales · ${esc(shop.name)}</h1>
+      <div class="dayrow"><label class="sr" for="day">Date</label><input type="date" id="day" value="${day}" max="${today}"></div>
+      <div class="card block">
+        <p class="big-line"><b>${naira(sum?.total || 0)}</b> · ${plural(sum?.sales || 0, 'sale')}</p>
+        <p class="muted">${Number(sum?.discount) ? `Discounts given: ${naira(sum.discount)}` : 'No discounts'}${sum?.cancelled ? ` · ${sum.cancelled} cancelled` : ''}</p>
+      </div>
+      ${first.length ? `<h2 class="section">To check (${first.length})</h2><ul class="list">${first.map(row).join('')}</ul><h2 class="section">All sales</h2>` : ''}
+      ${list.length ? `<ul class="list">${list.map(row).join('')}</ul>` : '<p class="muted center empty">No sales on this day.</p>'}
+    </main>`);
+  document.getElementById('day').onchange = (e) => { salesDay = e.target.value || null; shopSales(me, shop.id); };
+}
+
+export async function saleDetail(me, id) {
+  const tz = me.companies.timezone;
+  const [x] = await api.select('sales', `select=*,sale_items(*)&id=eq.${encodeURIComponent(id)}`);
+  if (!x) return go('#/stock');
+  const lines = [...x.sale_items].sort((a, b) => a.line - b.line);
+  show(`
+    <main class="page narrow">
+      ${backLink('#/sales/' + x.branch_id, 'Sales')}
+      <h1>${naira(x.total)}</h1>
+      <p class="muted">${fmtDay(x.happened_at, tz)} · ${fmtTime(x.happened_at, tz)} · sold by ${esc(x.seller_name)}</p>
+      ${x.flags.includes('clock_changed') ? '<p class="banner">The phone clock was changed: the time may not be right.</p>' : ''}
+      <ul class="board">${lines.map((i) => `
+        <li class="brow"><span class="grow"><strong>${i.qty} × ${esc(i.product_name)}</strong>
+          <span class="muted small">${naira(i.unit_price)} each${i.list_price != null && Number(i.unit_price) !== Number(i.list_price) ? ` (price list: ${naira(i.list_price)}${i.lowest_price != null ? `, lowest ${naira(i.lowest_price)}` : ''})` : ''}</span>
+          ${i.flags.map((f) => `<span class="pill warn">${SALE_FLAG[f] || f}${f === 'out_of_stock' ? ` (${Math.max(0, i.stock_before ?? 0)} in stock)` : ''}</span>`).join(' ')}</span>
+          <span class="qty"><b>${naira(i.qty * i.unit_price)}</b></span></li>`).join('')}</ul>
+      ${x.mistake_note ? `<div class="banner tip"><strong>${esc(x.seller_name)} reported a mistake:</strong> “${esc(x.mistake_note)}”<br><span class="small">${fmtTime(x.mistake_at, tz)}. If the sale is wrong, cancel it and ask them to record it again.</span></div>` : ''}
+      ${x.cancelled_at ? `<div class="banner bad-banner">Cancelled by ${esc(x.cancelled_by_name)}, ${fmtDay(x.cancelled_at, tz)} ${fmtTime(x.cancelled_at, tz)}: “${esc(x.cancel_reason)}”. The stock went back.</div>`
+        : `<form class="stack">
+            <label>Reason for cancelling<input name="reason" placeholder="e.g. wrong quantity, customer returned it" maxlength="300"></label>
+            <p class="error" role="alert"></p>
+            <button type="submit" class="danger">Cancel this sale</button>
+            <p class="hint muted">The products go back into stock. Who cancelled it and why are kept.</p>
+          </form>`}
+    </main>`, async ({ reason }) => {
+    if (!reason.trim()) throw new Say('Please say why the sale is cancelled.');
+    await api.rpc('cancel_sale', { p_sale: x.id, p_reason: reason.trim() });
+    toast('Sale cancelled · stock put back');
+    saleDetail(me, id);
+  });
+}

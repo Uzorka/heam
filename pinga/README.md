@@ -73,6 +73,17 @@ Stock tab (owners and managers). Products and prices are one list for the busine
 - **Alerts**: low stock (at or below the product's alert level, default 5), out of stock, expiring within 30 days, expired.
 - Who: owners every shop; managers only their shops; shop staff can read the price list and their own shop's stock (for the till in Part C), nothing else. Stock can only change through the logged functions. Tested in `tests/db/test_stock.sql` and `tests/unit/sheet.test.js`.
 
+## Sales at the till (Storefront and Both)
+
+Shop staff get a Sell tab: search or scroll the price list, tap to add, change the quantity and the price (customers haggle), Save sale. It works with no signal: the sale waits on the phone (the same outbox as clock-ins) and is sent when signal comes back; each sale has its own id, so a re-send is never counted twice. The price list and the shop's stock are kept on the phone; sales still waiting count against the stock shown.
+
+- Below the product's lowest allowed price: allowed, warned on screen, flagged for the manager.
+- More than the recorded stock: allowed, warned, flagged ("Sold when out of stock"); the stock goes negative so the wrong count shows.
+- Above the selling price: the phone asks "Save anyway?" (usually a typing slip).
+- My sales: today's sales; "Report a mistake" sends a note to the manager. Staff can't cancel.
+- Managers and owners: Stock → Sales today (total, discounts, what to check), each sale with its products and flags; Cancel needs a reason, puts the stock back, and keeps who, when and why.
+- Rules in the database (`record_sale`, `cancel_sale`, `report_sale_mistake`), tested in `tests/db/test_sales.sql`.
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

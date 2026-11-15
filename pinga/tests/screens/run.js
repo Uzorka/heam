@@ -33,6 +33,7 @@ const products = [];
 const stockRows = new Map();     // `${branch}|${product}` -> { qty, expires_on }
 const stockChanges = [];
 const stockImports = [];
+const sales = [];
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
 const payRates = new Map();
@@ -74,7 +75,8 @@ async function fakeSupabase(route) {
   if (p === '/auth/v1/token') {
     const who = body.email === 'elvis@chfheron.com' && body.password === 'password1' ? 'u-owner'
       : body.email === '2348031234567@phone.usepinga.com' && body.password === '482913' ? 'u-sade'
-      : body.email === '2348059876543@phone.usepinga.com' && body.password === '482913' ? 'u-remi' : null;
+      : body.email === '2348059876543@phone.usepinga.com' && body.password === '482913' ? 'u-remi'
+      : body.email === '2348035550101@phone.usepinga.com' && body.password === '482913' ? 'u-kemi' : null;
     if (!who) return json(route, { code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' }, 400);
     signedInAs = who;
     return json(route, { access_token: 'at-' + who, refresh_token: 'rt', expires_in: 3600, user: { id: who, email: body.email } });
@@ -177,6 +179,42 @@ async function fakeSupabase(route) {
       const soon = v.expires_on && v.qty > 0 && v.expires_on <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
       return soon || v.qty <= x.low_stock_at ? [{ product_id: x.id, product: x.name, qty: v.qty, alert: soon ? 'expiring' : v.qty <= 0 ? 'out' : 'low' }] : [];
     }));
+  }
+  // ── Sales ──
+  if (p === '/rest/v1/sales' && m === 'GET') {
+    const id = param(q, 'id'), mid = param(q, 'member_id'), b = param(q, 'branch_id'), day = param(q, 'local_date');
+    return json(route, sales.filter((x) => (!id || x.id === id) && (!mid || x.member_id === mid) && (!b || x.branch_id === b) && (!day || x.local_date === day))
+      .sort((a, c) => c.happened_at.localeCompare(a.happened_at)));
+  }
+  if (p === '/rest/v1/rpc/record_sale') {
+    const had = sales.find((x) => x.id === body.p_id);
+    if (had) return json(route, had);
+    let total = 0, discount = 0; const flags = new Set();
+    const sale_items = body.p_items.map((i, n) => {
+      const x = products.find((y) => y.id === i.product_id), before = stockRows.get(body.p_branch + '|' + x.id)?.qty ?? 0;
+      const f = [...(x.lowest_price != null && i.unit_price < x.lowest_price ? ['below_lowest'] : []), ...(before < i.qty ? ['out_of_stock'] : [])];
+      f.forEach((y) => flags.add(y));
+      total += i.qty * i.unit_price;
+      if (x.price != null && i.unit_price < x.price) discount += i.qty * (x.price - i.unit_price);
+      applyStock(body.p_branch, x.id, -i.qty, true, null, 'sale');
+      return { line: n + 1, product_id: x.id, product_name: x.name, qty: i.qty, unit_price: i.unit_price, list_price: x.price, lowest_price: x.lowest_price, stock_before: before, flags: f };
+    });
+    const row = { id: body.p_id, branch_id: body.p_branch, member_id: me.id, seller_name: me.full_name, happened_at: body.p_happened_at, local_date: lagosDate(body.p_happened_at),
+      total, discount, flags: [...flags], cancelled_at: null, cancelled_by_name: null, cancel_reason: null, mistake_note: null, mistake_at: null, sale_items };
+    sales.push(row);
+    return json(route, row);
+  }
+  if (p === '/rest/v1/rpc/report_sale_mistake') { Object.assign(sales.find((x) => x.id === body.p_sale), { mistake_note: body.p_note, mistake_at: new Date().toISOString() }); return json(route, null); }
+  if (p === '/rest/v1/rpc/cancel_sale') {
+    const x = sales.find((y) => y.id === body.p_sale);
+    Object.assign(x, { cancelled_at: new Date().toISOString(), cancelled_by_name: me.full_name, cancel_reason: body.p_reason });
+    x.sale_items.forEach((i) => applyStock(x.branch_id, i.product_id, i.qty, true, null, 'sale_cancelled', body.p_reason));
+    return json(route, null);
+  }
+  if (p === '/rest/v1/rpc/shop_sales_summary') {
+    const day = sales.filter((x) => x.branch_id === body.p_branch && x.local_date === body.p_day), live = day.filter((x) => !x.cancelled_at);
+    return json(route, { sales: live.length, total: live.reduce((t, x) => t + x.total, 0), discount: live.reduce((t, x) => t + x.discount, 0),
+      cancelled: day.length - live.length, flagged: live.filter((x) => x.flags.length).length, mistakes: live.filter((x) => x.mistake_note).length });
   }
   if (p === '/rest/v1/rpc/set_business_type') { company.business_type = body.p_type; return json(route, null); }
   if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
@@ -380,7 +418,7 @@ await page.reload();
 await page.getByText('1 waiting to send').waitFor();
 step('closing and reopening the app with no signal keeps the waiting clock-out');
 await page.getByRole('button', { name: 'Sign out' }).click();
-await page.getByText("Some check-ins haven't been sent yet").waitFor();
+await page.getByText("Some records haven't been sent yet").waitFor();
 step('cannot sign out while clock-ins are waiting (they would be lost)');
 const tappedAt = Date.now();
 await page.waitForTimeout(1500);
@@ -1011,6 +1049,83 @@ await page.getByRole('heading', { name: 'Import history' }).waitFor();
 assert.equal(await page.locator('.list li').count(), 2);
 await shot('stock-import-history');
 step('Import history lists every file: kind, shop, who, when, how many');
+
+// ── Shop staff sell (with no signal), report a mistake; the owner cancels the sale ──
+await page.goto(base + '#/stock');
+await page.getByRole('button', { name: 'Sign out' }).click();
+const kemi = people.find((x) => x.full_name === 'Kemi Yaba');
+Object.assign(kemi, { user: 'u-kemi', joined_at: '2026-11-15', invite_token: null, reference_photo_path: 'c1/kemi/ref.jpg' });
+await page.getByLabel('Phone number').fill('0803 555 0101');
+await page.getByLabel('PIN').fill('482913');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('link', { name: 'Record a sale' }).waitFor();
+assert.deepEqual(await page.locator('.tabbar span').allInnerTexts(), ['Clock', 'Sell', 'My sales'], 'shop staff: Clock, Sell, My sales');
+await shot('shop-staff-home');
+step('Shop staff: home has Clock in plus Record a sale; tab bar Clock / Sell / My sales');
+await page.getByRole('link', { name: 'Record a sale' }).click();
+await page.getByRole('heading', { name: 'Sell' }).waitFor();
+await page.getByLabel('Search product or code').fill('pm400');
+assert.equal(await page.locator('#picks li:not([hidden])').count(), 1, 'search finds by code');
+await page.locator('#picks li:not([hidden]) .pick').click();
+await page.locator('.pick', { hasText: 'Golden Penny Sugar' }).click();
+await page.getByLabel('One more').first().click();
+await page.getByLabel('Price each for Peak Milk 400g').fill('2400');
+assert.equal(await page.locator('.line').first().locator('.warn-line').count(), 0, '₦2,400 is inside the range: no warning');
+await page.getByLabel('Price each for Peak Milk 400g').fill('2200');
+await page.getByText('Below the lowest price (₦2,300). Your manager will see it.').waitFor();
+await page.locator('.line', { hasText: 'Golden Penny' }).getByRole('spinbutton', { name: 'Quantity' }).fill('4');
+await page.getByText('Only 3 in stock. You can still sell; your manager will see it.').waitFor();
+assert.equal(await page.locator('#total').innerText(), '₦9,200');
+await shot('till-basket');
+step('Till: search, tap to add, quantity and haggled price; below-lowest price and short stock are warned, not blocked');
+networkDown = true;
+await page.getByRole('button', { name: 'Save sale' }).click();
+await page.getByText('Sale saved · ₦9,200').waitFor();
+await page.getByText('1 waiting to send').waitFor();
+assert.equal(await page.locator('.pick', { hasText: 'Golden Penny Sugar' }).locator('.muted').innerText(), 'Out of stock', 'the phone counts the waiting sale against stock');
+assert.equal(await page.locator('#cart').isHidden(), true, 'the till is ready for the next customer');
+await shot('till-saved-offline');
+step('Till: sale saved with no signal; waits on the phone; stock on screen goes down');
+await page.getByRole('link', { name: 'My sales' }).click();
+await page.getByText('Waiting to send').waitFor();
+networkDown = false;
+await page.evaluate(() => dispatchEvent(new Event('online')));
+await until(() => sales.length === 1, 'the sale to arrive');
+assert.deepEqual(sales[0].flags, ['below_lowest', 'out_of_stock']);
+assert.equal(stockRows.get(sales[0].branch_id + '|' + sales[0].sale_items[1].product_id).qty, -1);
+await page.getByRole('link', { name: 'Sell' }).click();
+await page.getByRole('link', { name: 'My sales' }).click();
+await page.getByRole('button', { name: 'Report a mistake' }).waitFor();
+page.once('dialog', (d) => d.accept('Sugar was 3, not 4'));
+await page.getByRole('button', { name: 'Report a mistake' }).click();
+await page.getByText('Mistake reported: Sugar was 3, not 4').waitFor();
+await shot('my-sales');
+step('Signal back: the sale is sent once, flagged; staff can report a mistake (they cannot cancel)');
+await page.getByRole('button', { name: 'Sign out' }).click();
+await page.getByRole('heading', { name: 'Sign in' }).waitFor();
+
+await page.goto(base + '#/owner');
+await page.getByLabel('Email').fill('elvis@chfheron.com');
+await page.getByLabel('Password').fill('password1');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+await page.goto(base + '#/stock/' + sales[0].branch_id);
+await page.getByText('1 mistake reported').waitFor();
+assert.match(await page.locator('.salescard').innerText(), /₦9,200 · 1 sale/);
+await page.locator('.salescard').click();
+await page.getByRole('heading', { name: 'To check (1)' }).waitFor();
+await page.getByText('Discounts given: ₦600').waitFor();
+await shot('owner-shop-sales');
+await page.locator('.list').first().locator('a.sale').click();
+await page.getByText('Kemi Yaba reported a mistake:').waitFor();
+await page.getByRole('button', { name: 'Cancel this sale' }).click();
+await page.getByText('Please say why the sale is cancelled.').waitFor();
+await page.getByLabel('Reason for cancelling').fill('Wrong quantity of sugar; Kemi will re-enter');
+await page.getByRole('button', { name: 'Cancel this sale' }).click();
+await page.getByText(/Cancelled by elvis uzorka, .*Wrong quantity of sugar/).waitFor();
+assert.equal(stockRows.get(sales[0].branch_id + '|' + sales[0].sale_items[1].product_id).qty, 3, 'stock went back');
+await shot('owner-sale-cancelled');
+step('Owner: sees the day\'s sales, discounts and what to check; cancels with a reason; stock goes back');
 
 // Switch to Both: offices and shops, stores and reps back.
 await page.goto(base + '#/business');

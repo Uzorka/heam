@@ -341,3 +341,34 @@ a.chip { display: inline-flex; align-items: center; text-decoration: none; }
 .problems { margin: 8px 0; padding-left: 18px; font-weight: 400; }
 .problems li { margin: 2px 0; }
 button.back { width: auto; padding: 0; min-height: 0; margin-bottom: 8px; }
+
+/* Till (shop staff) */
+.cart { margin-bottom: 14px; border: 2px solid var(--mango); }
+.cart h2 { font-size: 17px; margin: 0 0 8px; }
+.lines { list-style: none; margin: 0; padding: 0; }
+.line { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.line-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.line-top .link { width: auto; min-height: 0; padding: 4px 0; }
+.line-row { display: flex; gap: 10px; align-items: center; }
+.stepper { display: flex; align-items: center; border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; flex: none; }
+.stepper button { width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 0; background: var(--grey-bg); color: var(--ink); font-size: 22px; font-weight: 800; }
+.stepper input { width: 52px; min-height: 44px; border: 0; border-radius: 0; text-align: center; padding: 0; font-weight: 800; -moz-appearance: textfield; }
+.stepper input::-webkit-inner-spin-button, .stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.price { flex: 1; flex-direction: row; align-items: center; gap: 4px; font-weight: 800; }
+.price input { flex: 1; min-width: 0; }
+.warn-line { display: block; color: var(--late); font-weight: 700; font-size: 13px; }
+.cart-total { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 4px; font-size: 18px; font-weight: 800; }
+.cart-total b { font-size: 24px; }
+button.pick { width: 100%; text-align: left; font: inherit; color: var(--ink); cursor: pointer; min-height: 0; }
+.pick-price { display: flex; align-items: center; gap: 10px; font-weight: 800; flex: none; }
+.pick-price .add { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; background: var(--mango); color: var(--ink); font-size: 22px; line-height: 1; }
+.sale .row { display: flex; justify-content: space-between; }
+.sale.cancelled { opacity: .7; }
+.sale.cancelled b { text-decoration: line-through; }
+.sale .pill { align-self: flex-start; white-space: normal; }
+button.danger { background: var(--bad-bg); color: var(--bad); border: 1.5px solid var(--bad); }
+.salescard { margin-bottom: 12px; }
+.salescard .big { font-size: 22px; }
+.brow .grow .pill { align-self: flex-start; }
+.button.big + .button.big { margin-top: 12px; }
+.banner + .banner, .banner + form { margin-top: 12px; }

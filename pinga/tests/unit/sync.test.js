@@ -132,3 +132,27 @@ test('a visit without a shelf photo or note sends neither', async () => {
   assert.equal(t.sent[0].p_shelf_path, null);
   assert.equal(t.sent[0].p_note, null);
 });
+
+test('a sale waiting on the phone is sent with its own id, products, quantities and prices', async () => {
+  const t = setup();
+  await t.sync.add({ type: 'sale', id: 's1', member_id: 'me', company_id: 'co', branch_id: 'shop1', happened_at: '2026-11-16T10:00:00Z', total: 5050,
+    items: [{ product_id: 'p1', name: 'Peak Milk', qty: 2, unit_price: 2400 }, { product_id: 'p2', name: 'Indomie', qty: 1, unit_price: 250 }] });
+  await t.sync.flush();
+  assert.deepEqual(t.sent, [{ p_id: 's1', p_branch: 'shop1', p_happened_at: '2026-11-16T10:00:00Z', p_device_now: '2026-11-16T08:30:00.000Z',
+    p_items: [{ product_id: 'p1', qty: 2, unit_price: 2400 }, { product_id: 'p2', qty: 1, unit_price: 250 }] }]);
+  assert.equal(await t.sync.count(), 0, 'removed from the phone once the server has it');
+  assert.deepEqual(t.uploads, [], 'no photos for a sale');
+});
+
+test('a sale with no signal stays on the phone and goes later', async () => {
+  let online = false;
+  const t = setup({ rpc: async (fn, args) => { if (!online) throw offline(); t.sent.push({ fn, ...args }); return {}; } });
+  await t.sync.add({ type: 'sale', id: 's2', member_id: 'me', company_id: 'co', branch_id: 'shop1', happened_at: '2026-11-16T10:00:00Z', total: 250,
+    items: [{ product_id: 'p2', name: 'Indomie', qty: 1, unit_price: 250 }] });
+  await t.sync.flush();
+  assert.equal(await t.sync.count(), 1);
+  online = true;
+  await t.sync.flush();
+  assert.equal(t.sent[0].fn, 'record_sale');
+  assert.equal(await t.sync.count(), 0);
+});

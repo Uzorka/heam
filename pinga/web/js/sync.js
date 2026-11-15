@@ -1,4 +1,4 @@
-// Sends saved clock-ins and store visits when there is signal. Oldest first. Safe to run any number of
+// Sends saved clock-ins, store visits and sales when there is signal. Oldest first. Safe to run any number of
 // times: each record has its own id, so a re-send never creates a duplicate.
 
 export function createSync({ store, api, report, memberId }) {
@@ -19,6 +19,13 @@ export function createSync({ store, api, report, memberId }) {
   }
 
   async function send(rec) {
+    if (rec.type === 'sale') {
+      return api.rpc('record_sale', {
+        p_id: rec.id, p_branch: rec.branch_id, p_happened_at: rec.happened_at,
+        p_items: rec.items.map((i) => ({ product_id: i.product_id, qty: i.qty, unit_price: i.unit_price })),
+        p_device_now: api.serverNow().toISOString(),
+      });
+    }
     if (rec.type === 'visit') {
       const selfie = await upload(rec, rec.selfie, rec.id);
       const shelf = await upload(rec, rec.shelf, rec.id + '-shelf');

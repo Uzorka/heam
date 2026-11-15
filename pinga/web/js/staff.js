@@ -14,14 +14,30 @@ export async function staffRoute(me, name, arg) {
   if (me.role === 'rep' && me.reference_photo_path) return (await import('./field.js')).fieldRoute(me, name, arg);
   if (!me.reference_photo_path) return referencePhoto(me);
   if (name === 'clock') return clock(me, arg === 'out' ? 'out' : 'in');
+  // Shop staff also sell. The till is downloaded only by them.
+  if (await worksInShop(me)) {
+    const till = await import('./till.js');
+    if (name === 'sell') return till.sell(me);
+    if (name === 'mysales') return till.mySales(me);
+    return home(me, till.tabBar('home'));
+  }
   return home(me);
+}
+
+// Storefront: every location is a shop. Both: only locations marked as a shop.
+async function worksInShop(me) {
+  const type = me.companies.business_type;
+  if (me.role !== 'staff' || !me.branch_id || !['storefront', 'both'].includes(type)) return false;
+  if (type === 'storefront') return true;
+  const b = await api.cached('mybranch', () => api.select('branches', `select=kind&id=eq.${me.branch_id}`)).catch(() => []);
+  return b[0]?.kind === 'shop';
 }
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
 
 // ── Home ────────────────────────────────────────────────────
 
-async function home(me) {
+async function home(me, tabs = '') {
   const tz = me.companies.timezone;
   const today = localDate(api.serverNow(), tz);
   const isToday = (r) => localDate(new Date(r.happened_at), tz) === today;
@@ -31,7 +47,7 @@ async function home(me) {
     return [];
   });
   const waiting = (await outbox.all()).filter((r) => r.member_id === me.id);
-  const events = [...sent.filter(isToday), ...waiting.filter((w) => w.type !== 'visit' && isToday(w) && !sent.some((s) => s.id === w.id))]
+  const events = [...sent.filter(isToday), ...waiting.filter((w) => !w.type && isToday(w) && !sent.some((s) => s.id === w.id))]
     .sort((a, b) => a.happened_at.localeCompare(b.happened_at));
   const last = events[events.length - 1];
   const firstIn = events.find((e) => e.kind === 'in');
@@ -48,7 +64,7 @@ async function home(me) {
   const n = waiting.length;
 
   show(`
-    <main class="page narrow">
+    <main class="page narrow${tabs ? ' has-tabs' : ''}">
       ${header(me, greeting())}
       <div class="card hero staff-hero">
         ${happyPin(64)}
@@ -56,13 +72,15 @@ async function home(me) {
         <p class="status">${status}</p></div>
       </div>
       <a class="primary button big" href="#/clock/${next}">${ICON.clock}${next === 'in' ? 'Clock in' : 'Clock out'}</a>
+      ${tabs ? '<a class="secondary button big" href="#/sell">Record a sale</a>' : ''}
       <p class="waiting" id="waiting" role="status">${waitingText(n)}</p>
-    </main>`);
+    </main>
+    ${tabs}`);
   wireSignOut(safeToSignOut);
   const off = sync.onChange((count) => {
     const el = document.getElementById('waiting');
     if (el) el.textContent = waitingText(count);
-    if (count < n) { off(); home(me).catch(report); } // something was sent: refresh to show lateness
+    if (count < n) { off(); home(me, tabs).catch(report); } // something was sent: refresh to show lateness
   });
   onLeave(off);
 }

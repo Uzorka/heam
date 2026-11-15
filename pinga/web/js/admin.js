@@ -43,8 +43,10 @@ export async function adminRoute(me, name, arg) {
   PLACE.office = officeKind(F);
   // Features this business type doesn't use are not reachable.
   if (!F.visits && ['stores', 'store', 'assign'].includes(name)) return go('#/setup');
-  if (F.shop && ['stock', 'product', 'import', 'imports'].includes(name)) {
+  if (F.shop && ['stock', 'product', 'import', 'imports', 'sales', 'sale'].includes(name)) {
     const st = await import('./stock.js');
+    if (name === 'sales') return st.shopSales(me, arg);
+    if (name === 'sale') return st.saleDetail(me, arg);
     if (name === 'stock') return st.stockList(me, arg, tabs);
     if (name === 'product') return st.productForm(me, arg, tabs);
     if (name === 'import') return st.importScreen(me, tabs);

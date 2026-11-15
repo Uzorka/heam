@@ -6,6 +6,19 @@ import { logo, ICON } from './icons.js';
 export const app = document.getElementById('app');
 export const ROLE = { owner: 'Owner', admin: 'Manager', staff: 'Office staff', rep: 'Sales rep' };
 
+// Business type: Field sales / Storefront / Both. Decides which features show.
+export const BUSINESS = {
+  field: { name: 'Field sales', blurb: 'Office staff clock in; sales reps visit the stores you assign them.' },
+  storefront: { name: 'Storefront', blurb: 'Your staff work in your shops. Attendance, stock and sales.' },
+  both: { name: 'Both', blurb: 'Offices, shops and sales reps: everything on.' },
+};
+export function feats(me) {
+  const type = me?.companies?.business_type || 'field';
+  // Words follow the type: "Shop staff" in a Storefront business.
+  ROLE.staff = type === 'storefront' ? 'Shop staff' : type === 'both' ? 'Staff' : 'Office staff';
+  return { type, visits: type !== 'storefront', shop: type !== 'field', offices: type !== 'storefront' };
+}
+
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // A message meant for the person on screen (not a bug, so not reported).

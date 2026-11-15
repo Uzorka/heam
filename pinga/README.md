@@ -52,6 +52,16 @@ Same layout and flow as the CHF Heron field sales tracker.
 - Saved on the phone first, like clock-ins. **History** shows the last 30 days.
 - Managers add **Stores** (a name and address is enough; the first visit with good GPS saves the location, flagged for checking), set each rep's **visits per day**, and tick the **stores each rep covers**. Each rep's page shows recent visits with selfie, shelf photo, note and flags.
 
+## Business types (Field sales / Storefront / Both)
+
+Picked at sign-up; the owner can change it any time in Setup → Business type (nothing is deleted when it changes).
+
+- **Field sales**: offices, office staff, sales reps and store visits (as before).
+- **Storefront**: shops instead of offices, shop staff and managers. No stores, reps or store visits (the database refuses them). A Stock tab appears (products, stock and sales arrive in Part B).
+- **Both**: everything on. Each location is marked office or shop.
+
+Staff are invited straight into their shop. The owner ticks which shops each manager looks after (on the manager's page); a manager then sees only the staff of those shops (plus staff not in any shop yet) everywhere: Team, Today, Overview, exports. Owners see every shop. Office staff are visible to every manager as before. Enforced in the database (`private.can_see_member`, `manager_shops`), tested in `tests/db/test_business.sql`.
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

@@ -3,7 +3,7 @@ import * as api from './api.js';
 import { normalizePhone, displayPhone } from './phone.js';
 import { watchBest, parseLatLng } from './gps.js';
 import { ICON } from './icons.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS } from './ui.js';
 
 let banner = '';
 let flags = null;   // what's switched on (payments, face check); loaded once per visit
@@ -22,7 +22,10 @@ function billingBanner(me) {
   return '';
 }
 
-const NAV = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
+const NAV_FIELD = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
+const NAV_SHOP = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/stock', 'Stock', 'stock'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
+let NAV = NAV_FIELD;
+let F = feats(null);   // what this business type uses (set on every visit)
 // Top segmented control on desktop; bottom tab bar with icons on phones (like iPhone apps).
 const tabs = (on) => `${banner}
   <nav class="tabs" aria-label="Sections">
@@ -35,6 +38,13 @@ const tabs = (on) => `${banner}
 export async function adminRoute(me, name, arg) {
   if (!flags) flags = await api.rpc('app_flags').catch(() => ({}));
   banner = billingBanner(me);
+  F = feats(me);
+  NAV = F.shop ? NAV_SHOP : NAV_FIELD;
+  PLACE.office = officeKind(F);
+  // Features this business type doesn't use are not reachable.
+  if (!F.visits && ['stores', 'store', 'assign'].includes(name)) return go('#/setup');
+  if (name === 'stock' && F.shop) return stockSoon(me);
+  if (name === 'business') return businessType(me);
   if (name === 'billing') return import('./billing.js').then((m) => m.billing(me, arg));
   if (name === 'invite') return invite(me);
   if (name === 'person') return person(me, arg);
@@ -58,7 +68,7 @@ export async function adminRoute(me, name, arg) {
 async function team(me) {
   const [people, assigned] = await Promise.all([
     api.select('members', `select=id,full_name,phone,role,joined_at,daily_visit_target&company_id=eq.${me.company_id}&active=is.true&order=full_name`),
-    api.select('store_assignments', `select=member_id&company_id=eq.${me.company_id}`),
+    F.visits ? api.select('store_assignments', `select=member_id&company_id=eq.${me.company_id}`) : [],
   ]);
   const storesOf = (id) => assigned.filter((a) => a.member_id === id).length;
   const repLine = (p) => { const n = storesOf(p.id); return n ? `${n} store${n === 1 ? '' : 's'} · ${p.daily_visit_target ?? 4} visits a day` : '<span class="late">No stores assigned yet</span>'; };
@@ -79,8 +89,20 @@ async function team(me) {
   wireSignOut();
 }
 
-function invite(me) {
-  const roles = [['staff', 'Office staff', 'Clocks in at the office'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
+// Who can be invited depends on the business type.
+function inviteRoles() {
+  if (F.type === 'storefront') return [['staff', 'Shop staff', 'Clocks in at their shop'], ['admin', 'Manager', 'Looks after one or more shops']];
+  if (F.type === 'both') return [['staff', 'Staff', 'Clocks in at an office or shop'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
+  return [['staff', 'Office staff', 'Clocks in at the office'], ['rep', 'Sales rep', 'Visits stores'], ['admin', 'Manager', 'Manages the team']];
+}
+
+// Where staff work: "Shop" in a Storefront, "Office or shop" in Both, "Home office" in Field sales.
+const workplaceLabel = () => (F.type === 'storefront' ? 'Shop' : F.type === 'both' ? 'Works at' : 'Home office');
+
+async function invite(me) {
+  const roles = inviteRoles();
+  const places = F.shop ? await api.select('branches', `select=id,name,kind&company_id=eq.${me.company_id}&order=name`) : [];
+  const placeName = (b) => esc(b.name) + (F.type === 'both' ? (b.kind === 'shop' ? ' (shop)' : ' (office)') : '');
   show(`
     <main class="page narrow">
       ${backLink('#/team', 'Team')}
@@ -91,19 +113,30 @@ function invite(me) {
         <fieldset class="choices"><legend>Role</legend>
           ${roles.map(([v, t, d], i) => `<label class="choice"><input type="radio" name="role" value="${v}"${i ? '' : ' checked'}><span><strong>${t}</strong><br><span class="muted">${d}</span></span></label>`).join('')}
         </fieldset>
+        ${F.shop ? `<label id="where">${workplaceLabel()}<select name="branch"><option value="">${places.length ? 'Choose later' : 'Add a shop in Setup first'}</option>${places.map((b) => `<option value="${b.id}">${placeName(b)}</option>`).join('')}</select>
+          <span class="hint muted">${F.type === 'storefront' ? 'Staff see and sell only in their shop.' : 'Shop staff see and sell only in their shop.'}</span></label>` : ''}
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Create invite</button>
       </form>
-    </main>`, async ({ full_name, phone, role }) => {
+    </main>`, async ({ full_name, phone, role, branch }) => {
     const p = normalizePhone(phone);
     if (!p) throw new Say('Enter a valid phone number, like 0803 123 4567.');
     let row;
-    try { row = await api.insert('members', { company_id: me.company_id, full_name: full_name.trim(), phone: p, role }); } catch (x) {
+    const fields = { company_id: me.company_id, full_name: full_name.trim(), phone: p, role };
+    if (role === 'staff' && branch) fields.branch_id = branch;
+    try { row = await api.insert('members', fields); } catch (x) {
       if (x.code === '23505') throw new Say('Someone with this phone number is already in your team.');
       throw x;
     }
     go('#/person/' + row.id);
   });
+  // The shop question is only for staff.
+  const where = document.getElementById('where');
+  if (where) {
+    const sync = () => { where.hidden = app.querySelector('input[name=role]:checked')?.value !== 'staff'; };
+    app.querySelectorAll('input[name=role]').forEach((r) => r.addEventListener('change', sync));
+    sync();
+  }
 }
 
 // Loads private photos into <img data-photo="path"> once the screen is shown.
@@ -128,10 +161,15 @@ async function person(me, id) {
   ]);
   if (!p) return go('#/team');
   const isRep = p.role === 'rep', isStaff = p.role === 'staff', seesPay = me.role === 'owner' && (isRep || isStaff);
-  const [offices, pay] = await Promise.all([
-    isStaff ? api.select('branches', `select=id,name&company_id=eq.${me.company_id}&order=name`) : [],
+  // Owners choose which shops a manager looks after.
+  const pickShops = F.shop && p.role === 'admin' && me.role === 'owner';
+  const [offices, pay, myShops] = await Promise.all([
+    isStaff || pickShops ? api.select('branches', `select=id,name,kind&company_id=eq.${me.company_id}&order=name`) : [],
     seesPay ? api.select('pay_rates', `select=monthly_naira&member_id=eq.${mid}`) : [],
+    pickShops ? api.select('manager_shops', `select=branch_id&manager_id=eq.${mid}`) : [],
   ]);
+  const shops = offices.filter((b) => F.type === 'storefront' || b.kind === 'shop');
+  const placeName = (b) => esc(b.name) + (F.type === 'both' ? (b.kind === 'shop' ? ' (shop)' : ' (office)') : '');
   const monthly = pay[0]?.monthly_naira;
   const [assigned, visits, stores] = isRep ? await Promise.all([
     api.select('store_assignments', `select=store_id&member_id=eq.${mid}`),
@@ -153,8 +191,8 @@ async function person(me, id) {
       <div class="card stack">
         <form class="stack details">
           ${isRep ? `<label>Visits per day<input name="target" type="number" min="0" max="50" value="${p.daily_visit_target ?? 4}" required></label>` : ''}
-          ${isStaff ? `<label>Home office<select name="branch"><option value="">Not set</option>${offices.map((o) => `<option value="${o.id}"${o.id === p.branch_id ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
-            <span class="hint muted">Used on the owner's dashboard when they haven't clocked in yet.</span></label>` : ''}
+          ${isStaff ? `<label>${workplaceLabel()}<select name="branch"><option value="">Not set</option>${offices.map((o) => `<option value="${o.id}"${o.id === p.branch_id ? ' selected' : ''}>${placeName(o)}</option>`).join('')}</select>
+            <span class="hint muted">${F.shop ? 'Their shop decides which manager sees them.' : "Used on the owner's dashboard when they haven't clocked in yet."}</span></label>` : ''}
           ${seesPay ? `<label><span>Monthly pay (₦) <span class="muted">(optional)</span></span><input name="pay" type="number" min="0" step="1" inputmode="numeric" value="${monthly ?? ''}" placeholder="e.g. 150000">
             <span class="hint muted">Only you (the owner) can see this. Used to show the cost of lost time.</span></label>` : ''}
           <p class="error" role="alert"></p>
@@ -163,6 +201,14 @@ async function person(me, id) {
         ${isRep ? `<a class="row link-row" href="#/assign/${p.id}"><span>Assigned stores</span><span><b>${assigned.length}</b> ${chev}</span></a>` : ''}
       </div>
       ${visits.length ? `<h2 class="section">Recent visits</h2><ul class="list">${visits.map(visitRow).join('')}</ul>` : ''}` : '';
+  const shopsCard = pickShops ? `
+      <h2 class="section">Shops they look after</h2>
+      <form class="card stack shops">
+        ${shops.length ? `<fieldset class="choices"><legend class="sr">Shops</legend>${shops.map((b) => `<label class="choice"><input type="checkbox" name="shop" value="${b.id}"${myShops.some((m) => m.branch_id === b.id) ? ' checked' : ''}><span><strong>${esc(b.name)}</strong></span></label>`).join('')}</fieldset>`
+          : '<p class="muted">No shops yet. <a href="#/offices">Add a shop</a> first.</p>'}
+        <p class="hint muted">${esc(firstName(p.full_name))} will see only the staff of these shops. Leave all unticked and they see staff who aren't in any shop yet.</p>
+        ${shops.length ? '<p class="error" role="alert"></p><button type="submit" class="secondary">Save shops</button>' : ''}
+      </form>` : '';
   const first = firstName(p.full_name);
   const share = (token) => {
     const link = `${location.origin}${location.pathname}#/join/${token}`;
@@ -201,6 +247,7 @@ async function person(me, id) {
         ${(isRep || isStaff) && p.joined_at && !p.reference_photo_path ? `<p class="muted small">${esc(first)} will be asked for a reference photo next time they open Pinga.</p>` : ''}
       </div>
       ${details}
+      ${shopsCard}
       ${records.length ? `<h2 class="section">Recent clock-ins</h2><ul class="list">${records.map(row).join('')}</ul>` : ''}
     </main>`, isRep || isStaff ? async ({ target, branch, pay: newPay }) => {
     const changes = isRep ? { daily_visit_target: Number(target) } : { branch_id: branch || null };
@@ -212,6 +259,24 @@ async function person(me, id) {
     toast(isRep ? `Target saved: ${Number(target)} visits a day` : 'Saved');
   } : undefined);
   loadPhotos();
+  const shopForm = app.querySelector('form.shops');
+  if (shopForm && shops.length) {
+    shopForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = shopForm.querySelector('button'), out = shopForm.querySelector('.error');
+      btn.disabled = true; out.textContent = '';
+      try {
+        const want = new Set(new FormData(shopForm).getAll('shop'));
+        const had = new Set(myShops.map((m) => m.branch_id));
+        const add = [...want].filter((b) => !had.has(b)).map((b) => ({ company_id: me.company_id, manager_id: p.id, branch_id: b }));
+        const drop = [...had].filter((b) => !want.has(b));
+        if (drop.length) await api.remove('manager_shops', `manager_id=eq.${p.id}&branch_id=in.(${drop.join(',')})`);
+        if (add.length) await api.insertRows('manager_shops', add);
+        myShops.splice(0, myShops.length, ...[...want].map((b) => ({ branch_id: b })));
+        toast(want.size ? `${first} looks after ${want.size} shop${want.size === 1 ? '' : 's'}` : 'Saved');
+      } catch (x) { out.textContent = friendly(x); } finally { btn.disabled = false; }
+    });
+  }
   const wireCopy = () => {
     const btn = document.getElementById('copy');
     if (!btn) return;
@@ -248,6 +313,20 @@ async function person(me, id) {
 
 // ── Offices and stores ──────────────────────────────────────
 
+// "Offices" in a Field sales business, "Shops" in a Storefront, both in a Both.
+function officeKind(f) {
+  if (f.type === 'storefront') {
+    return { ...PLACE_OFFICE, plural: 'Shops', one: 'shop', empty: 'Add your shop so your staff can clock in there.', example: 'e.g. Yaba shop',
+      areaHint: 'Staff must be this close to clock in without a flag. 100 m suits most shops.',
+      hint: 'Stand in the shop and tap the button below, or paste the numbers from Google Maps.', kind: 'shop' };
+  }
+  if (f.type === 'both') {
+    return { ...PLACE_OFFICE, plural: 'Offices and shops', one: 'location', empty: 'Add your offices and shops so staff can clock in there.',
+      example: 'e.g. Yaba shop', hint: 'Stand there and tap the button below, or paste the numbers from Google Maps.', kind: 'choose' };
+  }
+  return { ...PLACE_OFFICE, kind: 'office' };
+}
+
 const PLACE = {
   office: {
     table: 'branches', plural: 'Offices', one: 'office', path: 'office', back: '#/offices',
@@ -255,12 +334,14 @@ const PLACE = {
     area: 'Clock-in area', areaHint: 'Staff must be this close to clock in without a flag. 100 m suits most offices.',
     needsLocation: true, hint: 'Stand in the office and tap the button below, or paste the numbers from Google Maps.',
   },
-  store: {
+  get store() { return PLACE_STORE; },
+};
+const PLACE_OFFICE = PLACE.office;
+const PLACE_STORE = {
     table: 'stores', plural: 'Stores', one: 'store', path: 'store', back: '#/stores',
     empty: 'Add the stores your sales reps visit, then assign them on each rep\'s page.', example: 'e.g. Shoprite Ikeja',
     area: 'Check-in area', areaHint: 'Reps must be this close to check in without a flag. 100 m suits most stores.',
     needsLocation: false, hint: 'Optional. Leave empty and the first visit with good GPS will save it. Or stand in the store and tap the button below, or paste from Google Maps.',
-  },
 };
 
 const whereText = (k, b) => (k.table !== 'stores' ? `${k.area} ${b.radius_m} m`
@@ -269,7 +350,7 @@ const whereText = (k, b) => (k.table !== 'stores' ? `${k.area} ${b.radius_m} m`
 
 async function places(me, k) {
   const isStores = k.table === 'stores';
-  const cols = isStores ? 'id,name,address,radius_m,lat,location_source' : 'id,name,address,radius_m';
+  const cols = isStores ? 'id,name,address,radius_m,lat,location_source' : 'id,name,address,radius_m,kind';
   const [list, assigned, reps] = await Promise.all([
     api.select(k.table, `select=${cols}&company_id=eq.${me.company_id}&order=name`),
     isStores ? api.select('store_assignments', `select=store_id,member_id&company_id=eq.${me.company_id}`) : [],
@@ -290,7 +371,7 @@ async function places(me, k) {
       <ul class="list">
         ${list.map((b) => `
           <li><a class="card row" href="#/${k.path}/${b.id}">
-            <span><strong>${esc(b.name)}</strong><br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span>
+            <span><strong>${esc(b.name)}</strong>${k.kind === 'choose' ? ` <span class="pill">${b.kind === 'shop' ? 'Shop' : 'Office'}</span>` : ''}<br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span>
               ${isStores ? `<br>${coveredBy(b.id).length ? `<span class="small">Visited by ${esc(coveredBy(b.id).join(', '))}</span>` : '<span class="pill wait">Not assigned yet</span>'}` : ''}</span>
             ${chev}
           </a></li>`).join('')}
@@ -316,6 +397,10 @@ async function placeForm(me, k, id) {
       <h1>${isNew ? `Add ${k.one}` : esc(b.name)}</h1>
       <form class="stack">
         <label>Name<input name="name" value="${esc(b.name)}" placeholder="${k.example}" required></label>
+        ${k.kind === 'choose' ? `<fieldset class="choices"><legend>Is this an office or a shop?</legend>
+          <label class="choice"><input type="radio" name="kind" value="office"${b.kind !== 'shop' ? ' checked' : ''}><span><strong>Office</strong><br><span class="muted">Staff clock in here</span></span></label>
+          <label class="choice"><input type="radio" name="kind" value="shop"${b.kind === 'shop' ? ' checked' : ''}><span><strong>Shop</strong><br><span class="muted">Staff clock in and sell here; managers see only their shops</span></span></label>
+        </fieldset>` : ''}
         <label><span>Address <span class="muted">(optional)</span></span><input name="address" value="${esc(b.address)}"></label>
         <label><span>Location${k.needsLocation ? '' : ' <span class="muted">(optional)</span>'}</span><input name="where" id="where" value="${b.lat != null ? `${b.lat}, ${b.lng}` : ''}" placeholder="6.5095, 3.3711" inputmode="decimal"${k.needsLocation ? ' required' : ''}>
           <span class="hint muted">${b.location_source === 'first_visit' ? 'Saved from the first visit. Change it if it looks wrong.' : k.hint}</span></label>
@@ -329,11 +414,13 @@ async function placeForm(me, k, id) {
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Save</button>
       </form>
-    </main>`, async ({ name, address, where, radius_m }, form) => {
+    </main>`, async ({ name, address, where, radius_m, kind }, form) => {
     const pos = where.trim() ? parseLatLng(where) : null;
     if (where.trim() && !pos) throw new Say('Location should look like 6.5095, 3.3711.');
     if (k.needsLocation && !pos) throw new Say('Please add the location.');
     const row = { name: name.trim(), address: address.trim() || null, lat: pos?.lat ?? null, lng: pos?.lng ?? null, radius_m: Number(radius_m) };
+    if (k.kind === 'choose') row.kind = kind === 'shop' ? 'shop' : 'office';
+    if (k.kind === 'shop' && isNew) row.kind = 'shop';
     if (k.table === 'stores') {
       const moved = !pos || pos.lat !== b.lat || pos.lng !== b.lng;
       row.location_source = !pos ? null : moved ? 'manager' : b.location_source;
@@ -343,7 +430,7 @@ async function placeForm(me, k, id) {
       if (isNew) saved = await api.insert(k.table, { company_id: me.company_id, ...row });
       else await api.update(k.table, `id=eq.${b.id}`, row);
     } catch (x) {
-      if (x.code === '23505') throw new Say(`You already have an ${k.one} with this name.`);
+      if (x.code === '23505') throw new Say(`You already have ${/^[aeiou]/.test(k.one) ? 'an' : 'a'} ${k.one} with this name.`);
       throw x;
     }
     if (isStore) {
@@ -422,8 +509,9 @@ async function setup(me) {
       ${header(me, 'Setup')}
       ${tabs('Setup')}
       <ul class="list">
-        <li><a class="card row" href="#/offices"><span><strong>Offices</strong><br><span class="muted">Where office staff clock in</span></span>${chev}</a></li>
-        <li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span>${chev}</a></li>
+        ${isOwner ? `<li><a class="card row" href="#/business"><span><strong>Business type</strong><br><span class="muted">${BUSINESS[F.type].name}</span></span>${chev}</a></li>` : ''}
+        <li><a class="card row" href="#/offices"><span><strong>${PLACE.office.plural}</strong><br><span class="muted">${F.type === 'storefront' ? 'Where your staff clock in and sell' : F.type === 'both' ? 'Where staff clock in' : 'Where office staff clock in'}</span></span>${chev}</a></li>
+        ${F.visits ? `<li><a class="card row" href="#/stores"><span><strong>Stores</strong><br><span class="muted">Where sales reps check in</span></span>${chev}</a></li>` : ''}
         <li><a class="card row" href="#/hours"><span><strong>Working hours</strong><br><span class="muted">Start, end, grace minutes, work days</span></span>${chev}</a></li>
         ${isOwner ? `<li><a class="card row" href="#/billing"><span><strong>Billing</strong><br><span class="muted">Plan, price for your team, payments</span></span>${chev}</a></li>` : ''}
         <li><a class="card row" href="#/export"><span><strong>Export register</strong><br><span class="muted">Excel or PDF, for any period</span></span>${chev}</a></li>
@@ -445,6 +533,47 @@ async function setup(me) {
       } catch (x) { sw.checked = !sw.checked; toast(friendly(x)); }
     };
   }
+}
+
+// ── Business type (owner) ───────────────────────────────────
+
+function businessType(me) {
+  if (me.role !== 'owner') return go('#/setup');
+  show(`
+    <main class="page narrow">
+      ${backLink('#/setup', 'Setup')}
+      <h1>Business type</h1>
+      <p class="muted">This decides which screens your team sees. Changing it never deletes anything: switch back and it's all still there.</p>
+      <form class="stack">
+        <fieldset class="choices"><legend>What kind of business?</legend>
+          ${Object.entries(BUSINESS).map(([v, b]) => `<label class="choice"><input type="radio" name="type" value="${v}"${v === F.type ? ' checked' : ''}><span><strong>${b.name}</strong><br><span class="muted">${b.blurb}</span></span></label>`).join('')}
+        </fieldset>
+        <p class="error" role="alert"></p>
+        <button type="submit" class="primary">Save</button>
+      </form>
+    </main>`, async ({ type }) => {
+    if (type === F.type) return go('#/setup');
+    await api.rpc('set_business_type', { p_type: type });
+    reloadMe();
+    toast(`Business type: ${BUSINESS[type].name}`);
+    go('#/setup');
+  });
+}
+
+// ── Stock (Storefront and Both). Products, stock and sales come in the next update. ──
+
+function stockSoon(me) {
+  show(`
+    <main class="page">
+      ${header(me, 'Stock')}
+      ${tabs('Stock')}
+      <div class="card stack center">
+        <p><strong>Products, stock and sales are coming next.</strong></p>
+        <p class="muted">You'll add products, import your stock list from Excel, and your shop staff will record sales here, even offline.</p>
+        <a class="secondary button" href="#/offices">Set up your shops</a>
+      </div>
+    </main>`);
+  wireSignOut();
 }
 
 // ── Face check setting (owner) ──────────────────────────────

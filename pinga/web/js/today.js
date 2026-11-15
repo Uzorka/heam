@@ -68,7 +68,7 @@ export async function today(me, arg, tabs) {
       ${allIn ? `<div class="happy-state">${happyPin(44)}<p>Everyone's in today.</p></div>` : ''}
       <input id="q" type="search" placeholder="Search name" aria-label="Search name"${rows.length > 8 ? '' : ' hidden'}>
       <label class="selall"><input type="checkbox" id="all"> <span>Select all shown</span></label>`
-      : progress ? checklist(progress) : '<p class="empty muted center">No office staff or sales reps yet. <a href="#/invite">Invite someone</a>.</p>'}
+      : progress ? checklist(progress, me.companies.business_type) : '<p class="empty muted center">No staff yet. <a href="#/invite">Invite someone</a>.</p>'}
       <ul class="board" id="list"${rows.length ? '' : ' hidden'}></ul>
     </main>
     <div class="bulkbar" id="bulk" hidden>

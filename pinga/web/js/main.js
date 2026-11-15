@@ -2,10 +2,17 @@
 import * as api from './api.js';
 import { normalizePhone, loginEmailFor, validPin, PHONE_LOGIN_DOMAIN } from './phone.js';
 import { catchAll } from './report.js';
-import { show, go, esc, Say, friendly, toast, firstName } from './ui.js';
+import { show, go, esc, Say, friendly, toast, firstName, BUSINESS } from './ui.js';
 import { wordmark } from './icons.js';
 
 const PENDING = 'pinga.pendingCompany';
+
+// The business type picker (sign-up and company set-up).
+const typePicker = (chosen = 'field') => `
+  <fieldset class="choices"><legend>What kind of business?</legend>
+    ${Object.entries(BUSINESS).map(([v, b]) => `<label class="choice"><input type="radio" name="type" value="${v}"${v === chosen ? ' checked' : ''} required><span><strong>${b.name}</strong><br><span class="muted">${b.blurb}</span></span></label>`).join('')}
+  </fieldset>
+  <p class="hint muted">You can change this later in Setup.</p>`;
 
 let me = null; // { id, role, full_name, company_id, reference_photo_path, companies: {...} }
 
@@ -67,14 +74,15 @@ function ownerSignUp() {
       <form class="stack">
         <label>Your name<input name="name" autocomplete="name" required></label>
         <label>Business name<input name="company" autocomplete="organization" required></label>
+        ${typePicker()}
         <label>Email<input name="email" type="email" autocomplete="email" required></label>
         <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required></label>
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Create account</button>
       </form>
       <p class="foot"><a href="#/owner">I already have an account</a></p>
-    </main>`, async ({ name, company, email, password }) => {
-    try { localStorage.setItem(PENDING, JSON.stringify({ name, company })); } catch { /* private mode */ }
+    </main>`, async ({ name, company, type, email, password }) => {
+    try { localStorage.setItem(PENDING, JSON.stringify({ name, company, type })); } catch { /* private mode */ }
     let signedIn;
     try { signedIn = await api.signUp(email.trim(), password, location.origin + location.pathname); } catch (x) {
       if (x.code === 'user_already_exists') throw new Say('This email already has an account. Sign in instead.');
@@ -139,11 +147,12 @@ function createCompany() {
       <form class="stack">
         <label>Your name<input name="name" value="${esc(pending.name)}" autocomplete="name" required></label>
         <label>Business name<input name="company" value="${esc(pending.company)}" autocomplete="organization" required></label>
+        ${typePicker(pending.type || 'field')}
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Continue</button>
       </form>
-    </main>`, async ({ name, company }) => {
-    await api.rpc('create_company', { p_name: company, p_owner_name: name });
+    </main>`, async ({ name, company, type }) => {
+    await api.rpc('create_company', { p_name: company, p_owner_name: name, p_type: type || 'field' });
     try { localStorage.removeItem(PENDING); } catch { /* fine */ }
     me = null;
     go('#/');
@@ -166,7 +175,7 @@ function noCompany() {
 const loadMe = () => api.cached('me', async () => {
   const uid = api.getSession().user.id;
   const rows = await api.select('members',
-    'select=id,role,full_name,company_id,reference_photo_path,daily_visit_target,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days,status,trial_ends_at,paid_until)' +
+    'select=id,role,full_name,company_id,reference_photo_path,daily_visit_target,companies(name,timezone,work_starts,work_ends,late_after_minutes,work_days,status,trial_ends_at,paid_until,business_type)' +
     `&user_id=eq.${uid}&active=is.true&order=created_at&limit=1`);
   return rows[0] || null;
 });

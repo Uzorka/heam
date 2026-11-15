@@ -14,7 +14,7 @@ mkdirSync(out, { recursive: true });
 
 // ── Pretend Supabase ────────────────────────────────────────
 const YABA = { lat: 6.5095, lng: 3.3711 };
-const company = { id: 'c1', name: 'CHF Heron', summary_email: true, status: 'trial', trial_ends_at: new Date(Date.now() + 2 * 864e5 - 3600e3).toISOString(), timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
+const company = { id: 'c1', name: 'CHF Heron', summary_email: true, status: 'trial', trial_ends_at: new Date(Date.now() + 2 * 864e5 - 3600e3).toISOString(), business_type: 'field', timezone: 'Africa/Lagos', work_starts: '08:00:00', work_ends: '17:00:00', late_after_minutes: 15, work_days: [1, 2, 3, 4, 5] };
 const branches = [{ id: 'b1', company_id: 'c1', name: 'Yaba office', address: '12 Herbert Macaulay Way', radius_m: 100, ...YABA }];
 const people = [
   { id: 'm0', user: 'u-owner', full_name: 'elvis uzorka', role: 'owner', phone: null, joined_at: '2026-11-14', invite_token: null, reference_photo_path: null, branch_id: null },
@@ -28,6 +28,7 @@ const stores = [
   { id: 's3', company_id: 'c1', name: 'Ebeano Ikota', address: 'Ikota Shopping Complex, Lekki', lat: 6.4440, lng: 3.5560, radius_m: 100, location_source: 'manager', active: true },
 ];
 const assignments = [];
+const managerShops = [];
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
 const payRates = new Map();
@@ -120,6 +121,14 @@ async function fakeSupabase(route) {
     const mid = param(q, 'member_id'), sid = param(q, 'store_id');
     return json(route, assignments.filter((a) => (!mid || a.member_id === mid) && (!sid || a.store_id === sid)).map((a) => ({ store_id: a.store_id, member_id: a.member_id })));
   }
+  if (p === '/rest/v1/manager_shops' && m === 'GET') return json(route, managerShops.filter((x) => x.manager_id === param(q, 'manager_id')));
+  if (p === '/rest/v1/manager_shops' && m === 'POST') { managerShops.push(...body); return route.fulfill({ status: 201 }); }
+  if (p === '/rest/v1/manager_shops' && m === 'DELETE') {
+    const mid = param(q, 'manager_id'), drop = /branch_id=in\.\(([^)]*)\)/.exec(decodeURIComponent(q))[1].split(',');
+    for (let i = managerShops.length - 1; i >= 0; i--) if (managerShops[i].manager_id === mid && drop.includes(managerShops[i].branch_id)) managerShops.splice(i, 1);
+    return route.fulfill({ status: 204 });
+  }
+  if (p === '/rest/v1/rpc/set_business_type') { company.business_type = body.p_type; return json(route, null); }
   if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
   if (p === '/rest/v1/store_assignments' && m === 'DELETE') {
     const dq = decodeURIComponent(q);
@@ -816,6 +825,96 @@ assert.ok(!(await dp.locator('.tabbar.manager').isVisible()), '...and no bottom 
 step('desktop keeps the top segmented control; no bottom tab bar');
 await dp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-owner-desktop.png` });
 await desk.close();
+
+// ── Storefront business: shops, shop staff, managers who look after shops ──
+company.business_type = 'storefront';
+branches.splice(0, branches.length);
+await page.goto(base + '#/owner');
+await page.getByLabel('Email').fill('elvis@chfheron.com');
+await page.getByLabel('Password').fill('password1');
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+await page.getByRole('heading', { name: 'Get started' }).waitFor();
+assert.deepEqual(await page.locator('.checklist .title').allInnerTexts(), ['Add your shop', 'Invite your shop staff', 'First clock-in'], 'Storefront checklist: no stores step');
+assert.deepEqual(await page.locator('.tabbar.manager span').allInnerTexts(), ['Overview', 'Today', 'Stock', 'Team', 'Setup'], 'Storefront has a Stock tab');
+await shot('storefront-overview');
+step('Storefront: checklist is shop, staff, first clock-in; tab bar has Stock');
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await page.getByRole('link', { name: /^Business type/ }).waitFor();
+assert.equal(await page.getByRole('link', { name: /^Stores/ }).count(), 0, 'no Stores row in a Storefront business');
+await shot('storefront-setup');
+await page.goto(base + '#/stores');
+await page.getByRole('link', { name: /^Shops/ }).waitFor();
+step('Storefront: Setup shows Shops and Business type, no Stores (and #/stores goes back to Setup)');
+await page.getByRole('link', { name: /^Shops/ }).click();
+await page.getByRole('link', { name: 'Add shop' }).click();
+await page.getByLabel('Name').fill('Yaba shop');
+await page.getByLabel('Location').fill('6.5095, 3.3711');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('Shop saved').waitFor();
+assert.equal(branches.at(-1).kind, 'shop', 'a new shop is saved as a shop');
+branches.push({ id: 'b8', company_id: 'c1', name: 'Surulere shop', radius_m: 100, lat: 6.5, lng: 3.35, kind: 'shop' });
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await page.getByRole('link', { name: /^Shops/ }).click();
+await page.getByText('Surulere shop').waitFor();
+await shot('storefront-shops');
+step('Storefront: owner adds a shop');
+await page.getByRole('link', { name: 'Team', exact: true }).click();
+await page.getByRole('link', { name: 'Invite someone' }).click();
+await page.getByRole('heading', { name: 'Invite someone' }).waitFor();
+assert.deepEqual(await page.locator('.choice strong').allInnerTexts(), ['Shop staff', 'Manager'], 'Storefront: no sales reps');
+await page.getByLabel('Full name').fill('Kemi Yaba');
+await page.getByLabel('Phone number').fill('0803 555 0101');
+await page.getByRole('combobox', { name: 'Shop' }).selectOption({ label: 'Yaba shop' });
+await shot('storefront-invite');
+await page.getByRole('button', { name: 'Create invite' }).click();
+await page.getByRole('heading', { name: 'Kemi Yaba' }).waitFor();
+assert.equal(people.at(-1).branch_id, branches.find((b) => b.name === 'Yaba shop').id, 'shop staff are invited into their shop');
+await page.getByText('Shop staff · ').waitFor();
+step('Storefront: invite shop staff straight into a shop');
+await page.goto(base + '#/invite');
+await page.getByRole('heading', { name: 'Invite someone' }).waitFor();
+await page.getByLabel('Full name').fill('Ade Manager');
+await page.getByLabel('Phone number').fill('0803 555 0102');
+await page.getByText('Looks after one or more shops').click();
+assert.ok(!(await page.getByRole('combobox').isVisible()), 'no shop question for a manager');
+await page.getByRole('button', { name: 'Create invite' }).click();
+await page.getByRole('heading', { name: 'Shops they look after' }).waitFor();
+await page.getByLabel('Yaba shop').check();
+await page.getByRole('button', { name: 'Save shops' }).click();
+await page.getByText('Ade looks after 1 shop').waitFor();
+assert.deepEqual(managerShops.map((x) => x.branch_id), [branches.find((b) => b.name === 'Yaba shop').id], 'manager now looks after Yaba shop');
+await shot('storefront-manager-shops');
+await page.getByLabel('Surulere shop').check();
+await page.getByLabel('Yaba shop').uncheck();
+await page.getByRole('button', { name: 'Save shops' }).click();
+await until(() => managerShops.length === 1 && managerShops[0].branch_id === 'b8', 'shops swapped');
+step('Storefront: owner chooses which shops a manager looks after (and can change it)');
+await page.goto(base + '#/stock');
+await page.getByText('Products, stock and sales are coming next.').waitFor();
+await shot('storefront-stock-soon');
+step('Storefront: Stock tab is there (products and sales come in Part B)');
+
+// Switch to Both: offices and shops, stores and reps back.
+await page.goto(base + '#/business');
+await page.getByText('Offices, shops and sales reps').click();
+await shot('business-type');
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByRole('link', { name: /^Stores/ }).waitFor();
+assert.equal(company.business_type, 'both');
+await page.getByRole('link', { name: /^Offices and shops/ }).click();
+await page.getByRole('link', { name: 'Add location' }).click();
+await page.getByRole('group', { name: 'Is this an office or a shop?' }).waitFor();
+await shot('both-add-location');
+await page.getByLabel('Name').fill('Head office');
+await page.getByLabel('Location').fill('6.5, 3.37');
+await page.getByRole('radio', { name: /^Office/ }).check();
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText('Location saved').waitFor();
+assert.equal(branches.at(-1).kind, 'office');
+step('Both: Stores come back, locations are marked office or shop');
+company.business_type = 'field';
+await page.getByRole('button', { name: 'Sign out' }).click();
 
 // ── The app opens with no signal at all (service worker) ────
 const swCtx = await browser.newContext(phone);

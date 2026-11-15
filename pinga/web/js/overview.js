@@ -67,7 +67,7 @@ export async function overview(me, tabs) {
       ${tabs('Overview')}
       <p class="muted dateline">${fmtDay(day + 'T12:00:00Z', tz)}</p>
 
-      ${progress && !setupDone(progress) ? checklist(progress) : ''}
+      ${progress && !setupDone(progress, me.companies.business_type) ? checklist(progress, me.companies.business_type) : ''}
 
       ${nobody ? '' : `
       <section class="card block" aria-labelledby="now-h">

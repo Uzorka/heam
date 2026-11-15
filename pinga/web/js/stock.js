@@ -18,7 +18,7 @@ export const naira = (n) => (n == null ? '' : '₦' + Number(n).toLocaleString('
 const plural = (n, w, ws = w + 's') => `${Number(n).toLocaleString('en-NG')} ${n === 1 ? w : ws}`;
 
 // The shops this person can manage.
-async function myShops(me) {
+export async function myShops(me) {
   const all = await api.select('branches', `select=id,name,kind&company_id=eq.${me.company_id}&order=name`);
   const shops = all.filter((b) => b.kind === 'shop');   // offices never sell or keep stock
   if (me.role === 'owner') return shops;

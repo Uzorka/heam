@@ -1,7 +1,7 @@
 // Keeps the app's own files on the phone so Pinga opens with no signal.
 // VERSION and FILES are written by `npm run stamp`; a new version replaces the old one in full.
-const VERSION = '0627ed3c01c4';
-const FILES = ["css/app.css","fonts/OFL.txt","fonts/nunito-400.woff2","fonts/nunito-700.woff2","fonts/nunito-800.woff2","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png","icons/pin.svg","index.html","js/admin.js","js/api.js","js/billing.js","js/camera.js","js/config.js","js/device.js","js/dialog.js","js/export.js","js/field.js","js/getstarted.js","js/gps.js","js/icons.js","js/image.js","js/main.js","js/outbox.js","js/overview.js","js/phone.js","js/queue.js","js/receipt-lines.js","js/receipts.js","js/report.js","js/sheet.js","js/staff.js","js/stock.js","js/sync.js","js/till-keys.js","js/till.js","js/today.js","js/ui.js","js/xlsx.js","manifest.webmanifest","r.html"];
+const VERSION = '0f4f4c5c35ac';
+const FILES = ["css/app.css","fonts/OFL.txt","fonts/nunito-400.woff2","fonts/nunito-700.woff2","fonts/nunito-800.woff2","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png","icons/pin.svg","index.html","js/admin.js","js/api.js","js/billing.js","js/camera.js","js/config.js","js/device.js","js/dialog.js","js/export.js","js/field.js","js/getstarted.js","js/gps.js","js/icons.js","js/image.js","js/main.js","js/outbox.js","js/overview.js","js/phone.js","js/queue.js","js/receipt-lines.js","js/receipts.js","js/report.js","js/scanner.js","js/sheet.js","js/staff.js","js/stock.js","js/sync.js","js/till-keys.js","js/till.js","js/today.js","js/ui.js","js/xlsx.js","manifest.webmanifest","r.html"];
 
 const CACHE = 'pinga-' + VERSION;
 
@@ -19,9 +19,17 @@ self.addEventListener('activate', (e) => {
     .then(() => self.clients.claim()));
 });
 
+// The barcode reader (~1 MB, only for phones without a built-in one) is kept after its first download,
+// in its own cache that app updates don't clear. Nobody downloads it until they open the scanner.
+const SCANNER = 'scanner-3.2.4';
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (new URL(req.url).pathname.includes('/vendor/barcode/')) {
+    e.respondWith(caches.open(SCANNER).then((c) => c.match(req).then((hit) => hit || fetch(req).then((res) => { if (res.ok) c.put(req, res.clone()); return res; }))));
+    return;
+  }
   if (req.mode === 'navigate') {
     e.respondWith(caches.match('./', { cacheName: CACHE }).then((hit) => hit || fetch(req)));
     return;

@@ -4,7 +4,7 @@
 import { esc } from './ui.js';
 
 // ask('Clear this sale?') → true/false.  ask('What went wrong?', { input: '' }) → text or null.
-export function ask(message, { ok = 'OK', cancel = 'Cancel', danger = false, input = null, placeholder = '' } = {}) {
+export function ask(message, { ok = 'OK', cancel = 'Cancel', danger = false, input = null, placeholder = '', money = false, hint = '' } = {}) {
   return new Promise((resolve) => {
     const back = document.activeElement;
     const d = document.createElement('dialog');
@@ -13,7 +13,8 @@ export function ask(message, { ok = 'OK', cancel = 'Cancel', danger = false, inp
     d.innerHTML = `
       <form method="dialog" class="stack">
         <p class="dlg-msg">${esc(message)}</p>
-        ${input !== null ? `<input name="answer" value="${esc(input)}" placeholder="${esc(placeholder)}" autocomplete="off" maxlength="300">` : ''}
+        ${hint ? `<p class="muted small dlg-hint">${esc(hint)}</p>` : ''}
+        ${input !== null ? `<input name="answer" value="${esc(input)}" placeholder="${esc(placeholder)}" autocomplete="off" maxlength="300"${money ? ' data-money inputmode="decimal" aria-label="Amount in naira"' : ''}>` : ''}
         <div class="dlg-btns">
           <button type="button" class="secondary" value="cancel">${esc(cancel)}</button>
           <button type="submit" class="${danger ? 'danger' : 'primary'}" value="ok">${esc(ok)}</button>

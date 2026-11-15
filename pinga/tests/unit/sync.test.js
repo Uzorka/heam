@@ -168,3 +168,17 @@ test('a sale from this version carries its payment method and receipt link; an o
   assert.equal(t.sent[0].p_receipt_token, 'tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
   assert.ok(!('p_payment' in t.sent[1]) && !('p_receipt_token' in t.sent[1]), 'older sale: the server picks cash and makes the link');
 });
+
+test('a split payment and the customer name go with the sale; a till opening made offline is sent too', async () => {
+  const t = setup({ rpc: async (fn, args) => { t.sent.push({ fn, ...args }); return {}; } });
+  await t.sync.add({ type: 'till_open', id: 'o1', member_id: 'me', company_id: 'co', branch_id: 'shop1', opening: 5000, happened_at: '2026-11-16T07:00:00Z' });
+  await t.sync.add({ type: 'sale', id: 's9', member_id: 'me', company_id: 'co', branch_id: 'shop1', happened_at: '2026-11-16T10:00:00Z', total: 2800,
+    payment: 'split', receipt_token: 'tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', payments: [{ method: 'cash', amount: 2000 }, { method: 'transfer', amount: 800 }], customer_name: 'Mama Ngozi',
+    items: [{ product_id: 'p1', name: 'Peak', qty: 1, unit_price: 2800 }] });
+  await t.sync.flush();
+  assert.deepEqual(t.sent.map((x) => x.fn), ['open_till', 'record_sale'], 'the till opening (earlier) goes first');
+  assert.deepEqual(t.sent[0], { fn: 'open_till', p_branch: 'shop1', p_opening: 5000 });
+  assert.deepEqual(t.sent[1].p_payments, [{ method: 'cash', amount: 2000 }, { method: 'transfer', amount: 800 }]);
+  assert.equal(t.sent[1].p_customer_name, 'Mama Ngozi');
+  assert.equal(t.sent[1].p_payment, 'split');
+});

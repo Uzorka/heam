@@ -29,5 +29,18 @@ export function saveFile(blob, name) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
+// A short beep and a buzz when a barcode is scanned. Native: system sound and haptics.
+let audio = null;
+export function beep() {
+  try {
+    audio = audio || new (globalThis.AudioContext || globalThis.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = 1500; g.gain.value = 0.08;
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + 0.09);
+  } catch { /* no sound: fine */ }
+}
+export function vibrate(ms = 60) { try { navigator.vibrate?.(ms); } catch { /* no buzz: fine */ } }
+
 // Print / Save as PDF. Native: the system print dialog.
 export function printPage() { window.print(); }

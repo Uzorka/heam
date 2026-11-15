@@ -25,10 +25,14 @@ export function createSync({ store, api, report, memberId }) {
         p_items: rec.items.map((i) => ({ product_id: i.product_id, qty: i.qty, unit_price: i.unit_price })),
         p_device_now: api.serverNow().toISOString(),
       };
-      // Sales saved by this version also carry the payment method and the receipt link made on the phone.
+      // Sales saved by this version also carry the payment method and the receipt link made on the phone,
+      // and (newer still) the parts of a split payment and the customer's name.
       if (rec.receipt_token) Object.assign(args, { p_payment: rec.payment || 'cash', p_receipt_token: rec.receipt_token });
+      if (rec.payments || rec.customer_name) Object.assign(args, { p_payments: rec.payments || null, p_customer_name: rec.customer_name || null });
       return api.rpc('record_sale', args);
     }
+    // Opening the till with no signal: sent when there is signal (the first opening of the day counts).
+    if (rec.type === 'till_open') return api.rpc('open_till', { p_branch: rec.branch_id, p_opening: rec.opening });
     if (rec.type === 'visit') {
       const selfie = await upload(rec, rec.selfie, rec.id);
       const shelf = await upload(rec, rec.shelf, rec.id + '-shelf');

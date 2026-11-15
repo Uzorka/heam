@@ -132,6 +132,17 @@ Every rule below is enforced in the database (`20261130000001_roles.sql`), not j
 - **Field sales businesses** work as before.
 - Cost prices live in their own table (`product_costs`) that shop staff can never read.
 
+## Sell (POS)
+
+Full screen for shop staff, managers and owners (owners and managers open it from the menu; with several shops they choose one). Exit returns to the rest of the app.
+
+- **Phones:** search and products fill the screen; the basket is a sticky bar ("2 items · ₦2,750 · Pay") that slides up into the full sale. **Tablets and desktops:** the sale is a panel on the right.
+- **Quick picks** (the shop's 8 best sellers, last 30 days) and **category** chips (category is set on each product).
+- **Camera scanning:** Scan opens the back camera; every barcode adds the item with a beep and a buzz; the camera stays open until Done. An unknown barcode: managers and owners add it on the spot ("Add this product?"); staff are told to ask their manager. Uses the browser's built-in reader where there is one (Chrome on Android); otherwise `vendor/barcode` (barcode-detector 3.2.4 + ZXing reader, MIT, hosted by us, ~950 KB) is downloaded only when the scanner first opens and then kept by the service worker. A USB/Bluetooth scanner typing into the search box also works.
+- **Cash change** (amount received → change, quick amounts), **split payment** (cash / transfer / POS card parts that must add up), **hold sale** (park under a name on this phone, resume later; the sale on screen is held first so nothing is lost), **customer name and WhatsApp number** (name kept with the sale; the number only fills in the receipt).
+- **Till:** the first time Sell opens each day it asks for the cash in the drawer (optional, ₦0; asked only when there is signal). Managers and owners **close the till**: expected = opening + cash taken (including the cash part of split payments); counted − expected is kept and shown in the owner's dashboard data and the evening email.
+- Database: `20261201000001_pos.sql` (tests: `tests/db/test_pos.sql`).
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

@@ -4,10 +4,11 @@
 const MAX_BYTES = 50 * 1024;
 
 // facing: 'user' (selfie) or 'environment' (back camera, e.g. shelf photos).
-export async function startCamera(video, facing = 'user') {
+// size: the picture wanted (barcode scanning asks for more detail).
+export async function startCamera(video, facing = 'user', size = 640) {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error('no-camera');
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 640 } }, audio: false,
+    video: { facingMode: facing, width: { ideal: size }, height: { ideal: size } }, audio: false,
   });
   video.srcObject = stream;
   await video.play().catch(() => {});

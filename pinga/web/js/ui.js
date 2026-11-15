@@ -44,7 +44,7 @@ function placeNav() {
   document.getElementById('appnav')?.remove();
   const own = app.querySelector('.appnav');   // a main screen's own nav (inside or after its <main>)
   let nav = own;
-  if (!nav && sharedNav) {
+  if (!nav && sharedNav && !app.querySelector('main.pos')) {   // Sell is full screen: no menu
     const t = document.createElement('template');
     t.innerHTML = sharedNav.trim();
     nav = t.content.firstElementChild;

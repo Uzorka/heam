@@ -562,3 +562,83 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 .switches { list-style: none; margin: 12px 0; padding: 0; }
 .switches li { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
 .danger-link { color: var(--bad) !important; margin-top: 24px; }
+
+/* ══ Sell (full screen) ══ */
+.pos-bar { display: flex; align-items: center; gap: 12px; margin: -4px 0 14px; }
+.pos-exit { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; padding: 8px 12px 8px 6px; border-radius: 12px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); text-decoration: none; flex: none; }
+.pos-title { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.pos-title h1 { font-size: 22px; margin: 0; }
+.pos-title .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pos-actions { display: flex; gap: 8px; flex: none; }
+.pos-actions .chip { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; }
+.searchrow { display: flex; gap: 8px; margin-bottom: 10px; }
+.searchrow input { margin: 0; flex: 1; min-width: 0; }
+.scanbtn { width: auto; flex: none; min-height: 54px; padding: 0 14px; background: var(--ink); color: #fff; border-radius: 14px; gap: 6px; }
+.scanbtn span { font-size: 15px; }
+.quickpicks { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 10px; padding: 2px 16px 4px; scrollbar-width: none; }
+.quickpicks::-webkit-scrollbar { display: none; }
+.qp { flex: none; width: auto; min-height: 0; flex-direction: column; align-items: flex-start; gap: 0; padding: 10px 12px; border-radius: 14px; background: var(--mango-soft); color: var(--ink); text-align: left; max-width: 160px; }
+.qp strong { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 136px; }
+.qp span { font-size: 13px; color: var(--mango-ink); font-weight: 800; }
+.cats { margin-bottom: 8px; }
+.heldlist { margin-bottom: 12px; }
+.heldlist h2 { font-size: 17px; margin: 0 0 8px; }
+.heldlist .brow { gap: 8px; }
+.cust { margin: 4px 0 12px; }
+.cust summary { cursor: pointer; font-weight: 800; padding: 6px 0; }
+.cust .pair { margin: 8px 0 4px; }
+.cust input { height: 46px; }
+.received input { height: 48px; }
+.quickcash { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.quickcash .chip { min-height: 38px; }
+.change { font-weight: 800; font-size: 17px; margin: 8px 0 4px; min-height: 1px; }
+.change:empty { display: none; }
+.change-big { font-size: 18px; margin: 0; }
+.change-big b { font-size: 24px; color: var(--ok); }
+.splits { display: flex; flex-direction: column; gap: 8px; }
+.splitrow { flex-direction: row; align-items: center; gap: 10px; }
+.splitrow span { width: 90px; flex: none; }
+.splitrow input { height: 46px; }
+.pay { flex-wrap: wrap; }
+.pay label { flex: 1 1 22%; }
+.cart-more { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.cart-more .link { width: auto; display: inline-flex; align-items: center; gap: 4px; }
+.sheet-head { display: none; }
+
+/* Phones: products fill the screen; the sale slides up from a sticky "Pay" bar. */
+.paybar { position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 30; width: auto; min-height: 60px;
+  justify-content: space-between; padding: 0 8px 0 18px; border-radius: 18px; background: var(--ink); color: #fff; font-size: 17px; box-shadow: 0 8px 24px rgba(20,33,61,.3); }
+.paybar .pb-go { background: var(--mango); color: var(--ink); border-radius: 12px; padding: 10px 22px; font-weight: 800; }
+body.has-paybar .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+.pos { padding-bottom: 110px; }
+@media (max-width: 767px) {
+  .pos .till-sale { position: fixed; inset: 0; z-index: 35; background: var(--cream); overflow-y: auto; padding: max(14px, env(safe-area-inset-top)) 16px 32px;
+    transform: translateY(100%); transition: transform .22s ease-out; visibility: hidden; }
+  .pos.sale-open .till-sale { transform: none; visibility: visible; }
+  .pos.sale-open .paybar { display: none; }
+  .pos .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 19px; }
+  .pos .sheet-head .link { min-height: 40px; }
+  .pos .cart.is-empty { display: block; }
+  .pos .cart.is-empty .cart-empty { display: block; }
+  .pos .cart.is-empty .lines, .pos .cart.is-empty #clear { display: none; }
+}
+@media (min-width: 768px) {
+  .paybar { display: none !important; }
+  .pos { padding-bottom: 32px; }
+  body.has-paybar .toast { bottom: max(20px, env(safe-area-inset-bottom)); }
+  .quickpicks { margin: 0 0 10px; padding: 2px 0 4px; flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .pos .till-sale { transition: none; } }
+
+/* The camera scanner */
+.scanner { position: fixed; inset: 0; z-index: 60; background: #000; color: #fff; }
+.scanner video { width: 100%; height: 100%; object-fit: cover; }
+.scan-frame { position: absolute; left: 10%; right: 10%; top: 34%; height: 22%; border: 3px solid var(--mango); border-radius: 18px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); }
+.scan-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: max(14px, env(safe-area-inset-top)) 16px 14px; font-weight: 800; background: linear-gradient(rgba(0,0,0,.6), transparent); }
+.scan-close { width: auto; min-height: 44px; background: #fff; color: var(--ink); padding: 0 18px; border-radius: 12px; }
+.scan-msg { position: absolute; left: 16px; right: 16px; bottom: max(24px, env(safe-area-inset-bottom)); margin: 0; background: rgba(20,33,61,.92); border-radius: 16px; padding: 14px 16px; font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scan-again { width: auto; min-height: 40px; background: var(--mango); color: var(--ink); padding: 0 14px; border-radius: 10px; }
+.dlg-hint { margin: -6px 0 0; }
+.pos-logo { height: 36px; max-width: 72px; flex: none; }
+/* Phones, basket open: toasts at the top so they never cover the payment buttons. */
+@media (max-width: 767px) { body.sheet-open .toast { top: max(12px, env(safe-area-inset-top)); bottom: auto; } }

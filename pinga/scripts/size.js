@@ -18,7 +18,9 @@ const MANAGER_ONLY = ['js/admin.js', 'js/today.js', 'js/overview.js', 'js/export
 const managerOnly = (f) => MANAGER_ONLY.includes(f) || f.startsWith('vendor/');
 const js = rows.filter((r) => extname(r.file) === '.js' && !managerOnly(r.file)).reduce((s, r) => s + r.kb, 0);
 console.log(`\nStaff app JavaScript: ${js.toFixed(1)} KB of ${BUDGET_JS_KB} KB budget (gzipped)`);
-console.log(`All JavaScript incl. managers' screens: ${total('.js').toFixed(1)} KB`);
+console.log(`All JavaScript incl. managers' screens: ${rows.filter((r) => extname(r.file) === '.js' && !r.file.startsWith('vendor/barcode/')).reduce((s, r) => s + r.kb, 0).toFixed(1)} KB`);
+const scanner = rows.filter((r) => r.file.startsWith('vendor/barcode/')).reduce((s, r) => s + r.kb, 0);
+console.log(`Barcode reader fallback (downloaded once, only when scanning on a phone without a built-in reader): ${scanner.toFixed(1)} KB`);
 console.log(`Fonts (Nunito 400/700/800, slimmed): ${total('.woff2').toFixed(1)} KB`);
 console.log(`Everything: ${rows.reduce((s, r) => s + r.kb, 0).toFixed(1)} KB`);
 if (js > BUDGET_JS_KB) { console.error('Over budget!'); process.exit(1); }

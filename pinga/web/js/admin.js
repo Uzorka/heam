@@ -25,7 +25,7 @@ function billingBanner(me) {
 }
 
 const NAV_FIELD = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
-const NAV_SHOP = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/stock', 'Stock', 'stock'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
+const NAV_SHOP = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/sell', 'Sell', 'shop'], ['#/stock', 'Stock', 'stock'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
 let NAV = NAV_FIELD;
 let F = feats(null);   // what this business type uses (set on every visit)
 // One nav: bottom tab bar on phones, side rail on tablets, sidebar (with the business name) on desktops.
@@ -67,6 +67,8 @@ export async function adminRoute(me, name, arg) {
   if (can(me).limited && ['hours', 'export', 'business', 'brand', 'billing', 'face'].includes(name)) return go('#/setup');
   if (!can(me).staff && name === 'invite') return go('#/team');
   if (!can(me).shops && name === 'office' && arg === 'new') return go('#/offices');
+  // Sell (full screen) for owners and managers: choose the shop if there is more than one.
+  if (F.shop && name === 'sell') return sellFor(me, arg);
   if (F.shop && ['stock', 'product', 'import', 'imports', 'sales', 'sale'].includes(name)) {
     const st = await import('./stock.js');
     if (name === 'sales') return st.shopSales(me, arg);
@@ -94,6 +96,23 @@ export async function adminRoute(me, name, arg) {
   if (name === 'today' || name === 'day') return import('./today.js').then((m) => m.today(me, arg, tabs));
   if (name === 'overview' || me.role === 'owner') return import('./overview.js').then((m) => m.overview(me, tabs));
   return import('./today.js').then((m) => m.today(me, '', tabs));
+}
+
+// ── Sell, for owners and managers ──
+async function sellFor(me, shopArg) {
+  const { myShops } = await import('./stock.js');
+  const shops = await myShops(me);
+  const shop = shops.find((b) => b.id === shopArg) || (shops.length === 1 ? shops[0] : null);
+  if (shop) return (await import('./till.js')).sell(me, { shopId: shop.id, shopName: shop.name, exitTo: '#/overview' });
+  show(`
+    <main class="page narrow">
+      ${header(me, 'Sell')}
+      ${tabs('Sell')}
+      ${shops.length ? `<p class="muted">Which shop are you selling in?</p>
+        <ul class="list">${shops.map((b) => `<li><a class="card row" href="#/sell/${b.id}"><span><strong>${esc(b.name)}</strong></span>${chev}</a></li>`).join('')}</ul>`
+        : `<div class="card stack center"><p><strong>No shops yet</strong></p>${me.role === 'owner' ? '<a class="primary button" href="#/office/new">Add a shop</a>' : '<p class="muted">Ask the owner to give you a shop.</p>'}</div>`}
+    </main>`);
+  wireSignOut();
 }
 
 // ── Team ────────────────────────────────────────────────────

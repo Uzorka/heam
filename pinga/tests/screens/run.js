@@ -38,6 +38,7 @@ const stockImports = [];
 const sales = [];
 const logos = new Map();
 const costs = new Map();   // product id -> cost price
+const tills = new Map();   // shop id -> today's till
 const receiptNo = new Map();
 const visits = [];
 const dayStatus = new Map(); // `${member}|${day}` -> status
@@ -209,9 +210,11 @@ async function fakeSupabase(route) {
     const shopName = branches.find((b) => b.id === body.p_branch).name, n = (receiptNo.get(body.p_branch) || 0) + 1;
     receiptNo.set(body.p_branch, n);
     const row = { id: body.p_id, branch_id: body.p_branch, member_id: me.id, seller_name: me.full_name, happened_at: body.p_happened_at, local_date: lagosDate(body.p_happened_at),
+      payments: body.p_payment === 'split' ? body.p_payments : [{ method: body.p_payment || 'cash', amount: 0 }], customer_name: body.p_customer_name || null,
       payment_method: body.p_payment || 'cash', receipt_token: body.p_receipt_token || 'server' + 'x'.repeat(20) + sales.length,
       receipt_code: shopName.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() + '-' + String(n).padStart(6, '0'),
       total, discount, flags: [...flags], cancelled_at: null, cancelled_by_name: null, cancel_reason: null, mistake_note: null, mistake_at: null, sale_items };
+    if (row.payment_method !== 'split') row.payments = [{ method: row.payment_method, amount: total }];
     sales.push(row);
     return json(route, row);
   }
@@ -246,6 +249,27 @@ async function fakeSupabase(route) {
   if (p === '/rest/v1/rpc/delete_product') {
     if (sales.some((x) => x.sale_items.some((i) => i.product_id === body.p_product))) return json(route, { code: 'P0001', message: 'This product has sales, so it can\'t be deleted. Use "Stop selling" to hide it.' }, 400);
     products.splice(products.findIndex((x) => x.id === body.p_product), 1); return json(route, null);
+  }
+  // The till: opening cash, quick picks, closing.
+  if (p === '/rest/v1/rpc/till_status') {
+    const t = tills.get(body.p_branch), cash = sales.filter((x) => x.branch_id === body.p_branch && !x.cancelled_at && x.local_date === lagosDate(new Date().toISOString()))
+      .flatMap((x) => x.payments || [{ method: x.payment_method || 'cash', amount: x.total }]).filter((x) => x.method === 'cash').reduce((a, x) => a + x.amount, 0);
+    const opened = !!t || !company.askOpeningCash;
+    if (me.role === 'staff') return json(route, { opened, closed: !!t?.closed_at });
+    return json(route, { opened, closed: !!t?.closed_at, opening_cash: t?.opening_cash ?? 0, opened_by: t?.opened_by_name ?? null, cash_sales: cash,
+      expected_cash: (t?.opening_cash ?? 0) + cash, counted_cash: t?.counted_cash ?? null, difference: t?.difference ?? null, closed_by: t?.closed_by_name ?? null });
+  }
+  if (p === '/rest/v1/rpc/open_till') { if (!tills.has(body.p_branch)) tills.set(body.p_branch, { opening_cash: body.p_opening, opened_by_name: me.full_name }); return json(route, null); }
+  if (p === '/rest/v1/rpc/close_till') {
+    const t = tills.get(body.p_branch) || { opening_cash: 0, opened_by_name: me.full_name };
+    const cash = sales.filter((x) => x.branch_id === body.p_branch && !x.cancelled_at).flatMap((x) => x.payments || [{ method: x.payment_method || 'cash', amount: x.total }]).filter((x) => x.method === 'cash').reduce((a, x) => a + x.amount, 0);
+    Object.assign(t, { counted_cash: body.p_counted, expected_cash: t.opening_cash + cash, difference: body.p_counted - (t.opening_cash + cash), closed_at: new Date().toISOString(), closed_by_name: me.full_name, close_note: body.p_note });
+    tills.set(body.p_branch, t);
+    return json(route, { opened: true, closed: true, expected_cash: t.expected_cash, counted_cash: t.counted_cash, difference: t.difference });
+  }
+  if (p === '/rest/v1/rpc/shop_quick_picks') {
+    const qty = new Map(); sales.filter((x) => x.branch_id === body.p_branch && !x.cancelled_at).flatMap((x) => x.sale_items).forEach((i) => qty.set(i.product_id, (qty.get(i.product_id) || 0) + i.qty));
+    return json(route, [...qty].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id]) => id));
   }
   if (p === '/rest/v1/rpc/set_business_type') { company.business_type = body.p_type; return json(route, null); }
   if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
@@ -397,6 +421,8 @@ const ctx = await browser.newContext({ ...phone, serviceWorkers: 'block', permis
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e));
+const consoleErrors = [];
+page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
 await page.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
 await page.route(/tile\.openstreetmap\.org/, (r) => r.abort()); // no map tiles in tests; pins still draw
 
@@ -419,6 +445,14 @@ const accept = async (text, p = page) => {
   await d.waitFor({ state: 'detached' });
   return q;
 };
+// Phones: the basket opens from the sticky Pay bar (tablets and desktops show it beside the products).
+const openBasket = async (p = page) => {
+  if (p.viewportSize().width >= 768) return;
+  await p.locator('#paybar').waitFor({ state: 'visible' });
+  await p.locator('#paybar').click();
+  await p.locator('#salepanel').getByRole('heading', { name: /^This sale/ }).waitFor();
+};
+const heldCount = (raw) => { try { return JSON.parse(raw).length; } catch { return 0; } };
 const until = async (fn, what) => { for (let i = 0; i < 100; i++) { if (fn()) return; await new Promise((r) => setTimeout(r, 100)); } throw new Error('Timed out waiting for ' + what); };
 const goOnline = () => page.evaluate(() => dispatchEvent(new Event('online')));
 
@@ -995,7 +1029,7 @@ await page.getByRole('button', { name: 'Sign in' }).click();
 await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 await page.getByRole('heading', { name: 'Get started' }).waitFor();
 assert.deepEqual(await page.locator('.checklist .title').allInnerTexts(), ['Add your shop', 'Invite your shop staff', 'First clock-in'], 'Storefront checklist: no stores step');
-assert.deepEqual(await page.locator('.tabbar.manager a[href^="#/"] span').allInnerTexts(), ['Overview', 'Today', 'Stock', 'Team', 'Setup'], 'Storefront has a Stock tab');
+assert.deepEqual(await page.locator('.tabbar.manager a[href^="#/"] span').allInnerTexts(), ['Overview', 'Today', 'Sell', 'Stock', 'Team', 'Setup'], 'Storefront has Sell and Stock tabs');
 await shot('storefront-overview');
 step('Storefront: checklist is shop, staff, first clock-in; tab bar has Stock');
 await page.getByRole('link', { name: 'Setup', exact: true }).click();
@@ -1144,12 +1178,20 @@ await page.getByLabel('Phone number').fill('0803 555 0101');
 await page.getByLabel('PIN').fill('482913');
 await page.getByRole('button', { name: 'Sign in' }).click();
 await page.getByRole('heading', { name: 'Sell' }).waitFor();
+assert.equal(await page.locator('#appnav').count(), 0, 'Sell is full screen: no menu');
+await page.getByRole('link', { name: 'Exit Sell' }).click();
+await page.getByRole('heading', { name: /^Good / }).waitFor();
 assert.deepEqual(await page.locator('.tabbar a[href^="#/"] span').allInnerTexts(), ['Sell', 'Clock', 'My sales'], 'shop staff: Sell, Clock, My sales');
-step('Shop staff land straight on Sell; their only screens are Sell, Clock and My sales');
+await page.getByRole('link', { name: 'Sell', exact: true }).click();
+await page.getByRole('heading', { name: 'Sell' }).waitFor();
+step('Shop staff land straight on Sell (full screen, Exit button); their only screens are Sell, Clock and My sales');
 await page.getByLabel(/^Search product, code/).fill('pm400');
 assert.equal(await page.locator('#picks li:not([hidden])').count(), 1, 'search finds by code');
 await page.locator('#picks li:not([hidden]) .pick').click();
 await page.locator('.pick', { hasText: 'Golden Penny Sugar' }).click();
+assert.match(await page.locator('#paybar').innerText(), /2 items · ₦3,700\s+Pay/, 'phone: the basket is a sticky bar at the bottom');
+await page.locator('#paybar').click();
+await page.getByRole('heading', { name: /^This sale/ }).waitFor();
 await page.getByLabel('One more').first().click();
 await page.getByLabel('Price each for Peak Milk 400g').fill('2400');
 assert.equal(await page.locator('.line').first().locator('.warn-line').count(), 0, '₦2,400 is inside the range: no warning');
@@ -1168,15 +1210,20 @@ assert.equal(await page.locator('.pick', { hasText: 'Golden Penny Sugar' }).loca
 assert.equal(await page.locator('#cart').isHidden(), true, 'the till is ready for the next customer');
 await shot('till-saved-offline');
 step('Till: sale saved with no signal; waits on the phone; stock on screen goes down');
-await page.getByRole('link', { name: 'My sales' }).click();
+await page.getByRole('button', { name: 'Next sale' }).click();
+await page.getByRole('link', { name: 'Exit Sell' }).click();
+await page.getByRole('heading', { name: /^Good / }).waitFor();
+await page.goto(base + '#/mysales');
 await page.getByText('Waiting to send').waitFor();
 networkDown = false;
 await page.evaluate(() => dispatchEvent(new Event('online')));
 await until(() => sales.length === 1, 'the sale to arrive');
 assert.deepEqual(sales[0].flags, ['below_lowest', 'out_of_stock']);
 assert.equal(stockRows.get(sales[0].branch_id + '|' + sales[0].sale_items[1].product_id).qty, -1);
-await page.getByRole('link', { name: 'Sell' }).click();
-await page.getByRole('link', { name: 'My sales' }).click();
+await page.goto(base + '#/home');
+await page.getByRole('heading', { name: /^Good / }).waitFor();
+await page.getByText(/waiting to send/).waitFor({ state: 'detached' });   // the phone has cleared it from its outbox
+await page.goto(base + '#/mysales');
 await page.getByRole('button', { name: 'Report a mistake' }).waitFor();
 await page.getByRole('button', { name: 'Report a mistake' }).click();
 await accept('Sugar was 3, not 4');
@@ -1288,6 +1335,7 @@ await page.getByRole('heading', { name: 'Sell' }).waitFor();
 assert.ok(await page.locator('header .biz-logo').count(), 'the business logo at the top of the staff app');
 await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
 await page.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
+await openBasket();
 await page.getByText('Transfer', { exact: true }).click();
 await shot('till-payment');
 await page.getByRole('button', { name: 'Complete sale' }).click();
@@ -1307,6 +1355,7 @@ step('Sale: payment method chosen; "Send receipt" opens WhatsApp to the customer
 await page.getByRole('button', { name: 'Next sale' }).click();
 networkDown = true;
 await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
+await openBasket();
 await page.getByRole('button', { name: 'Complete sale' }).click();
 await page.getByRole('button', { name: 'Send receipt when online' }).waitFor();
 await page.getByLabel(/Customer's WhatsApp number/).fill('0803 765 4321');
@@ -1340,6 +1389,8 @@ await rp.goto(base + 'r.html#notarealreceiptlinknotareal00');
 await rp.getByRole('heading', { name: 'Receipt not found' }).waitFor();
 await rp.close();
 step('Receipt page: a cancelled sale shows CANCELLED; a wrong link shows "Receipt not found"');
+await page.goto(base + '#/home');
+await page.getByRole('button', { name: 'Sign out' }).waitFor();
 await page.getByRole('button', { name: 'Sign out' }).click();
 await page.getByRole('heading', { name: 'Sign in' }).waitFor();
 await page.goto(base + '#/owner');
@@ -1474,7 +1525,7 @@ for (const [size, width, height, extra] of SIZES) {
   await signIn('kemi');
   await pg.getByRole('heading', { name: 'Sell' }).waitFor();
   const grid = await pg.evaluate(() => [document.querySelector('.till-products').getBoundingClientRect().left, document.querySelector('.till-sale').getBoundingClientRect().left]);
-  if (size === 'phone') assert.ok(grid[0] === grid[1], 'phone: one column');
+  if (size === 'phone') assert.ok(!(await pg.locator('#salepanel').isVisible()), 'phone: products fill the screen; the sale opens from the Pay bar');
   else assert.ok(grid[1] > grid[0] + 200, `${size}: products left, the sale right`);
   if (size === 'desktop') {
     // A barcode scanner types the code and presses Enter: the product is added at once.
@@ -1510,12 +1561,15 @@ for (const [size, width, height, extra] of SIZES) {
   } else {
     await pg.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
     await pg.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
+    await openBasket(pg);
     assert.equal(await pg.getByLabel('Price each for Peak Milk 400g').inputValue(), '2,500', 'prices in boxes have commas');
     await pg.getByLabel('Price each for Peak Milk 400g').fill('2400');
     assert.equal(await pg.getByLabel('Price each for Peak Milk 400g').inputValue(), '2,400', 'commas appear as you type');
     await pg.getByText('Transfer', { exact: true }).click();
     await snap('sell', false);
   }
+  await pg.goto(base + '#/home');
+  await pg.getByRole('button', { name: 'Sign out' }).waitFor();
   await pg.getByRole('button', { name: 'Sign out' }).click();
   await pg.getByRole('heading', { name: 'Sign in' }).waitFor();
 
@@ -1555,7 +1609,7 @@ for (const [size, width, height, extra] of SIZES) {
     await pg.getByRole('button', { name: 'Sign in' }).click();
   };
   const signOut = async () => {
-    if (!(await pg.getByRole('button', { name: 'Sign out' }).count())) { await pg.goto(base + '#/'); await pg.getByRole('button', { name: 'Sign out' }).waitFor(); }
+    if (!(await pg.getByRole('button', { name: 'Sign out' }).count())) { await pg.goto(base + '#/home'); await pg.getByRole('button', { name: 'Sign out' }).waitFor(); }
     await pg.getByRole('button', { name: 'Sign out' }).first().click();
     await pg.getByRole('heading', { name: 'Sign in' }).waitFor();
   };
@@ -1574,6 +1628,7 @@ for (const [size, width, height, extra] of SIZES) {
   await pg.reload();
   await pg.locator('#q').waitFor();
   await pg.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
+  await openBasket(pg);
   await pg.getByLabel('Price each for Peak Milk 400g').fill('2000');
   await pg.getByText("Can't go below ₦2,300 (the lowest price).").waitFor();
   await pg.getByRole('button', { name: 'Complete sale' }).click();
@@ -1638,6 +1693,165 @@ for (const [size, width, height, extra] of SIZES) {
 }
 company.sell_requires_clock_in = false;
 company.staff_below_lowest = true;
+
+// ── The Sell upgrade (Part B), at phone, tablet and desktop size ──
+// A pretend camera barcode reader: tests "scan" by setting window.__scan.
+const FAKE_READER = `window.BarcodeDetector = class { static async getSupportedFormats() { return ['ean_13', 'code_128']; }
+  async detect() { const c = window.__scan; window.__scan = null; return c ? [{ rawValue: c }] : []; } };`;
+company.askOpeningCash = true;
+for (const pr of products) pr.category = /Milk|Sugar/.test(pr.name) ? 'Provisions' : /Indomie/.test(pr.name) ? 'Noodles' : null;
+for (const [size, width, height, extra] of SIZES) {
+  tills.clear();
+  const c = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, serviceWorkers: 'block', permissions: ['camera'], ...extra });
+  await c.addInitScript(FAKE_READER);
+  const pg = await c.newPage();
+  pg.on('pageerror', (e) => errors.push(e));
+  await pg.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
+  await pg.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  const snap = async (name) => { await pg.waitForTimeout(300); await pg.screenshot({ path: `${out}pos-${size}-${name}.png` }); };
+  await pg.goto(base + '#/owner');
+  await pg.getByLabel('Email').fill('elvis@chfheron.com');
+  await pg.getByLabel('Password').fill('password1');
+  await pg.getByRole('button', { name: 'Sign in' }).click();
+  await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+
+  // Owners and managers open Sell from the menu; with two shops they choose one.
+  await pg.locator('#appnav').getByRole('link', { name: 'Sell' }).click();
+  await pg.getByText('Which shop are you selling in?').waitFor();
+  await pg.getByRole('link', { name: /Yaba shop/ }).click();
+  // The first time the till opens today: cash in the drawer.
+  await pg.locator('dialog.dlg[open]').getByText('Cash in the drawer to start the day').waitFor();
+  await accept('5000', pg);
+  await until(() => tills.get(shopId)?.opening_cash === 5000, 'the till to open with ₦5,000');
+  assert.equal(await pg.locator('#appnav').count(), 0, 'Sell is full screen');
+  assert.ok(await pg.getByRole('link', { name: 'Exit Sell' }).isVisible(), 'with an Exit button');
+  assert.ok(await pg.locator('.quickpicks .qp').count() >= 1, 'quick picks: the shop\'s best sellers');
+  await pg.getByRole('button', { name: 'Noodles' }).click();
+  assert.deepEqual(await pg.locator('#picks li:not([hidden]) strong').allInnerTexts(), ['Indomie Chicken 70g'], 'category filter');
+  await pg.getByRole('button', { name: 'All', exact: true }).click();
+
+  // Scan with the camera: each scan adds the item; an unknown barcode can be added on the spot.
+  await pg.getByRole('button', { name: 'Scan barcodes with the camera' }).click();
+  await pg.getByText('Ready. Each scan adds the item.').waitFor();
+  await pg.evaluate(() => { window.__scan = 'PM400'; });
+  await pg.getByText(/Peak Milk 400g added · 1 item/).waitFor();
+  await pg.waitForTimeout(400);
+  const newCode = { phone: '6151100099993', tablet: '6151100099986', desktop: '6151100099979' }[size];
+  await pg.evaluate((cd) => { window.__scan = cd; }, newCode);
+  await pg.locator('dialog.dlg[open]').getByText('Add this product?').waitFor();
+  await snap('scan-unknown');
+  await pg.locator('dialog.dlg[open]').getByLabel('Product name').fill(`Hollandia Yoghurt ${size}`);
+  await pg.locator('dialog.dlg[open]').getByLabel(/Selling price/).fill('900');
+  await pg.locator('dialog.dlg[open]').getByRole('button', { name: 'Add and sell' }).click();
+  await pg.getByText(`Hollandia Yoghurt ${size} added to the price list and this sale`).waitFor();
+  assert.equal(products.find((x) => x.name === `Hollandia Yoghurt ${size}`).code, newCode, 'the new product keeps its barcode');
+  await snap('scanner');
+  await pg.getByRole('button', { name: 'Done' }).click();
+  await pg.locator('.scanner').waitFor({ state: 'detached' });
+  await pg.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
+  if (size === 'phone') {
+    assert.match(await pg.locator('#paybar').innerText(), /3 items · ₦3,650\s+Pay/);
+    const tb = await pg.locator('.toast').boundingBox(), bar = await pg.locator('#paybar').boundingBox();
+    assert.ok(tb.y + tb.height <= bar.y, 'phone: toasts sit just above the Pay bar');
+    await snap('sell');
+  }
+  await openBasket(pg);
+  if (size !== 'phone') await snap('sell');
+
+  // Hold this sale for a customer, serve someone else, come back.
+  await pg.getByRole('button', { name: 'Hold sale' }).click();
+  await accept('Mama Ngozi', pg);
+  await pg.getByRole('button', { name: 'Held (1)' }).waitFor();
+  await pg.locator('.pick', { hasText: 'Golden Penny' }).click();
+  await pg.getByRole('button', { name: 'Held (1)' }).click();
+  await snap('held');
+  await pg.getByRole('button', { name: 'Resume' }).click();
+  await pg.getByText('Back to Mama Ngozi').waitFor();
+  await pg.waitForFunction(() => document.querySelectorAll('#basket .line').length === 3);
+  assert.equal(heldCount(await pg.evaluate(() => localStorage.getItem('pinga.held'))), 1, 'the sale that was on screen is held, not lost');
+  await openBasket(pg);
+  assert.equal(await pg.locator('#basket .line').count(), 3, 'Mama Ngozi\'s 3 lines are back');
+
+  // Customer name and number; cash received → change.
+  await pg.locator('summary', { hasText: 'Customer' }).click();
+  await pg.getByLabel('Name', { exact: true }).fill('Mama Ngozi');
+  await pg.getByLabel('WhatsApp number').fill('0803 222 3333');
+  await pg.getByRole('radio', { name: 'Cash' }).check({ force: true });
+  await pg.getByLabel('Cash received').fill('5000');
+  await pg.getByText('Change: ₦1,350').waitFor();
+  await snap('change');
+  await pg.getByRole('button', { name: 'Complete sale' }).click();
+  await pg.getByText('Change to give: ₦1,350').waitFor();
+  assert.equal(sales.at(-1).customer_name, 'Mama Ngozi', 'the customer\'s name is kept with the sale');
+  assert.equal(await pg.getByLabel(/Customer's WhatsApp number/).inputValue(), '0803 222 3333', 'the receipt goes to the number typed during the sale');
+  await pg.getByRole('button', { name: 'Next sale' }).click();
+
+  // Split payment: part cash, part transfer.
+  await pg.getByRole('button', { name: 'Held (1)' }).click();
+  await pg.getByRole('button', { name: 'Resume' }).click();
+  await openBasket(pg);
+  await pg.getByText('Split', { exact: true }).click();
+  await pg.getByLabel('Cash part').fill('1000');
+  await pg.getByText('₦200 still to pay').waitFor();
+  await pg.getByLabel('Transfer part').fill('200');
+  await pg.getByText('Adds up to the total').waitFor();
+  await snap('split');
+  await pg.getByRole('button', { name: 'Complete sale' }).click();
+  await pg.getByText('Paid by Split payment').waitFor();
+  assert.deepEqual(sales.at(-1).payments, [{ method: 'cash', amount: 1000 }, { method: 'transfer', amount: 200 }], 'the parts are kept with the sale');
+  await pg.getByRole('button', { name: 'Next sale' }).click();
+
+  // Close the till: expected vs counted.
+  await pg.getByRole('button', { name: 'Close till' }).click();
+  await pg.getByRole('heading', { name: 'Close the till' }).waitFor();
+  const expected = 5000 + sales.filter((x) => x.branch_id === shopId && !x.cancelled_at && x.local_date === lagosDate(new Date().toISOString()))
+    .flatMap((x) => x.payments || [{ method: x.payment_method || 'cash', amount: x.total }]).filter((x) => x.method === 'cash').reduce((a, x) => a + x.amount, 0);
+  assert.match(await pg.locator('main').innerText(), new RegExp(`Cash expected in the drawer\\s+₦${expected.toLocaleString('en-NG')}`));
+  await pg.getByLabel(/Cash counted/).fill(String(expected - 500));
+  await pg.getByText('₦500 short').waitFor();
+  await snap('close-till');
+  await pg.getByRole('button', { name: 'Close the till' }).click();
+  await pg.getByText('Till closed: ₦500 short').waitFor();
+  assert.equal(tills.get(shopId).difference, -500);
+  await pg.getByRole('link', { name: 'Exit Sell' }).click();
+  await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+  await c.close();
+  step(`${size}: Sell full screen with Exit; opening cash; quick picks and categories; camera scan (and add an unknown barcode); hold and resume; customer; change; split; close the till (₦500 short)`);
+}
+company.askOpeningCash = false;
+
+// The self-hosted fallback reader really reads a barcode, from our own server only (no CDN).
+{
+  const c = await browser.newContext({ serviceWorkers: 'block' });
+  const pg = await c.newPage();
+  const outside = [];
+  pg.on('request', (r) => { if (!r.url().startsWith(base)) outside.push(r.url()); });
+  await pg.goto(base + 'r.html#notarealreceiptlinknotareal00');
+  const code = await pg.evaluate(async () => {
+    // Draw an EAN-13 barcode for 6151100000019 on a canvas.
+    const L = ['0001101', '0011001', '0010011', '0111101', '0100011', '0110001', '0101111', '0111011', '0110111', '0001011'];
+    const G = L.map((x) => [...x].map((b) => (b === '1' ? '0' : '1')).reverse().join('')), R = L.map((x) => [...x].map((b) => (b === '1' ? '0' : '1')).join(''));
+    const P = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG', 'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
+    const d = '6151100000019'.split('').map(Number);
+    let bits = '101';
+    for (let i = 1; i <= 6; i++) bits += (P[d[0]][i - 1] === 'L' ? L : G)[d[i]];
+    bits += '01010';
+    for (let i = 7; i <= 12; i++) bits += R[d[i]];
+    bits += '101';
+    const cv = document.createElement('canvas'); cv.width = (bits.length + 20) * 3; cv.height = 120;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = '#000';
+    [...bits].forEach((b, i) => { if (b === '1') g.fillRect((i + 10) * 3, 10, 3, 100); });
+    await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'vendor/barcode/barcode-detector.js'; s.onload = ok; s.onerror = no; document.head.append(s); });
+    const lib = window.BarcodeDetectionAPI;
+    lib.prepareZXingModule({ overrides: { locateFile: (f) => new URL('vendor/barcode/' + f, location.href).href }, fireImmediately: true });
+    const found = await new lib.BarcodeDetector({ formats: ['ean_13'] }).detect(cv);
+    return found[0]?.rawValue;
+  });
+  assert.equal(code, '6151100000019', 'the fallback reader decodes an EAN-13 barcode');
+  assert.deepEqual(outside.filter((u) => !/supabase\.co/.test(u)), [], 'the reader loads only from our own server (no CDN)');
+  await c.close();
+  step('scanner fallback: the self-hosted reader decodes an EAN-13 barcode, loading nothing from outside');
+}
 
 company.business_type = 'field';
 company.name = 'CHF Heron';

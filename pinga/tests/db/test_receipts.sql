@@ -94,10 +94,10 @@ select tests.act_as('e0000000-0000-0000-0000-000000000001');
 select tests.refused($$ update private.receipt_counters set last_no = 0 $$, 'not even the owner can reset receipt numbers');
 
 -- Totals per payment method.
-select tests.eq((select public.shops_overview((now() at time zone 'Africa/Lagos')::date)->'by_method'), '{"cash": 5000.00, "card": 0, "transfer": 4800.00}'::jsonb, 'dashboard: totals per payment method (cancelled card sale left out)');
+select tests.eq((select array[(m->>'cash')::numeric, (m->>'card')::numeric, (m->>'transfer')::numeric] from (select public.shops_overview((now() at time zone 'Africa/Lagos')::date)->'by_method' m) x), array[5000, 0, 4800]::numeric[], 'dashboard: totals per payment method (cancelled card sale left out)');
 reset role;
 select tests.act_as_server();
-select tests.eq((select public.summary_content((select id from co), (now() at time zone 'Africa/Lagos')::date)->'shops'->'by_method'->>'transfer'), '4800.00', 'evening email: totals per payment method');
+select tests.eq((select (public.summary_content((select id from co), (now() at time zone 'Africa/Lagos')::date)->'shops'->'by_method'->>'transfer')::numeric), 4800::numeric, 'evening email: totals per payment method');
 select tests.ok((select (public.summary_content((select id from co), current_date)->>'logo_path') like '%/logo-abc.png'), 'evening email: the business logo');
 reset role;
 

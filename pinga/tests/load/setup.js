@@ -73,15 +73,15 @@ if (cmd === 'create') {
 }
 
 if (cmd === 'check') {
-  console.log(JSON.stringify(await sql(`
+  console.log(JSON.stringify((await sql(`
     select count(*) as records, count(distinct a.member_id) as people, count(distinct a.company_id) as companies,
            count(*) filter (where a.photo_path is not null) as with_photo,
            count(*) filter (where a.flags <> '{}') as flagged,
            count(*) - count(distinct a.id) as duplicates,
            round(percentile_cont(0.95) within group (order by extract(epoch from a.received_at - a.happened_at))::numeric, 2) as p95_seconds_tap_to_saved
-    from public.attendance a join public.companies c on c.id = a.company_id where c.name like 'Load test %'`)[0]));
-  console.log(JSON.stringify(await sql(`select count(*) as photos, pg_size_pretty(sum((metadata->>'size')::bigint)) as size
-    from storage.objects o where o.bucket_id = 'photos' and split_part(o.name, '/', 1)::uuid in (select id from public.companies where name like 'Load test %')`)[0]));
+    from public.attendance a join public.companies c on c.id = a.company_id where c.name like 'Load test %'`))[0]));
+  console.log(JSON.stringify((await sql(`select count(*) as photos, pg_size_pretty(sum((metadata->>'size')::bigint)) as size
+    from storage.objects o where o.bucket_id = 'photos' and split_part(o.name, '/', 1)::uuid in (select id from public.companies where name like 'Load test %')`))[0]));
 }
 
 if (cmd === 'clean') {

@@ -161,6 +161,27 @@ Server settings (https only, security headers; the app's code files are always r
 
 Still to set per project (Dashboard → Authentication → URL Configuration): Site URL = the app's web address, once hosting is chosen, so the owner's email confirmation link opens the app.
 
+## Load and low-end phone tests (Step 8)
+
+Run against **staging only** (Supabase Free plan, from one test machine through the session's network proxy, so real phones on a Pro plan should do at least as well).
+
+```
+NODE_USE_ENV_PROXY=1 node tests/load/setup.js create tokens.json      # 50 test companies × (1 manager + 10 staff), signed in
+k6 run -e TOKENS=tokens.json -e PHOTO=selfie.jpg -e MODE=normal tests/load/checkin.js
+k6 run -e TOKENS=tokens.json -e PHOTO=selfie.jpg -e MODE=rush -e KIND=out tests/load/checkin.js
+NODE_USE_ENV_PROXY=1 node tests/load/setup.js check
+NODE_USE_ENV_PROXY=1 node tests/load/setup.js clean tokens.json       # deletes it all, restores the sign-in limit (150)
+NODE_USE_ENV_PROXY=1 node tests/phone/lowend.js                       # hosted site, slow 3G, 4× slower CPU
+```
+
+Results (15 Nov 2026, staging):
+
+| Test | Result |
+| --- | --- |
+| 500 staff clock in over 5 min, 50 companies at once, 50 managers watching Today | 0 failures in 2,500 requests; clock-in saved in 0.36 s (95th percentile); whole clock-in incl. photo 1.43 s; Today page 0.37 s; 500 records, 500 photos, 0 duplicates |
+| Rush: 500 clock-outs in about 1 min | 0 failures; saving still 0.34 s; photo upload slows to 3.4 s (95th percentile), which staff don't wait for (saved on the phone first, sent in the background) |
+| Low-end phone (slow 3G, 4× slower CPU, 360 px) | first open 4.4 s; reopen 1.4 s, with no signal 0.2 s; Clock in → camera + GPS ready 0.8 s; tap → saved on phone 0.2 s → on the server 2.2 s; 4.8 MB of JavaScript memory |
+
 ## Roll back
 
 - **App:** re-upload the previous version of `web/` (every version is in git: `git checkout <earlier-commit> -- web/`).

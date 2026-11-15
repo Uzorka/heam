@@ -62,7 +62,7 @@ export function verify() {
     <main class="page narrow signup">
       <div class="brand">${wordmark()}</div>
       <h1>Check your email</h1>
-      <p>We sent a 6-digit code to <strong>${esc(email)}</strong>. Enter it here.</p>
+      <p>We sent a 6-digit code to <strong>${esc(email)}</strong>. Enter it here, or tap the link in the email on this phone.</p>
       <form class="stack">
         <label class="sr" for="code">6-digit code</label>
         <input id="code" name="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" required>

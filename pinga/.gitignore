@@ -3,3 +3,4 @@ tests/screens/output/
 supabase/.temp/
 .env
 tests/staging/output/
+tests/phone/output/

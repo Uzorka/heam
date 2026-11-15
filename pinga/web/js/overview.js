@@ -135,6 +135,14 @@ const methods = (m) => {
   return used.length ? `<p class="methods">${used.map(([k, t]) => `<span><span class="muted">${t}</span> <b>${naira(m[k])}</b></span>`).join('')}</p>` : '';
 };
 
+// A shop's till close today: "Till closed: ₦500 short".
+const tillLine = (sh, shop) => {
+  const t = (sh.tills || []).find((x) => x.shop === shop && x.closed);
+  if (!t) return '';
+  const d = Number(t.difference);
+  return `<span class="tillline ${d < 0 ? 'bad-text' : d > 0 ? 'late' : 'ok-text'}">Till closed: ${d === 0 ? 'cash exactly right' : d < 0 ? `${naira(-d)} short` : `${naira(d)} over`}</span>`;
+};
+
 // Storefront / Both: today's sales per shop, best sellers, and stock that needs attention.
 function shopsCard(sh) {
   const many = sh.shops.length > 1;
@@ -148,7 +156,8 @@ function shopsCard(sh) {
         ${methods(sh.by_method)}
         <ul class="offices shops">${sh.shops.map((x) => `
           <li><a href="#/sales/${x.id}"><span>${esc(x.name)}${x.to_check ? ` <span class="pill info">${x.to_check} to check</span>` : ''}</span>
-            <span><b>${naira(x.total)}</b> <span class="muted">· ${plural(x.sales, 'sale')}</span></span></a></li>`).join('')}</ul>
+            <span><b>${naira(x.total)}</b> <span class="muted">· ${plural(x.sales, 'sale')}</span></span></a>
+            ${tillLine(sh, x.name)}</li>`).join('')}</ul>
         ${sh.best.length ? `<p class="small best"><span class="muted">Best sellers:</span> ${sh.best.slice(0, 3).map((b) => `${esc(b.name)}, ${b.qty} sold`).join(' · ')}</p>` : ''}
         ${needStock.map((x) => `
         <a class="stockrow" href="#/stock/${x.id}">

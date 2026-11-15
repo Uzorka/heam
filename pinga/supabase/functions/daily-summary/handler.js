@@ -24,6 +24,11 @@ export function summaryParts(c) {
   const add = (level, text) => attention.push([level, text]);
   if (sh) {
     if (sh.mistakes) add('red', `${count(sh.mistakes, 'mistake')} reported by staff`);
+    // Till closes that didn't match: short is red (money missing), over is amber (worth a check).
+    for (const t of sh.tills || []) {
+      if (t.closed && Number(t.difference) < 0) add('red', `${t.shop} till: ${naira(-t.difference)} short (counted ${naira(t.counted)}, expected ${naira(t.expected)})`);
+      if (t.closed && Number(t.difference) > 0) add('amber', `${t.shop} till: ${naira(t.difference)} over (counted ${naira(t.counted)}, expected ${naira(t.expected)})`);
+    }
     for (const x of sh.below_lowest) add('amber', `${x.product} sold at ${naira(x.price)}, below the lowest price${x.lowest != null ? ` of ${naira(x.lowest)}` : ''} (${proper(x.seller)}${sh.shops.length > 1 ? `, ${x.shop}` : ''})`);
     if (sh.out_of_stock_sales) add('amber', `${count(sh.out_of_stock_sales, 'sale')} made while out of stock`);
     if (sh.cancelled) add('amber', `${count(sh.cancelled, 'sale')} cancelled`);

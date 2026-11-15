@@ -154,3 +154,13 @@ test('no logo: the business name in text', () => {
   assert.ok(!/height="48"/.test(html));
   assert.match(html, /font-size:22px;font-weight:800;color:#14213D">Mama Put Stores</);
 });
+
+test('a till that closed short is red in "Needs your attention"; over is amber', () => {
+  const { text } = formatSummary({ ...busy, shops: { ...busy.shops, tills: [
+    { shop: 'Yaba shop', closed: true, expected: 19900, counted: 18400, difference: -1500 },
+    { shop: 'Surulere shop', closed: true, expected: 5000, counted: 5200, difference: 200 },
+    { shop: 'Ikeja shop', closed: true, expected: 3000, counted: 3000, difference: 0 }] } });
+  assert.match(text, /● Yaba shop till: ₦1,500 short \(counted ₦18,400, expected ₦19,900\)/);
+  assert.match(text, /○ Surulere shop till: ₦200 over/);
+  assert.ok(!/Ikeja shop till/.test(text), 'a till that matched is not mentioned');
+});

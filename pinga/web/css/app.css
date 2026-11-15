@@ -642,3 +642,4 @@ body.has-paybar .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 .pos-logo { height: 36px; max-width: 72px; flex: none; }
 /* Phones, basket open: toasts at the top so they never cover the payment buttons. */
 @media (max-width: 767px) { body.sheet-open .toast { top: max(12px, env(safe-area-inset-top)); bottom: auto; } }
+.tillline { display: block; width: 100%; font-size: 14px; font-weight: 800; margin-top: 2px; }

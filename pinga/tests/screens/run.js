@@ -237,7 +237,8 @@ async function fakeSupabase(route) {
     const shopsList = branches.filter((b) => b.kind === 'shop' && (!mineOnly || mineOnly.has(b.id)));   // like the database
     const qty = new Map(); live.flatMap((x) => x.sale_items).forEach((i) => qty.set(i.product_name, (qty.get(i.product_name) || 0) + i.qty));
     const alertsOf = (b) => [...stockRows].filter(([k]) => k.startsWith(b + '|')).map(([k, v]) => ({ v, x: products.find((y) => y.id === k.split('|')[1]) })).filter(({ v, x }) => v.qty <= x.low_stock_at);
-    return json(route, { total: live.reduce((t, x) => t + x.total, 0), sales: live.length, discount: live.reduce((t, x) => t + x.discount, 0),
+    return json(route, { tills: [...tills].filter(([, t]) => t.closed_at).map(([b, t]) => ({ shop: branches.find((x) => x.id === b)?.name, closed: true, difference: t.difference, counted: t.counted_cash, expected: t.expected_cash })),
+      total: live.reduce((t, x) => t + x.total, 0), sales: live.length, discount: live.reduce((t, x) => t + x.discount, 0),
       shops: shopsList.map((b) => { const mine = live.filter((x) => x.branch_id === b.id), al = alertsOf(b.id);
         return { id: b.id, name: b.name, total: mine.reduce((t, x) => t + x.total, 0), sales: mine.length, to_check: mine.filter((x) => x.flags.length || x.mistake_note).length,
           low: al.filter(({ v }) => v.qty > 0).length, out: al.filter(({ v }) => v.qty <= 0).length, expiring: 0 }; }),
@@ -1815,6 +1816,7 @@ for (const [size, width, height, extra] of SIZES) {
   assert.equal(tills.get(shopId).difference, -500);
   await pg.getByRole('link', { name: 'Exit Sell' }).click();
   await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+  await pg.locator('.tillline', { hasText: 'Till closed: ₦500 short' }).waitFor();   // on the Overview
   await c.close();
   step(`${size}: Sell full screen with Exit; opening cash; quick picks and categories; camera scan (and add an unknown barcode); hold and resume; customer; change; split; close the till (₦500 short)`);
 }

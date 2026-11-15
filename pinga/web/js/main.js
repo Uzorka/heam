@@ -2,7 +2,8 @@
 import * as api from './api.js';
 import { normalizePhone, loginEmailFor, validPin, PHONE_LOGIN_DOMAIN } from './phone.js';
 import { catchAll } from './report.js';
-import { show, go, esc, Say, friendly, toast, firstName, BUSINESS } from './ui.js';
+import { show, go, esc, Say, friendly, toast, firstName, BUSINESS, setNav } from './ui.js';
+import { publicBase } from './device.js';
 import { wordmark } from './icons.js';
 
 const PENDING = 'pinga.pendingCompany';
@@ -84,7 +85,7 @@ function ownerSignUp() {
     </main>`, async ({ name, company, type, email, password }) => {
     try { localStorage.setItem(PENDING, JSON.stringify({ name, company, type })); } catch { /* private mode */ }
     let signedIn;
-    try { signedIn = await api.signUp(email.trim(), password, location.origin + location.pathname); } catch (x) {
+    try { signedIn = await api.signUp(email.trim(), password, publicBase()); } catch (x) {
       if (x.code === 'user_already_exists') throw new Say('This email already has an account. Sign in instead.');
       if (x.code === 'weak_password') throw new Say('Please choose a stronger password.');
       throw x;
@@ -191,6 +192,7 @@ async function route() {
   if (name === 'join') return join(arg);
   if (!api.getSession()) {
     me = null;
+    setNav('');
     return name === 'owner' ? ownerSignIn() : name === 'signup' ? ownerSignUp() : phoneSignIn();
   }
   if (!me) me = await loadMe();

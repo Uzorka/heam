@@ -1,5 +1,7 @@
 // Stock (Storefront and Both): products and prices, stock per shop, Excel/CSV imports, the import log.
 // Owners see every shop; managers see the shops the owner gave them.
+import { saveFile } from './device.js';
+import { ask } from './dialog.js';
 import * as api from './api.js';
 import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev } from './ui.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
@@ -60,10 +62,18 @@ export async function stockList(me, arg, tabs) {
   const row = (p) => {
     const s = inShop.get(p.id), al = alertOf.get(p.id);
     const qty = s ? s.qty : null;
-    return `<li><a class="card row" href="#/product/${p.id}" data-name="${esc((p.name + ' ' + (p.code || '')).toLowerCase())}">
-      <span class="grow"><strong>${esc(p.name)}</strong><br><span class="muted">${p.price != null ? naira(p.price) : '<span class="late">No price yet</span>'}${p.code ? ' · ' + esc(p.code) : ''}${s?.expires_on ? ` · Exp ${fmtDay(s.expires_on + 'T12:00:00Z', tz)}` : ''}</span></span>
-      <span class="qty"><b>${qty == null ? '–' : qty.toLocaleString('en-NG')}</b>${al ? `<span class="pill ${ALERT[al][1]}">${ALERT[al][0]}</span>` : ''}</span>
-    </a></li>`;
+    const price = p.price != null ? naira(p.price) : '<span class="late">No price yet</span>';
+    const exp = s?.expires_on ? fmtDay(s.expires_on + 'T12:00:00Z', tz) : '';
+    // A table row on tablets and desktops; a card on phones (the .sub line shows what the hidden columns hold).
+    return `<tr data-href="#/product/${p.id}" data-name="${esc((p.name + ' ' + (p.code || '')).toLowerCase())}">
+      <td class="main"><a href="#/product/${p.id}"><strong>${esc(p.name)}</strong></a>
+        <span class="sub muted">${price}${p.code ? ' · ' + esc(p.code) : ''}${exp ? ` · Exp ${exp}` : ''}</span></td>
+      <td class="d">${esc(p.code || '')}</td>
+      <td class="d num">${price}</td>
+      <td class="d num">${p.lowest_price != null ? naira(p.lowest_price) : '<span class="muted">–</span>'}</td>
+      <td class="d">${exp || '<span class="muted">–</span>'}</td>
+      <td class="end qty"><b>${qty == null ? '–' : qty.toLocaleString('en-NG')}</b>${al ? `<span class="pill ${ALERT[al][1]}">${ALERT[al][0]}</span>` : ''}</td>
+    </tr>`;
   };
   show(`
     <main class="page">
@@ -86,7 +96,9 @@ export async function stockList(me, arg, tabs) {
       </section>
       <input id="q" type="search" placeholder="Search product or code" aria-label="Search product or code"${products.length > 8 ? '' : ' hidden'}>
       ${alerts.length ? '<label class="selall"><input type="checkbox" id="only"> <span>Only show low, out or expiring</span></label>' : ''}
-      <ul class="list" id="plist">${products.map(row).join('')}</ul>`
+      <div class="tablewrap"><table class="rtable" id="plist">
+        <thead><tr><th>Product</th><th class="d">Code</th><th class="d num">Price</th><th class="d num">Lowest price</th><th class="d">Expires</th><th class="num">In stock</th></tr></thead>
+        <tbody>${products.map(row).join('')}</tbody></table></div>`
       : `<div class="card stack center"><p><strong>No products yet</strong></p>
           <p class="muted">Import your stock list from Excel or a CSV file (download the template if you don't have one), or add products one by one.</p></div>`}
       <p class="center"><a href="#/imports">Import history</a></p>
@@ -95,9 +107,8 @@ export async function stockList(me, arg, tabs) {
   const q = document.getElementById('q'), only = document.getElementById('only');
   const filter = () => {
     const t = (q?.value || '').trim().toLowerCase();
-    app.querySelectorAll('#plist li').forEach((li) => {
-      const a = li.firstElementChild;
-      li.hidden = (t && !a.dataset.name.includes(t)) || (only?.checked && !a.querySelector('.pill'));
+    app.querySelectorAll('#plist tbody tr').forEach((tr) => {
+      tr.hidden = (t && !tr.dataset.name.includes(t)) || (only?.checked && !tr.querySelector('.pill'));
     });
   };
   q?.addEventListener('input', filter);
@@ -172,7 +183,7 @@ export async function productForm(me, id, tabs) {
   const hide = document.getElementById('hide');
   if (hide) {
     hide.onclick = async () => {
-      if (!confirm(`Stop selling ${p.name}? It disappears from the stock list and the till. Its history is kept.`)) return;
+      if (!(await ask(`Stop selling ${p.name}? It disappears from the stock list and the till. Its history is kept.`, { ok: 'Stop selling', danger: true }))) return;
       try { await api.update('products', `id=eq.${p.id}`, { active: false }); toast(`${p.name} hidden`); go('#/stock'); } catch (x) { toast(friendly(x)); }
     };
   }
@@ -183,12 +194,7 @@ export function downloadTemplate() {
   const rows = [TEMPLATE_HEADER,
     ['Peak Milk 400g', 'PM400', 24, 2500, 2300, '01/03/2027', 6],
     ['Indomie Chicken 70g', '', 120, 250, 220, '', 30]];
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(xlsxParts('Stock', rows, [28, 10, 10, 16, 22, 12, 30]), { type: XLSX_TYPE }));
-  a.download = 'Pinga-stock-template.xlsx';
-  document.body.append(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  saveFile(new Blob(xlsxParts('Stock', rows, [28, 10, 10, 16, 22, 12, 30]), { type: XLSX_TYPE }), 'Pinga-stock-template.xlsx');
 }
 
 export async function importScreen(me, tabs) {
@@ -320,16 +326,26 @@ export async function shopSales(me, arg) {
   ]);
   const first = list.filter((x) => !x.cancelled_at && (x.mistake_note || x.flags.length));
   const items = (x) => [...x.sale_items].sort((a, b) => a.line - b.line).map((i) => `${i.qty} × ${esc(i.product_name)}`).join(', ');
+  const pills = (x) => (x.cancelled_at ? `<span class="pill bad">Cancelled${x.cancelled_by_name ? ` by ${esc(x.cancelled_by_name)}` : ''}</span>`
+    : `${x.mistake_note ? '<span class="pill info">Mistake reported</span> ' : ''}${x.flags.map((f) => `<span class="pill warn">${SALE_FLAG[f] || f}</span>`).join(' ')}`);
   const row = (x) => `
-    <li><a class="card row sale${x.cancelled_at ? ' cancelled' : ''}" href="#/sale/${x.id}">
-      <span class="grow"><strong>${fmtTime(x.happened_at, tz)}</strong> · ${esc(x.seller_name)} <span class="muted small">· ${PAYM[x.payment_method] || 'Cash'}</span><br><span class="muted small">${items(x)}</span>
-        ${x.cancelled_at ? `<br><span class="pill bad">Cancelled by ${esc(x.cancelled_by_name)}</span>` : ''}
-        ${!x.cancelled_at && x.mistake_note ? `<br><span class="pill info">Mistake reported</span>` : ''}
-        ${!x.cancelled_at ? x.flags.map((f) => `<span class="pill warn">${SALE_FLAG[f] || f}</span>`).join(' ') : ''}</span>
-      <span class="qty"><b>${naira(x.total)}</b>${Number(x.discount) ? `<span class="muted small">−${naira(x.discount)}</span>` : ''}</span>
-    </a></li>`;
+    <tr class="sale${x.cancelled_at ? ' cancelled' : ''}" data-href="#/sale/${x.id}">
+      <td class="main"><a href="#/sale/${x.id}"><strong>${fmtTime(x.happened_at, tz)}</strong></a>
+        <span class="sub muted small">${esc(x.seller_name)} · ${PAYM[x.payment_method] || 'Cash'}</span>
+        <span class="sub muted small">${items(x)}</span><span class="sub">${pills(x)}</span>
+        <span class="sub tab muted small">${esc(x.receipt_code || '')} · ${esc(x.seller_name)}</span><span class="sub tab">${pills(x)}</span></td>
+      <td class="d dx">${esc(x.receipt_code || '')}</td>
+      <td class="d dx">${esc(x.seller_name)}</td>
+      <td class="d wrap">${items(x)}</td>
+      <td class="d">${PAYM[x.payment_method] || 'Cash'}</td>
+      <td class="d dx wrap">${pills(x)}</td>
+      <td class="end qty"><b>${naira(x.total)}</b>${Number(x.discount) ? `<span class="muted small">−${naira(x.discount)}</span>` : ''}</td>
+    </tr>`;
+  const table = (rows) => `<div class="tablewrap"><table class="rtable sales">
+    <thead><tr><th>Time</th><th class="d dx">Receipt</th><th class="d dx">Sold by</th><th class="d">Items</th><th class="d">Paid by</th><th class="d dx">To check</th><th class="num">Total</th></tr></thead>
+    <tbody>${rows.map(row).join('')}</tbody></table></div>`;
   show(`
-    <main class="page narrow">
+    <main class="page">
       ${backLink('#/stock/' + shop.id, 'Stock')}
       <h1>Sales · ${esc(shop.name)}</h1>
       <div class="dayrow"><label class="sr" for="day">Date</label><input type="date" id="day" value="${day}" max="${today}"></div>
@@ -339,8 +355,8 @@ export async function shopSales(me, arg) {
         ${(() => { const live = list.filter((s) => !s.cancelled_at); const by = (k) => live.filter((s) => (s.payment_method || 'cash') === k).reduce((t, s) => t + Number(s.total), 0);
           const used = Object.entries(PAYM).filter(([k]) => by(k)); return used.length ? `<p class="methods">${used.map(([k, t]) => `<span><span class="muted">${t}</span> <b>${naira(by(k))}</b></span>`).join('')}</p>` : ''; })()}
       </div>
-      ${first.length ? `<h2 class="section">To check (${first.length})</h2><ul class="list">${first.map(row).join('')}</ul><h2 class="section">All sales</h2>` : ''}
-      ${list.length ? `<ul class="list">${list.map(row).join('')}</ul>` : '<p class="muted center empty">No sales on this day.</p>'}
+      ${first.length ? `<h2 class="section">To check (${first.length})</h2>${table(first)}<h2 class="section">All sales</h2>` : ''}
+      ${list.length ? table(list) : '<p class="muted center empty">No sales on this day.</p>'}
     </main>`);
   document.getElementById('day').onchange = (e) => { salesDay = e.target.value || null; shopSales(me, shop.id); };
 }

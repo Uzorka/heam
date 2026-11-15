@@ -52,6 +52,7 @@
 <script type="module">
   import { CONFIG } from './js/config.js';
   import { receiptLines, when, naira, PAY } from './js/receipt-lines.js';
+  import { saveFile, printPage } from './js/device.js';
 
   const app = document.getElementById('app');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -104,7 +105,7 @@
         <button class="primary" id="img">Save as image</button>
         <button id="pdf">Save as PDF</button>
       </div>`;
-    document.getElementById('pdf').onclick = () => print();   // the phone's own "Save as PDF"
+    document.getElementById('pdf').onclick = () => printPage();   // the phone's own "Save as PDF"
     document.getElementById('img').onclick = () => saveImage(r);
   }
 
@@ -143,14 +144,7 @@
       }
       y += 14;
     }
-    c.toBlob((blob) => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `Receipt-${r.number}.png`;
-      document.body.append(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    }, 'image/png');
+    c.toBlob((blob) => saveFile(blob, `Receipt-${r.number}.png`), 'image/png');
   }
 
   addEventListener('hashchange', () => location.reload());   // another receipt link opened in the same tab

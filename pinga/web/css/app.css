@@ -119,15 +119,12 @@ button.link { background: none; color: var(--mango-ink); width: auto; min-height
   box-shadow: 0 4px 14px rgba(20,33,61,.18); animation: toast-in .18s ease-out;
 }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
-/* Just above the bottom tab bar. */
-body:has(.tabbar) .toast { bottom: calc(var(--tabbar) + 8px + env(safe-area-inset-bottom)); }
+/* Just above the bottom tab bar (phones). */
+body.nav-phone .toast { bottom: calc(var(--tabbar) + 8px + env(safe-area-inset-bottom)); }
 /* While a toast shows, the page gets room at the bottom so the last button can scroll clear of it. */
 body.toasting #app > main { padding-bottom: calc(var(--tabbar) + 88px + env(safe-area-inset-bottom)); }
 
-/* Navigation: top segmented control on desktop, bottom tab bar on phones */
-.tabs { display: none; gap: 4px; background: #F3E9DB; border-radius: 14px; padding: 4px; margin-bottom: 20px; }
-.tabs a { flex: 1; text-align: center; padding: 10px 0; border-radius: 11px; color: var(--ink); font-weight: 700; font-size: 15px; }
-.tabs a.on { background: var(--card); box-shadow: 0 1px 3px rgba(20,33,61,.1); }
+/* Navigation: one nav. Phones: bottom tab bar. Tablets: side rail. Desktops: sidebar. (Sizes at the end.) */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: space-around;
   background: rgba(255,255,255,.96); border-top: 1px solid var(--line);
@@ -140,13 +137,13 @@ body.toasting #app > main { padding-bottom: calc(var(--tabbar) + 88px + env(safe
 .tabbar a span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tabbar a.on { color: var(--mango); font-weight: 800; }
 .has-tabs { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
-/* Desktop = a wide screen with a mouse. Phones and tablets (any width) keep the bottom tab bar. */
-@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
-  .tabs { display: flex; }
-  .tabbar.manager { display: none; }
-  .has-tabs.manager-page { padding-bottom: 48px; }
-  body:has(.tabbar.manager) .toast { bottom: max(16px, env(safe-area-inset-bottom)); }
-}
+/* Sub-screens on phones have a back link instead of the tab bar. */
+.appnav.sub { display: none; }
+.nav-brand { display: none; }
+/* "Skip to content": invisible until a keyboard user reaches it. */
+.appnav a.skip { position: absolute; left: -9999px; top: 0; width: auto; }
+.appnav a.skip:focus { left: 12px; top: 12px; position: fixed; z-index: 100; display: block; background: var(--ink); color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 15px; }
+body.nav-phone #app > main { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
 
 .banner { background: var(--late-bg); color: var(--late); font-weight: 700; font-size: 14px; padding: 11px 14px; border-radius: 14px; }
 a.banner { display: block; color: var(--late); margin-bottom: 14px; }
@@ -247,7 +244,6 @@ fieldset.days { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap
 .has-bulk { padding-bottom: calc(var(--tabbar) + 170px); }
 .bulkbar { position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar) + env(safe-area-inset-bottom)); z-index: 30; background: rgba(255,255,255,.98); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(20,33,61,.08);
   padding: 12px 16px; }
-@media (min-width: 900px) and (hover: hover) and (pointer: fine) { .bulkbar { bottom: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); } .has-bulk { padding-bottom: 170px; } }
 .bulkbar > div { max-width: 720px; margin: 0 auto; }
 .bulk-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .bulk-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
@@ -331,8 +327,6 @@ fieldset.days { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap
 }
 .staff-hero { display: flex; align-items: center; gap: 16px; }
 .staff-hero h2 { margin: 0 0 2px; }
-.page:has(.tabbar) { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
-@media (min-width: 900px) and (hover: hover) and (pointer: fine) { .page:has(.tabbar.manager) { padding-bottom: 48px; } }
 .banner.tip { background: var(--mango-soft); color: var(--ink); font-weight: 700; margin: 12px 0 0; }
 
 /* Stock */
@@ -412,3 +406,147 @@ textarea { font: inherit; padding: 12px 14px; border-radius: 14px; border: 1.5px
 .small-btn { width: auto; min-height: 40px; padding: 0 12px; font-size: 14px; flex: none; }
 
 .methods { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 4px; font-size: 15px; }
+
+/* ── Dialogs (our own, instead of the browser's confirm/prompt) ── */
+.dlg { border: 0; border-radius: 20px; padding: 22px 20px 18px; width: min(420px, calc(100vw - 32px)); background: var(--card); color: var(--ink); box-shadow: 0 20px 60px rgba(20,33,61,.25); }
+.dlg::backdrop { background: rgba(20,33,61,.45); }
+.dlg .stack { margin: 0; gap: 14px; }
+.dlg-msg { font-size: 17px; font-weight: 700; margin: 0; }
+.dlg-btns { display: flex; gap: 10px; }
+.dlg-btns button { flex: 1; min-height: 50px; }
+
+/* ── Tables: a real table on tablets and desktops, a card per row on phones ── */
+.tablewrap { margin-top: 18px; }
+.rtable { width: 100%; border-collapse: separate; border-spacing: 0; }
+.rtable thead { display: none; }
+.rtable, .rtable tbody { display: block; }
+.rtable tbody { display: flex; flex-direction: column; gap: 10px; }
+.rtable tr { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: var(--radius); padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(20,33,61,.05), 0 4px 14px rgba(20,33,61,.04); }
+.rtable tr[hidden] { display: none; }
+.rtable td { display: block; padding: 0; }
+.rtable td.d { display: none; }
+.rtable td.main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rtable td.main > a { color: var(--ink); }
+.rtable td.end { text-align: right; flex: none; }
+.rtable .sub { display: block; }
+.rtable .sub:empty { display: none; }
+.rtable .sub.tab { display: none; }
+.rtable tr[data-href] { cursor: pointer; }
+.rtable tr.cancelled { opacity: .7; }
+.rtable tr.cancelled .qty b { text-decoration: line-through; }
+.num { text-align: right; white-space: nowrap; }
+
+/* ── Overview grid (one column on phones) ── */
+.dash { display: grid; gap: 14px; margin-bottom: 14px; }
+.dash > .card, .dash > div > .card { margin: 0; }
+.dash > .getstarted, .dash .span-all > .card { margin: 0; }
+
+/* ── Till ── */
+.till-grid { display: flex; flex-direction: column; }
+.till-sale { order: -1; }
+.cart.is-empty { display: none; }
+.cart-empty { display: none; }
+.keys { display: none; }
+kbd { font: 800 12px/1 Nunito, sans-serif; background: var(--card); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 3px 6px; color: var(--ink); }
+.pick.hl { box-shadow: inset 0 0 0 2.5px var(--mango); background: #FFFBF6; }
+
+/* ── Mouse and keyboard ── */
+:focus-visible { outline: 3px solid var(--mango); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: -1px; }
+@media (hover: hover) {
+  .primary:hover { background: var(--mango-press); }
+  .secondary:hover, .chip:hover, .bulk-btns button:hover { border-color: var(--mango); }
+  a.card:hover, button.pick:hover, a.tile:hover { box-shadow: 0 0 0 2px var(--mango-soft), 0 4px 14px rgba(20,33,61,.08); }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  a.card:hover, a.button:hover, .appnav a:hover, a.tile:hover, a.chip:hover, .rtable a:hover, a.stockrow:hover { text-decoration: none; }
+  .rtable tr[data-href]:hover td, .rtable tr[data-href]:hover { background: #FFFBF6; }
+  .appnav a:hover { color: var(--ink); }
+}
+
+/* ══ Tablet: 768 px and wider ══ */
+@media (min-width: 768px) {
+  :root { --nav-w: 96px; }
+  body.with-nav #app { padding-left: var(--nav-w); }
+  .appnav, .appnav.sub {
+    display: flex; top: 0; bottom: 0; right: auto; width: var(--nav-w); flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 4px;
+    border-top: 0; border-right: 1px solid var(--line); padding: max(16px, env(safe-area-inset-top)) 10px 16px; min-height: 0; overflow-y: auto; background: #fff;
+  }
+  .appnav a { flex: none; max-width: none; padding: 10px 4px 8px; border-radius: 14px; }
+  .appnav a.on { background: var(--mango-soft); color: var(--mango-ink); }
+  body.nav-phone #app > main, body.toasting #app > main { padding-bottom: 64px; }
+  body.nav-phone .toast, .toast { bottom: max(20px, env(safe-area-inset-bottom)); }
+  body.with-nav .toast { left: calc(var(--nav-w) + 16px); }
+  .bulkbar { left: var(--nav-w); bottom: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .has-bulk { padding-bottom: 170px; }
+
+  .page { max-width: 880px; padding: 28px 32px 64px; padding-top: max(28px, env(safe-area-inset-top)); }
+  .narrow { max-width: 560px; }
+  h1 { font-size: 30px; }
+
+  .dash { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .dash .span-all, .dash .span-2 { grid-column: 1 / -1; }
+  .export-btn { max-width: 360px; }
+
+  /* Tables */
+  .tablewrap { background: var(--card); border-radius: var(--radius); overflow-x: auto; box-shadow: 0 1px 2px rgba(20,33,61,.05), 0 4px 14px rgba(20,33,61,.04); }
+  .rtable { display: table; }
+  .rtable thead { display: table-header-group; }
+  .rtable tbody { display: table-row-group; }
+  .rtable tr { display: table-row; padding: 0; border-radius: 0; box-shadow: none; background: none; }
+  .rtable tr[hidden] { display: none; }
+  .rtable th { text-align: left; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 12px 16px; background: #FFFBF6; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .rtable td, .rtable td.d, .rtable td.main { display: table-cell; padding: 12px 16px; border-top: 1px solid var(--line); vertical-align: middle; font-size: 15px; }
+  .rtable tr:first-child td { border-top: 0; }
+  .rtable td.end { text-align: right; }
+  .rtable td.end .pill { margin-left: auto; }
+  .rtable .sub { display: none; }
+  /* Tablets: fewer columns; their details sit under the first one. Desktops: every column. */
+  .rtable .sub.tab { display: block; }
+  .rtable .sub.tab:empty, .rtable .sub.tab .pill:empty { display: none; }
+  .rtable th.dx, .rtable td.dx { display: none; }
+  .rtable .qty { display: table-cell; }
+  .rtable .qty b { display: block; }
+  .rtable td.wrap { white-space: normal; max-width: 240px; }
+  .rtable th.num, .rtable td.num { text-align: right; }
+
+  /* Till: products left, the sale right */
+  .page.till { max-width: 1100px; }
+  .till-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); gap: 20px; align-items: start; }
+  .till-sale { order: 0; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+  .cart.is-empty { display: block; }
+  .cart.is-empty .cart-empty { display: block; margin: 8px 0 12px; }
+  .cart.is-empty .lines, .cart.is-empty #clear, .cart.is-empty .error { display: none; }
+  .cart { margin-bottom: 0; }
+  #picks { margin-top: 8px; }
+}
+@media (min-width: 1024px) and (hover: hover) { .keys { display: block; font-size: 13px; color: var(--muted); margin: -2px 0 10px; line-height: 2; } }
+
+/* ══ Desktop: 1200 px and wider ══ */
+@media (min-width: 1200px) {
+  :root { --nav-w: 240px; }
+  body.till-mode { --nav-w: 96px; }   /* the till uses the whole screen: the menu shrinks to icons */
+  body:not(.till-mode) .appnav { padding: 24px 16px; gap: 2px; }
+  body:not(.till-mode) .nav-brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 20px; font-weight: 800; font-size: 17px; color: var(--ink); line-height: 1.25; }
+  body:not(.till-mode) .nav-brand img { height: 32px; width: auto; max-width: 64px; object-fit: contain; border-radius: 6px; }
+  body:not(.till-mode) .appnav a { flex-direction: row; justify-content: flex-start; gap: 12px; padding: 11px 14px; font-size: 16px; line-height: 20px; border-radius: 12px; }
+  body:not(.till-mode) .appnav a .ic { margin: 0; }
+
+  .page { max-width: 1120px; padding: 36px 48px 72px; }
+  .narrow { max-width: 600px; }
+  .page p, .page .hint, .page .banner { max-width: 72ch; }   /* comfortable reading width */
+  .dash { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .dash .span-2 { grid-column: span 2; }
+  .dash .span-all { grid-column: 1 / -1; }
+  .rtable th.dx, .rtable td.dx { display: table-cell; }
+  .rtable .sub.tab { display: none; }
+  .map { height: 300px; }
+
+  /* Full-screen till */
+  .page.till { max-width: none; padding: 24px 32px 32px; }
+  .till-grid { grid-template-columns: minmax(0, 1fr) 420px; gap: 28px; }
+  .till .bar { margin-bottom: 14px; }
+  #picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  #picks li[hidden] { display: none; }
+  #q { height: 58px; font-size: 19px; }
+}

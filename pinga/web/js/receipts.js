@@ -2,6 +2,7 @@
 // shared on WhatsApp or copied. Receipts asked for while offline wait here and are offered again
 // as soon as their sale has reached the server.
 import { normalizePhone } from './phone.js';
+import { publicBase } from './device.js';
 
 const PENDING = 'pinga.receipts';
 
@@ -12,7 +13,7 @@ export function makeToken() {
 }
 
 // The receipt page sits next to the app: …/r.html#<token> (the part after # is never sent to the server).
-export const receiptUrl = (token, base = location.origin + location.pathname.replace(/[^/]*$/, '')) => `${base}r.html#${token}`;
+export const receiptUrl = (token, base = publicBase()) => `${base}r.html#${token}`;
 
 export const naira = (n) => '₦' + Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 });
 

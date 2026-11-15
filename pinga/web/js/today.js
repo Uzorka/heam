@@ -1,5 +1,6 @@
 // Manager's Today page: everyone's day at a glance, filters, and bulk Present / Absent / Leave / Off.
 // Same flow as the CHF Heron tracker's admin page. Pick a past date to fix it.
+import { ask } from './dialog.js';
 import * as api from './api.js';
 import { show, go, esc, toast, header, wireSignOut, friendly, app, ROLE, fmtTime, fmtDay, localDate } from './ui.js';
 import { happyPin } from './icons.js';
@@ -137,9 +138,9 @@ export async function today(me, arg, tabs) {
       }
       const n = ids.length;
       const who = `${n} ${n > 1 ? 'people' : 'person'}`;
-      if (n > 1 && !confirm(st === 'clear'
+      if (n > 1 && !(await ask(st === 'clear'
         ? `Remove the status you set for ${who} on ${dayText}? Their clock-ins and visits are not changed.`
-        : `Mark ${who} as ${WORD[st]} on ${dayText}?`)) return;
+        : `Mark ${who} as ${WORD[st]} on ${dayText}?`, { ok: 'Yes' }))) return;
       const btns = app.parentElement.querySelectorAll('[data-b]');
       btns.forEach((x) => { x.disabled = true; });
       try {

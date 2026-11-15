@@ -3,7 +3,9 @@ import * as api from './api.js';
 import { normalizePhone, displayPhone } from './phone.js';
 import { watchBest, parseLatLng } from './gps.js';
 import { ICON } from './icons.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl } from './ui.js';
+import { publicBase, copyText } from './device.js';
+import { ask } from './dialog.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl, setNav } from './ui.js';
 
 let banner = '';
 let flags = null;   // what's switched on (payments, face check); loaded once per visit
@@ -26,21 +28,29 @@ const NAV_FIELD = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 
 const NAV_SHOP = [['#/overview', 'Overview', 'overview'], ['#/today', 'Today', 'today'], ['#/stock', 'Stock', 'stock'], ['#/team', 'Team', 'team'], ['#/setup', 'Setup', 'setup']];
 let NAV = NAV_FIELD;
 let F = feats(null);   // what this business type uses (set on every visit)
-// Top segmented control on desktop; bottom tab bar with icons on phones (like iPhone apps).
-const tabs = (on) => `${banner}
-  <nav class="tabs" aria-label="Sections">
-    ${NAV.map(([h, t]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')}
-  </nav>
-  <nav class="tabbar manager" aria-label="Sections">
+// One nav: bottom tab bar on phones, side rail on tablets, sidebar (with the business name) on desktops.
+let ME = null;
+const navHtml = (on) => {
+  const src = logoUrl(ME?.companies.logo_path);
+  return `
+  <nav class="tabbar manager appnav" aria-label="Sections">
+    <div class="nav-brand">${src ? `<img src="${esc(src)}" alt="" onerror="this.remove()">` : ''}<span>${esc(ME?.companies.name || '')}</span></div>
     ${NAV.map(([h, t, i]) => `<a href="${h}"${t === on ? ' class="on" aria-current="page"' : ''}>${ICON[i]}<span>${t}</span></a>`).join('')}
   </nav>`;
+};
+// Which section a sub-screen belongs to (highlighted in the side nav on tablets and desktops).
+const SECTION = { person: 'Team', invite: 'Team', day: 'Today', product: 'Stock', import: 'Stock', imports: 'Stock', sales: 'Stock', sale: 'Stock' };
+// Main screens: the nav shows on every size. Returns the billing banner (if any) for the top of the page.
+const tabs = (on) => { setNav(''); return `${banner}${navHtml(on)}`; };
 
 export async function adminRoute(me, name, arg) {
   if (!flags) flags = await api.rpc('app_flags').catch(() => ({}));
   banner = billingBanner(me);
   F = feats(me);
+  ME = me;
   NAV = F.shop ? NAV_SHOP : NAV_FIELD;
   PLACE.office = officeKind(F);
+  setNav(navHtml(SECTION[name] || 'Setup'));   // sub-screens keep the side nav on bigger screens
   // Features this business type doesn't use are not reachable.
   if (!F.visits && ['stores', 'store', 'assign'].includes(name)) return go('#/setup');
   if (F.shop && ['stock', 'product', 'import', 'imports', 'sales', 'sale'].includes(name)) {
@@ -86,14 +96,18 @@ async function team(me) {
       ${header(me, 'Team')}
       ${tabs('Team')}
       <a class="primary button" href="#/invite">Invite someone</a>
-      <ul class="list">
-        ${people.map((p) => `
-          <li><a class="card row" href="#/person/${p.id}">
-            <span><strong>${esc(p.full_name)}</strong><br><span class="muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</span>
-              ${p.role === 'rep' ? `<br><span class="muted small">${repLine(p)}</span>` : ''}</span>
-            ${p.joined_at ? '<span class="pill ok">Joined</span>' : '<span class="pill wait">Not joined</span>'}
-          </a></li>`).join('')}
-      </ul>
+      <div class="tablewrap"><table class="rtable">
+        <thead><tr><th>Name</th><th class="d">Role</th><th class="d">Phone</th>${F.visits ? '<th class="d">Stores</th>' : ''}<th class="num">Status</th></tr></thead>
+        <tbody>${people.map((p) => `
+          <tr data-href="#/person/${p.id}">
+            <td class="main"><a href="#/person/${p.id}"><strong>${esc(p.full_name)}</strong></a>
+              <span class="sub muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</span>
+              ${p.role === 'rep' ? `<span class="sub muted small">${repLine(p)}</span>` : ''}</td>
+            <td class="d">${ROLE[p.role]}</td>
+            <td class="d">${p.phone ? esc(displayPhone(p.phone)) : '<span class="muted">Signs in with email</span>'}</td>
+            ${F.visits ? `<td class="d">${p.role === 'rep' ? repLine(p) : '<span class="muted">–</span>'}</td>` : ''}
+            <td class="end">${p.joined_at ? '<span class="pill ok">Joined</span>' : '<span class="pill wait">Not joined</span>'}</td>
+          </tr>`).join('')}</tbody></table></div>
     </main>`);
   wireSignOut();
 }
@@ -220,7 +234,7 @@ async function person(me, id) {
       </form>` : '';
   const first = firstName(p.full_name);
   const share = (token) => {
-    const link = `${location.origin}${location.pathname}#/join/${token}`;
+    const link = `${publicBase()}#/join/${token}`;
     const text = `Hi ${first}, ${me.companies.name} uses Pinga${isRep ? ' for store visits' : ' for attendance'}. Open this link to set your PIN: ${link}`;
     return `
       <div class="card stack">
@@ -291,15 +305,15 @@ async function person(me, id) {
     if (!btn) return;
     btn.onclick = async () => {
       const input = document.getElementById('link');
-      try { await navigator.clipboard.writeText(input.value); } catch { input.select(); document.execCommand('copy'); }
-      btn.textContent = 'Copied';
+      if (await copyText(input.value)) btn.textContent = 'Copied';
+      else { input.select(); btn.textContent = 'Selected: copy it now'; }
     };
   };
   wireCopy();
   const retake = document.getElementById('retake');
   if (retake) {
     retake.onclick = async () => {
-      if (!confirm(`Ask ${first} to take a new reference photo? Their current one will be replaced.`)) return;
+      if (!(await ask(`Ask ${first} to take a new reference photo? Their current one will be replaced.`, { ok: 'Ask for a new photo' }))) return;
       retake.disabled = true;
       try {
         await api.rpc('clear_reference_photo', { p_member: p.id });
@@ -625,7 +639,7 @@ function brand(me) {
   const rm = document.getElementById('nologo');
   if (rm) {
     rm.onclick = async () => {
-      if (!confirm('Remove your logo? Your business name will be shown instead.')) return;
+      if (!(await ask('Remove your logo? Your business name will be shown instead.', { ok: 'Remove logo', danger: true }))) return;
       try {
         await api.update('companies', `id=eq.${me.company_id}`, { logo_path: null });
         api.removeFile('logos', c.logo_path).catch(() => {});

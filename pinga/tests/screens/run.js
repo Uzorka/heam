@@ -396,6 +396,16 @@ const shot = async (name) => {
 };
 const step = (name) => console.log('ok -', name);
 let EMPTY_CHECKS = () => {};   // replaced below
+// Pinga's own dialog (instead of the browser's): returns its question and answers OK (typing `text` if it asks).
+const accept = async (text, p = page) => {
+  const d = p.locator('dialog.dlg[open]');
+  await d.waitFor();
+  const q = await d.locator('.dlg-msg').innerText();
+  if (text != null) await d.locator('input').fill(text);
+  await d.locator('[type=submit]').click();
+  await d.waitFor({ state: 'detached' });
+  return q;
+};
 const until = async (fn, what) => { for (let i = 0; i < 100; i++) { if (fn()) return; await new Promise((r) => setTimeout(r, 100)); } throw new Error('Timed out waiting for ' + what); };
 const goOnline = () => page.evaluate(() => dispatchEvent(new Event('online')));
 
@@ -491,7 +501,7 @@ await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 step('owner signs in and lands on Overview');
 // CHF Heron is a Field sales business: no shop features anywhere.
 assert.equal(company.business_type, 'field');
-assert.deepEqual(await page.locator('.tabbar.manager span').allInnerTexts(), ['Overview', 'Today', 'Team', 'Setup'], 'Field sales: no Stock tab');
+assert.deepEqual(await page.locator('.tabbar.manager a[href^="#/"] span').allInnerTexts(), ['Overview', 'Today', 'Team', 'Setup'], 'Field sales: no Stock tab');
 assert.equal(await page.getByText(/Add your shop|Sales today/).count(), 0, 'Field sales: no shop checklist or sales card');
 step('Field sales (CHF Heron): no Stock tab, no shop checklist, no sales card');
 await page.getByRole('link', { name: 'Today', exact: true }).click();
@@ -537,8 +547,8 @@ await page.getByText(/Outside the office \(1\.0 km\)/).waitFor();
 await page.getByText("Face didn't match (41% alike)").waitFor();
 step('owner sees each clock-in with its photo, lateness and flags, including "Face didn\'t match (41% alike)"');
 await shot('owner-person-clock-ins');
-page.once('dialog', (d) => d.accept());
 await page.getByRole('button', { name: 'Ask for a new reference photo' }).click();
+await accept();
 await page.getByText('Sade will be asked for a reference photo next time they open Pinga.').waitFor();
 assert.equal(people.find((x) => x.id === 'm1').reference_photo_path, null);
 step('owner asks for a new reference photo');
@@ -574,7 +584,7 @@ await page.getByText('Remi now covers 3 stores').waitFor();
 assert.equal(assignments.length, 3);
 step('owner sets a daily target and ticks the stores a rep covers');
 await page.getByRole('link', { name: 'Back to Team' }).click();
-await page.getByText('3 stores · 3 visits a day').waitFor();
+await page.getByText('3 stores · 3 visits a day').filter({ visible: true }).waitFor();
 step('Team shows each sales rep\'s stores and visits a day');
 await page.getByRole('link', { name: 'Setup', exact: true }).click();
 await page.getByRole('link', { name: /^Stores/ }).click();
@@ -658,9 +668,9 @@ await page.getByRole('button', { name: /Ebeano Ikota/ }).click();
 await page.getByText("You're outside this store's zone").waitFor();
 await page.getByRole('button', { name: 'Pick another store' }).waitFor();
 await shot('rep-outside-zone');
-page.once('dialog', (d) => d.accept());
 networkDown = true;
 await page.getByRole('button', { name: 'Check in anyway (flagged)' }).click();
+await accept();
 await page.getByText('Target reached').waitFor();
 await page.getByText('1 check-in saved on this phone').waitFor();
 step('outside the zone: "Pick another store", or check in anyway after a warning; no signal: saved on the phone');
@@ -696,8 +706,7 @@ await page.getByText('hours lost to lateness and absence').waitFor();
 step('Overview: present/late/not in, field visits 3 of 3 with stores on a map, patterns, lost time');
 await shot('owner-overview');
 assert.ok(await page.locator('.tabbar.manager').isVisible(), 'phones get the bottom tab bar');
-assert.ok(!(await page.locator('nav.tabs').isVisible()), '...and not the top segmented control');
-assert.equal(await page.locator('.tabbar.manager a').count(), 4);
+assert.equal(await page.locator('.tabbar.manager a[href^="#/"]').count(), 4);
 step('greeting capitalises the name ("elvis uzorka" → "Good …, Elvis"); bottom tab bar on phones');
 const brand = await page.evaluate(async () => {
   await document.fonts.ready;
@@ -706,7 +715,7 @@ const brand = await page.evaluate(async () => {
     nunito: document.fonts.check('800 16px Nunito') && document.fonts.check('400 16px Nunito') && [...document.fonts].some((f) => f.family.includes('Nunito') && f.status === 'loaded'),
     font: css('body', 'fontFamily'), bg: css('body', 'backgroundColor'), text: css('h1', 'color'),
     card: css('.card', 'backgroundColor'), logo: css('.logo > path', 'fill'),
-    tabs: [...document.querySelectorAll('.tabbar.manager a')].map((a) => { const i = a.querySelector('svg').getBoundingClientRect(), l = a.querySelector('span').getBoundingClientRect(), b = a.getBoundingClientRect();
+    tabs: [...document.querySelectorAll('.tabbar.manager a[href^="#/"]')].map((a) => { const i = a.querySelector('svg').getBoundingClientRect(), l = a.querySelector('span').getBoundingClientRect(), b = a.getBoundingClientRect();
       return { w: Math.round(b.width), iconAbove: i.bottom <= l.top + 1, color: getComputedStyle(a).color, on: a.classList.contains('on') }; }),
   };
 });
@@ -766,18 +775,18 @@ await statusIs('Tunde Ade', /Leave\nset by manager/);
 step('filter "No check-in", tick one, tap Leave: marked "set by manager" (no confirm for one person)');
 
 let asked = '';
-page.once('dialog', (d) => { asked = d.message(); d.accept(); });
 await page.getByRole('checkbox', { name: 'Select all shown' }).check();
 await page.getByText('3 selected').waitFor();
 await page.getByRole('button', { name: 'Present', exact: true }).click();
+asked = await accept();
 await page.getByText('3 people marked Present').waitFor();
 assert.match(asked, /^Mark 3 people as Present on today\?$/);
 await statusIs('Sade Bello', /Present\nset by manager/);
 step('select all, Present: asks "Mark 3 people as Present on today?" first');
 
-page.once('dialog', (d) => { asked = d.message(); d.accept(); });
 await page.getByRole('checkbox', { name: 'Select all shown' }).check();
 await page.getByRole('button', { name: 'Clear' }).click();
+asked = await accept();
 await page.getByText('Cleared 3 people').waitFor();
 assert.match(asked, /clock-ins and visits are not changed/);
 await statusIs('Sade Bello', /Late · 12 min/);
@@ -953,9 +962,9 @@ await dp.getByLabel('Email').fill('elvis@chfheron.com');
 await dp.getByLabel('Password').fill('password1');
 await dp.getByRole('button', { name: 'Sign in' }).click();
 await dp.getByRole('heading', { name: /, Elvis$/ }).waitFor();
-assert.ok(await dp.locator('nav.tabs').isVisible(), 'desktop shows the top segmented control');
-assert.ok(!(await dp.locator('.tabbar.manager').isVisible()), '...and no bottom tab bar');
-step('desktop keeps the top segmented control; no bottom tab bar');
+const side = await dp.locator('.appnav').boundingBox();
+assert.ok(side.x === 0 && side.height >= 790 && side.width >= 90, 'on a wide screen the menu is down the left side');
+step('wide screens: the menu moves to the left side (bottom tab bar on phones only)');
 await dp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-owner-desktop.png` });
 await desk.close();
 
@@ -971,7 +980,7 @@ await page.getByRole('button', { name: 'Sign in' }).click();
 await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 await page.getByRole('heading', { name: 'Get started' }).waitFor();
 assert.deepEqual(await page.locator('.checklist .title').allInnerTexts(), ['Add your shop', 'Invite your shop staff', 'First clock-in'], 'Storefront checklist: no stores step');
-assert.deepEqual(await page.locator('.tabbar.manager span').allInnerTexts(), ['Overview', 'Today', 'Stock', 'Team', 'Setup'], 'Storefront has a Stock tab');
+assert.deepEqual(await page.locator('.tabbar.manager a[href^="#/"] span').allInnerTexts(), ['Overview', 'Today', 'Stock', 'Team', 'Setup'], 'Storefront has a Stock tab');
 await shot('storefront-overview');
 step('Storefront: checklist is shop, staff, first clock-in; tab bar has Stock');
 await page.getByRole('link', { name: 'Setup', exact: true }).click();
@@ -1084,7 +1093,7 @@ await page.getByRole('button', { name: 'Add 15 items to Yaba shop' }).click();
 await page.getByText('Imported 2 products (1 new)').waitFor();
 await page.locator('#plist').getByText('Golden Penny Sugar 500g').waitFor();
 assert.deepEqual(await page.locator('#plist .qty b').allInnerTexts(), ['3', '120', '36']);
-assert.equal(await page.locator('#plist li', { hasText: 'Golden Penny Sugar' }).locator('.pill').innerText(), 'Low', '3 left (alert at 5) shows Low');
+assert.equal(await page.locator('#plist tbody tr', { hasText: 'Golden Penny Sugar' }).locator('.pill').innerText(), 'Low', '3 left (alert at 5) shows Low');
 await shot('stock-list');
 step('Import: a delivery adds to stock; a bad row is explained and skipped; low stock is marked');
 
@@ -1120,12 +1129,12 @@ await page.getByLabel('Phone number').fill('0803 555 0101');
 await page.getByLabel('PIN').fill('482913');
 await page.getByRole('button', { name: 'Sign in' }).click();
 await page.getByRole('link', { name: 'Record a sale' }).waitFor();
-assert.deepEqual(await page.locator('.tabbar span').allInnerTexts(), ['Clock', 'Sell', 'My sales'], 'shop staff: Clock, Sell, My sales');
+assert.deepEqual(await page.locator('.tabbar a[href^="#/"] span').allInnerTexts(), ['Clock', 'Sell', 'My sales'], 'shop staff: Clock, Sell, My sales');
 await shot('shop-staff-home');
 step('Shop staff: home has Clock in plus Record a sale; tab bar Clock / Sell / My sales');
 await page.getByRole('link', { name: 'Record a sale' }).click();
 await page.getByRole('heading', { name: 'Sell' }).waitFor();
-await page.getByLabel('Search product or code').fill('pm400');
+await page.getByLabel(/^Search product, code/).fill('pm400');
 assert.equal(await page.locator('#picks li:not([hidden])').count(), 1, 'search finds by code');
 await page.locator('#picks li:not([hidden]) .pick').click();
 await page.locator('.pick', { hasText: 'Golden Penny Sugar' }).click();
@@ -1140,7 +1149,7 @@ assert.equal(await page.locator('#total').innerText(), '₦9,200');
 await shot('till-basket');
 step('Till: search, tap to add, quantity and haggled price; below-lowest price and short stock are warned, not blocked');
 networkDown = true;
-await page.getByRole('button', { name: 'Save sale' }).click();
+await page.getByRole('button', { name: 'Complete sale' }).click();
 await page.getByText('Sale saved · ₦9,200').waitFor();
 await page.getByText('1 waiting to send').waitFor();
 assert.equal(await page.locator('.pick', { hasText: 'Golden Penny Sugar' }).locator('.muted').innerText(), 'Out of stock', 'the phone counts the waiting sale against stock');
@@ -1157,8 +1166,8 @@ assert.equal(stockRows.get(sales[0].branch_id + '|' + sales[0].sale_items[1].pro
 await page.getByRole('link', { name: 'Sell' }).click();
 await page.getByRole('link', { name: 'My sales' }).click();
 await page.getByRole('button', { name: 'Report a mistake' }).waitFor();
-page.once('dialog', (d) => d.accept('Sugar was 3, not 4'));
 await page.getByRole('button', { name: 'Report a mistake' }).click();
+await accept('Sugar was 3, not 4');
 await page.getByText('Mistake reported: Sugar was 3, not 4').waitFor();
 await shot('my-sales');
 step('Signal back: the sale is sent once, flagged; staff can report a mistake (they cannot cancel)');
@@ -1177,7 +1186,7 @@ await page.locator('.salescard').click();
 await page.getByRole('heading', { name: 'To check (1)' }).waitFor();
 await page.getByText('Discounts given: ₦600').waitFor();
 await shot('owner-shop-sales');
-await page.locator('.list').first().locator('a.sale').click();
+await page.locator('table.sales').first().locator('tbody a').first().click();
 await page.getByText('Kemi Yaba reported a mistake:').waitFor();
 await page.getByRole('button', { name: 'Cancel this sale' }).click();
 await page.getByText('Please say why the sale is cancelled.').waitFor();
@@ -1267,7 +1276,7 @@ await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
 await page.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
 await page.getByText('Transfer', { exact: true }).click();
 await shot('till-payment');
-await page.getByRole('button', { name: 'Save sale' }).click();
+await page.getByRole('button', { name: 'Complete sale' }).click();
 await page.getByRole('heading', { name: /^Sale saved · ₦2,750$/ }).waitFor();
 const sold = sales.at(-1);
 assert.equal(sold.payment_method, 'transfer', 'payment method saved with the sale');
@@ -1284,7 +1293,7 @@ step('Sale: payment method chosen; "Send receipt" opens WhatsApp to the customer
 await page.getByRole('button', { name: 'Next sale' }).click();
 networkDown = true;
 await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
-await page.getByRole('button', { name: 'Save sale' }).click();
+await page.getByRole('button', { name: 'Complete sale' }).click();
 await page.getByRole('button', { name: 'Send receipt when online' }).waitFor();
 await page.getByLabel(/Customer's WhatsApp number/).fill('0803 765 4321');
 await page.getByRole('button', { name: 'Send receipt when online' }).click();
@@ -1350,13 +1359,143 @@ await page.getByRole('button', { name: 'Save' }).click();
 await page.getByRole('link', { name: /^Business type/ }).waitFor();
 assert.equal(company.business_type, 'field', 'saved');
 assert.match(await page.getByRole('link', { name: /^Business type/ }).innerText(), /Field sales/);
-assert.deepEqual(await page.locator('.tabbar.manager span').allInnerTexts(), ['Overview', 'Today', 'Team', 'Setup'], 'Stock tab gone');
+assert.deepEqual(await page.locator('.tabbar.manager a[href^="#/"] span').allInnerTexts(), ['Overview', 'Today', 'Team', 'Setup'], 'Stock tab gone');
 await page.goto(base + '#/stock');
 await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 assert.equal(await page.getByText(/Add your shop|Sales today/).count(), 0, 'no shop features once back to Field sales');
 step('Switching back to Field sales is saved and removes the Stock tab and shop features');
 company.name = 'CHF Heron';
 await page.getByRole('button', { name: 'Sign out' }).click();
+
+// ── Three screen sizes: phone, tablet, desktop ──────────────
+// Same screens at 375, 820 and 1440 px: the right menu for each size, nothing wider than the screen,
+// tables on bigger screens, the two-column till; on desktop also the keyboard (Tab, Esc, scanner, shortcuts).
+company.business_type = 'storefront';
+company.name = 'Mama Put Stores';
+const SIZES = [['phone', 375, 812, { isMobile: true, hasTouch: true }], ['tablet', 820, 1180, { isMobile: true, hasTouch: true }], ['desktop', 1440, 900, {}]];
+const shopId = branches.find((b) => b.name === 'Yaba shop').id;
+for (const [size, width, height, extra] of SIZES) {
+  const c = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, serviceWorkers: 'block', ...extra });
+  const pg = await c.newPage();
+  pg.on('pageerror', (e) => errors.push(e));
+  await pg.route(/\/(auth|rest|functions|storage)\/v1\//, fakeSupabase);
+  await pg.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  const snap = async (name, full = true) => {
+    await pg.waitForTimeout(250);
+    const wide = await pg.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    assert.ok(wide <= 0, `${size} ${name}: nothing wider than the screen (${wide}px too wide)`);
+    if (size !== 'phone') {
+      const [navRight, mainLeft] = await pg.evaluate(() => [document.getElementById('appnav')?.getBoundingClientRect().right ?? 0, document.querySelector('main').getBoundingClientRect().left]);
+      assert.ok(mainLeft >= navRight, `${size} ${name}: the page is beside the menu, not under it`);
+    }
+    const skipOnScreen = await pg.evaluate(() => { const r = document.querySelector('.skip')?.getBoundingClientRect(); return !!r && r.right > 0 && r.left < innerWidth && r.width > 2; });
+    assert.ok(!skipOnScreen, `${size} ${name}: "Skip to content" only shows for keyboard users`);
+    await pg.screenshot({ path: `${out}size-${size}-${name}.png`, fullPage: full });
+  };
+  const signIn = async (who) => {
+    if (who === 'owner') {
+      await pg.goto(base + '#/owner');
+      await pg.getByLabel('Email').fill('elvis@chfheron.com');
+      await pg.getByLabel('Password').fill('password1');
+    } else {
+      await pg.goto(base + '#/');
+      await pg.getByLabel('Phone number').fill('0803 555 0101');
+      await pg.getByLabel('PIN').fill('482913');
+    }
+    await pg.getByRole('button', { name: 'Sign in' }).click();
+  };
+  await signIn('owner');
+  await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+  const nav = await pg.locator('#appnav').boundingBox();
+  if (size === 'phone') assert.ok(nav.y > height - 100 && nav.width === width, 'phone: tab bar along the bottom');
+  if (size === 'tablet') assert.ok(nav.x === 0 && nav.width < 120 && nav.height >= height - 1, 'tablet: side rail');
+  if (size === 'desktop') {
+    assert.ok(nav.x === 0 && nav.width >= 200, 'desktop: sidebar');
+    assert.ok(await pg.locator('.nav-brand').filter({ hasText: 'Mama Put Stores' }).isVisible(), 'desktop: business name at the top of the sidebar');
+    const cols = await pg.evaluate(() => getComputedStyle(document.querySelector('.dash')).gridTemplateColumns.split(' ').length);
+    assert.equal(cols, 3, 'desktop: Overview cards in a grid of 3');
+    // Keyboard: Tab reaches "Skip to content" first, then the menu.
+    await pg.keyboard.press('Tab');
+    assert.equal(await pg.evaluate(() => document.activeElement.textContent), 'Skip to content');
+    await pg.keyboard.press('Tab');
+    assert.equal(await pg.evaluate(() => document.activeElement.textContent.trim()), 'Overview');
+    const outline = await pg.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
+    assert.notEqual(outline, 'none', 'the focused link has a visible outline');
+  }
+  await snap('overview');
+  await pg.getByRole('link', { name: 'Today', exact: true }).click();
+  await pg.getByRole('heading', { name: 'Today' }).waitFor();
+  await snap('today');
+  await pg.goto(base + '#/stock/' + shopId);
+  await pg.locator('#plist').waitFor();
+  const headerShown = await pg.locator('#plist thead').isVisible();
+  assert.equal(headerShown, size !== 'phone', size === 'phone' ? 'phone: stock as cards' : `${size}: stock as a table`);
+  await snap('stock');
+  await pg.goto(base + '#/sales/' + shopId);
+  await pg.getByRole('heading', { name: /^Sales/ }).waitFor();
+  await snap('sales');
+  await pg.goto(base + '#/overview');
+  await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+  await pg.getByRole('button', { name: 'Sign out' }).click();
+  await pg.getByRole('heading', { name: 'Sign in' }).waitFor();
+
+  // The till.
+  await signIn('kemi');
+  await pg.getByRole('link', { name: 'Record a sale' }).waitFor();
+  await pg.goto(base + '#/sell');
+  await pg.getByRole('heading', { name: 'Sell' }).waitFor();
+  const grid = await pg.evaluate(() => [document.querySelector('.till-products').getBoundingClientRect().left, document.querySelector('.till-sale').getBoundingClientRect().left]);
+  if (size === 'phone') assert.ok(grid[0] === grid[1], 'phone: one column');
+  else assert.ok(grid[1] > grid[0] + 200, `${size}: products left, the sale right`);
+  if (size === 'desktop') {
+    // A barcode scanner types the code and presses Enter: the product is added at once.
+    assert.equal(await pg.evaluate(() => document.activeElement.id), 'q', 'the cursor starts in the search box');
+    await pg.keyboard.type('PM400');
+    await pg.keyboard.press('Enter');
+    await pg.locator('.line', { hasText: 'Peak Milk 400g' }).waitFor();
+    assert.equal(await pg.locator('#q').inputValue(), '', 'search box cleared, ready for the next scan');
+    // Type part of a name, choose with ↓, add with Enter.
+    await pg.keyboard.type('indo');
+    await pg.keyboard.press('ArrowDown');
+    await pg.keyboard.press('Enter');
+    await pg.locator('.line', { hasText: 'Indomie Chicken 70g' }).waitFor();
+    // Esc closes a dialog and changes nothing.
+    await pg.getByRole('button', { name: 'Clear this sale' }).click();
+    await pg.locator('dialog.dlg[open]').waitFor();
+    await pg.keyboard.press('Escape');
+    await pg.locator('dialog.dlg').waitFor({ state: 'detached' });
+    assert.equal(await pg.locator('.line').count(), 2, 'Esc closed the question; the sale is still there');
+    await pg.locator('#q').focus();
+    await pg.keyboard.press('F7');
+    assert.ok(await pg.locator('input[name=pay][value=transfer]').isChecked(), 'F7: paid by Transfer');
+    await snap('sell', false);
+    const before = sales.length;
+    await pg.keyboard.press('F9');
+    await pg.getByRole('heading', { name: /^Sale saved/ }).waitFor();
+    assert.equal(sales.length, before + 1);
+    assert.equal(sales.at(-1).payment_method, 'transfer');
+    await snap('sell-saved', false);
+    await pg.keyboard.press('Escape');
+    await pg.locator('#cart').waitFor();
+    step('desktop till: scan or type + Enter adds, ↑↓ chooses, F7 Transfer, F9 completes, Esc next sale; Esc closes dialogs; Tab order and focus outlines');
+  } else {
+    await pg.locator('.pick', { hasText: 'Peak Milk 400g' }).click();
+    await pg.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
+    await pg.getByText('Transfer', { exact: true }).click();
+    await snap('sell', false);
+  }
+  await pg.getByRole('button', { name: 'Sign out' }).click();
+  await pg.getByRole('heading', { name: 'Sign in' }).waitFor();
+
+  // A receipt.
+  await pg.goto(base + 'r.html#' + sales.find((x) => x.receipt_token?.length >= 32 && !x.cancelled_at).receipt_token);
+  await pg.locator('.paper').waitFor();
+  await snap('receipt');
+  await c.close();
+  step(`${size} (${width} px): ${size === 'phone' ? 'bottom tab bar' : size === 'tablet' ? 'side rail, two-column till' : 'sidebar, card grid, tables, full-screen till'}; nothing wider than the screen`);
+}
+company.business_type = 'field';
+company.name = 'CHF Heron';
 
 // ── The app opens with no signal at all (service worker) ────
 const swCtx = await browser.newContext(phone);

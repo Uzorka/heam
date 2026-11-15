@@ -1,6 +1,7 @@
 // Owner's billing page: plan, price for the current team, pay with Paystack, saved card, history.
 import * as api from './api.js';
 import { CONFIG } from './config.js';
+import { publicBase } from './device.js';
 import { show, go, esc, toast, friendly, app, fmtDay, backLink } from './ui.js';
 
 const naira = (kobo) => '₦' + Math.round(kobo / 100).toLocaleString('en-NG');
@@ -57,9 +58,12 @@ export async function billing(me, arg) {
         <p class="tiny muted center">${b.status === 'trial' ? 'Your first paid month starts when the free trial ends. ' : ''}Card, bank transfer or USSD. A card is saved for automatic monthly renewal.</p>
         <p class="error center" id="err" role="alert"></p>`
         : q.amount_kobo ? '' : '<p class="muted center">Nothing to pay yet. Invite your team first.</p>'}
-      ${b.invoices.length ? `<h2 class="section">Payments</h2><ul class="list">${b.invoices.filter((i) => i.status !== 'void').map((i) => `
-        <li class="card row"><span><strong>${naira(i.amount_kobo)}</strong><br><span class="muted">${day(i.period_start, tz)} – ${day(i.period_end, tz)}</span></span>
-        <span class="pill ${STATUS[i.status][0]}">${STATUS[i.status][1]}</span></li>`).join('')}</ul>` : ''}
+      ${b.invoices.length ? `<h2 class="section">Payments</h2><div class="tablewrap"><table class="rtable">
+        <thead><tr><th>Amount</th><th class="d">Period</th><th class="num">Status</th></tr></thead>
+        <tbody>${b.invoices.filter((i) => i.status !== 'void').map((i) => `
+        <tr><td class="main"><strong>${naira(i.amount_kobo)}</strong><span class="sub muted">${day(i.period_start, tz)} – ${day(i.period_end, tz)}</span></td>
+          <td class="d">${day(i.period_start, tz)} – ${day(i.period_end, tz)}</td>
+          <td class="end"><span class="pill ${STATUS[i.status][0]}">${STATUS[i.status][1]}</span></td></tr>`).join('')}</tbody></table></div>` : ''}
     </main>`);
 
   const pay = document.getElementById('pay');
@@ -68,7 +72,7 @@ export async function billing(me, arg) {
       pay.disabled = true;
       pay.textContent = 'Opening Paystack…';
       try {
-        const { url } = await api.callFunctionAsUser('billing/checkout', { return_to: `${location.origin}${location.pathname}#/billing` });
+        const { url } = await api.callFunctionAsUser('billing/checkout', { return_to: `${publicBase()}#/billing` });
         location.href = url;   // Paystack's own secure payment page
       } catch (x) {
         document.getElementById('err').textContent = /not set up/i.test(x.message) ? "Online payment isn't switched on yet." : friendly(x);

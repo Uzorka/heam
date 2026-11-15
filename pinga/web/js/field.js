@@ -1,5 +1,6 @@
 // Sales rep screens: Today (my stores, nearest first, progress), store check-in, History.
 // Same layout and flow as the CHF Heron field sales tracker. Works without signal.
+import { ask } from './dialog.js';
 import * as api from './api.js';
 import { sync, outbox, uuid, safeToSignOut } from './queue.js';
 import { watchBest, distanceM } from './gps.js';
@@ -46,7 +47,7 @@ const topBar = (me, sub, title) => `
   </header>`;
 
 const tabBar = (on) => `
-  <nav class="tabbar">
+  <nav class="tabbar appnav" aria-label="Sections">
     <a href="#/"${on === 'today' ? ' class="on" aria-current="page"' : ''}>${ICON.today}<span>Today</span></a>
     <a href="#/history"${on === 'history' ? ' class="on" aria-current="page"' : ''}>${ICON.history}<span>History</span></a>
   </nav>`;
@@ -298,8 +299,8 @@ async function visit(me, storeId) {
     if (state === 'out') { toast('Pick the store you are at, or tap Nearest to find it'); return go('#/'); }
     if (state === 'in') submit();
   };
-  alt.onclick = () => {
-    if (confirm(`You're outside ${store.name}'s zone. Check in anyway? Your manager will see it flagged.`)) submit();
+  alt.onclick = async () => {
+    if (await ask(`You're outside ${store.name}'s zone. Check in anyway? Your manager will see it flagged.`, { ok: 'Check in anyway' })) submit();
   };
 }
 

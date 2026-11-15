@@ -1,5 +1,7 @@
 // Shop staff: record sales (works with no signal) and see today's sales.
 // The price list and the shop's stock are kept on the phone; each sale waits in the outbox until sent.
+import { ask } from './dialog.js';
+import { copyText } from './device.js';
 import * as api from './api.js';
 import { sync, outbox, uuid, safeToSignOut, waitingText } from './queue.js';
 import { report } from './report.js';
@@ -11,7 +13,7 @@ const BASKET = 'pinga.basket';
 const naira = (n) => '₦' + Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 });
 
 export const tabBar = (on) => `
-  <nav class="tabbar">
+  <nav class="tabbar appnav" aria-label="Sections">
     <a href="#/"${on === 'home' ? ' class="on" aria-current="page"' : ''}>${ICON.clock}<span>Clock</span></a>
     <a href="#/sell"${on === 'sell' ? ' class="on" aria-current="page"' : ''}>${ICON.shop}<span>Sell</span></a>
     <a href="#/mysales"${on === 'mysales' ? ' class="on" aria-current="page"' : ''}>${ICON.receipt}<span>My sales</span></a>
@@ -62,7 +64,7 @@ async function receiptPanel(me, sale, onDone) {
   if (wa) wa.addEventListener('click', () => { dropReceipt(sale.token); setTimeout(onDone, 300); });
   const copy = document.getElementById('copy');
   if (copy) copy.onclick = async () => {
-    try { await navigator.clipboard.writeText(url); } catch { prompt('Copy this receipt link:', url); }
+    if (!(await copyText(url))) { await ask('Copy this receipt link:', { input: url, ok: 'Done', cancel: 'Close' }); return; }
     copy.textContent = 'Link copied';
   };
   const later = document.getElementById('later');
@@ -134,7 +136,8 @@ export async function sell(me) {
         <div class="warns">${warnings(b)}</div>
       </li>`;
     }).join('');
-    document.getElementById('cart').hidden = !basket.length;
+    document.getElementById('cart').classList.toggle('is-empty', !basket.length);
+    document.getElementById('save').disabled = !basket.length;
     document.getElementById('total').textContent = naira(total());
     document.getElementById('count').textContent = basket.reduce((t, b) => t + b.qty, 0);
   };
@@ -145,30 +148,39 @@ export async function sell(me) {
     document.getElementById('count').textContent = basket.reduce((t, b) => t + b.qty, 0);
   };
 
+  // Phones: the sale on top, products underneath. Tablets and desktops: products left, the sale right.
   show(`
-    <main class="page narrow has-tabs">
+    <main class="page till has-tabs">
       ${header(me, 'Sell')}
+      <div class="till-grid">
+      <section class="till-products" aria-label="Products">
+        <input id="q" type="search" placeholder="Search or scan a barcode" aria-label="Search product, code or scan a barcode" autocomplete="off" enterkeyhint="go">
+        <p class="keys" aria-hidden="true"><kbd>Enter</kbd> add · <kbd>↑</kbd><kbd>↓</kbd> choose · <kbd>F6</kbd> Cash · <kbd>F7</kbd> Transfer · <kbd>F8</kbd> POS card · <kbd>F9</kbd> Complete sale · <kbd>Esc</kbd> clear</p>
+        <div id="pending">${await pendingList(me)}</div>
+        ${products.length ? `<ul class="list picks" id="picks">${products.map((p) => `
+          <li><button type="button" class="card row pick" data-id="${p.id}" data-name="${esc((p.name + ' ' + (p.code || '')).toLowerCase())}">
+            <span class="grow"><strong>${esc(p.name)}</strong><br><span class="muted small">${stockText(p.id)}${p.code ? ` · ${esc(p.code)}` : ''}</span></span>
+            <span class="pick-price">${p.price != null ? naira(p.price) : '–'}<span class="add" aria-hidden="true">+</span></span>
+          </button></li>`).join('')}</ul>`
+          : '<p class="muted center empty">No products yet. Ask your manager to add them.</p>'}
+        <p class="waiting" id="waiting" role="status"></p>
+      </section>
+      <aside class="till-sale" aria-label="This sale">
       <section id="sendbox" class="card sendbox stack" aria-live="polite" hidden></section>
-      <div id="pending">${await pendingList(me)}</div>
-      <section id="cart" class="card cart" aria-labelledby="cart-h" hidden>
+      <section id="cart" class="card cart is-empty" aria-labelledby="cart-h">
         <h2 id="cart-h">This sale · <span id="count"></span> items</h2>
+        <p class="cart-empty muted">Scan a barcode, or search and tap a product to add it.</p>
         <ul class="lines" id="basket"></ul>
         <div class="cart-total"><span>Total</span><b id="total"></b></div>
         <fieldset class="pay"><legend>Paid by</legend>
           ${Object.entries(PAY).map(([v, t]) => `<label><input type="radio" name="pay" value="${v}"${payment === v ? ' checked' : ''}><span>${t}</span></label>`).join('')}
         </fieldset>
         <p class="error" id="err" role="alert"></p>
-        <button class="primary" id="save">Save sale</button>
+        <button class="primary" id="save">Complete sale</button>
         <button class="link block" id="clear">Clear this sale</button>
       </section>
-      <input id="q" type="search" placeholder="Search product or code" aria-label="Search product or code" autocomplete="off">
-      ${products.length ? `<ul class="list picks" id="picks">${products.map((p) => `
-        <li><button type="button" class="card row pick" data-id="${p.id}" data-name="${esc((p.name + ' ' + (p.code || '')).toLowerCase())}">
-          <span class="grow"><strong>${esc(p.name)}</strong><br><span class="muted small">${stockText(p.id)}</span></span>
-          <span class="pick-price">${p.price != null ? naira(p.price) : '–'}<span class="add">+</span></span>
-        </button></li>`).join('')}</ul>`
-        : '<p class="muted center empty">No products yet. Ask your manager to add them.</p>'}
-      <p class="waiting" id="waiting" role="status"></p>
+      </aside>
+      </div>
     </main>
     ${tabBar('sell')}`);
   wireSignOut(safeToSignOut);
@@ -176,7 +188,8 @@ export async function sell(me) {
   const refreshPending = async () => { const el = document.getElementById('pending'); if (el) el.innerHTML = await pendingList(me); };
   const setWaiting = (n) => { const el = document.getElementById('waiting'); if (el) el.textContent = waitingText(n); refreshPending().catch(report); };
   sync.count().then(setWaiting);
-  onLeave(sync.onChange(setWaiting));
+  const cleanups = [sync.onChange(setWaiting)];
+  onLeave(() => cleanups.forEach((f) => f()));
   document.getElementById('pending').addEventListener('click', (e) => {
     const a = e.target.closest('a[data-token]');
     if (a) setTimeout(() => { dropReceipt(a.dataset.token); refreshPending().catch(report); }, 300);
@@ -189,21 +202,50 @@ export async function sell(me) {
     receiptPanel(me, sale, () => sell(me).catch(report)).catch(report);
   }
 
-  document.getElementById('q').addEventListener('input', (e) => {
-    const t = e.target.value.trim().toLowerCase();
+  const q = document.getElementById('q');
+  const visiblePicks = () => [...app.querySelectorAll('#picks li:not([hidden]) .pick')];
+  q.addEventListener('input', () => {
+    const t = q.value.trim().toLowerCase();
     app.querySelectorAll('#picks li').forEach((li) => { li.hidden = t && !li.firstElementChild.dataset.name.includes(t); });
+    app.querySelector('.pick.hl')?.classList.remove('hl');
   });
-  app.querySelector('#picks')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.pick');
-    if (!btn) return;
-    const p = byId.get(btn.dataset.id);
+  const add = (id) => {
+    const p = byId.get(id);
     const have = basket.find((b) => b.product_id === p.id);
     if (have) have.qty++; else basket.push({ product_id: p.id, qty: 1, unit_price: p.price });
     keep(); draw();
     toast(`${p.name} added`);
-    const q = document.getElementById('q');
     if (q.value) { q.value = ''; q.dispatchEvent(new Event('input')); }
+  };
+  app.querySelector('#picks')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pick');
+    if (btn) add(btn.dataset.id);
   });
+  // Enter in the search box adds a product. A USB or Bluetooth barcode scanner "types" the code and
+  // presses Enter, so a scan adds the product straight away. Exact code (or name) first, then the
+  // highlighted or only match.
+  q.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const t = q.value.trim().toLowerCase();
+    if (!t) return;
+    const exact = products.find((p) => p.code && p.code.trim().toLowerCase() === t) || products.find((p) => p.name.trim().toLowerCase() === t);
+    const shown = visiblePicks();
+    const pick = exact?.id || app.querySelector('.pick.hl')?.dataset.id || (shown.length === 1 ? shown[0].dataset.id : null);
+    if (pick) return add(pick);
+    toast(shown.length ? 'More than one match: choose one (↑ ↓ then Enter, or tap it)' : `No product with the code or name "${q.value.trim()}"`);
+    q.select();
+  });
+  // Keyboard shortcuts for tablets and computers (downloaded only on bigger screens).
+  if (matchMedia('(min-width: 768px)').matches) {
+    import('./till-keys.js').then((k) => cleanups.push(k.attach({
+      q, visiblePicks,
+      pay: (v) => { const r = app.querySelector(`input[name=pay][value=${v}]`); if (r) { r.checked = true; payment = v; r.dispatchEvent(new Event('change')); } },
+      complete: () => { const b = document.getElementById('save'); if (b && !b.disabled && !document.getElementById('cart').hidden) b.click(); },
+      next: () => document.getElementById('next')?.click(),
+    }))).catch(report);
+    if (!justSold) q.focus();
+  }
   const lines = document.getElementById('basket');
   lines.addEventListener('click', (e) => {
     const act = e.target.dataset.act, li = e.target.closest('.line');
@@ -221,16 +263,17 @@ export async function sell(me) {
     if (act === 'price') basket[i].unit_price = v === '' ? null : Number(v);
     keep(); refreshLine(i);
   });
-  document.getElementById('clear').onclick = () => { if (confirm('Clear this sale?')) { basket = []; keep(); draw(); } };
+  document.getElementById('clear').onclick = async () => { if (await ask('Clear this sale?', { ok: 'Clear sale', danger: true })) { basket = []; keep(); draw(); } };
 
   const save = document.getElementById('save'), err = document.getElementById('err');
   save.onclick = async () => {
     err.textContent = '';
     const noPrice = basket.find((b) => b.unit_price == null || !(b.unit_price >= 0));
+    if (!basket.length) return;
     if (noPrice) { err.textContent = `Type the price for ${byId.get(noPrice.product_id).name}.`; return; }
     // Above the selling price is unusual (often a typing slip, e.g. 25000 for 2500): check first.
     const high = basket.find((b) => { const p = byId.get(b.product_id); return p.price != null && b.unit_price > p.price; });
-    if (high && !confirm(`${byId.get(high.product_id).name}: ${naira(high.unit_price)} is above the selling price (${naira(byId.get(high.product_id).price)}). Save anyway?`)) return;
+    if (high && !(await ask(`${byId.get(high.product_id).name}: ${naira(high.unit_price)} is above the selling price (${naira(byId.get(high.product_id).price)}). Save anyway?`, { ok: 'Save anyway' }))) return;
     save.disabled = true;
     try {
       const sum = total();
@@ -291,7 +334,7 @@ export async function mySales(me) {
   });
   app.querySelectorAll('.mistake').forEach((btn) => {
     btn.onclick = async () => {
-      const note = prompt('What went wrong? Your manager will see this and can fix the sale.');
+      const note = await ask('What went wrong? Your manager will see this and can fix the sale.', { input: '', placeholder: 'e.g. Sugar was 3, not 4', ok: 'Send to manager' });
       if (!note || !note.trim()) return;
       btn.disabled = true;
       try {

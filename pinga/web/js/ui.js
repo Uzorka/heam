@@ -3,6 +3,7 @@ import * as api from './api.js';
 import { report } from './report.js';
 import { logo, ICON } from './icons.js';
 import { CONFIG } from './config.js';
+import { openExternal } from './device.js';
 
 export const app = document.getElementById('app');
 export const ROLE = { owner: 'Owner', admin: 'Manager', staff: 'Office staff', rep: 'Sales rep' };
@@ -33,6 +34,34 @@ export function friendly(x) {
   return 'Something went wrong. Please try again.';
 }
 
+// ── Navigation: one nav for every size (bottom bar on phones, side rail on tablets, sidebar on desktop) ──
+// A screen either includes its own nav (main screens) or uses the one set here (sub-screens: shown at the
+// side on tablets and desktops, hidden on phones where those screens have a back link).
+let sharedNav = '';
+export const setNav = (html) => { sharedNav = html; };
+
+function placeNav() {
+  document.getElementById('appnav')?.remove();
+  const own = app.querySelector('.appnav');   // a main screen's own nav (inside or after its <main>)
+  let nav = own;
+  if (!nav && sharedNav) {
+    const t = document.createElement('template');
+    t.innerHTML = sharedNav.trim();
+    nav = t.content.firstElementChild;
+    nav.classList.add('sub');
+  }
+  document.body.classList.toggle('with-nav', !!nav);
+  document.body.classList.toggle('nav-phone', !!own);
+  document.body.classList.toggle('till-mode', !!app.querySelector('main.till'));
+  if (!nav) return;
+  nav.id = 'appnav';
+  // First in the page, so the keyboard reaches it first; "Skip to content" jumps past it.
+  if (!nav.querySelector('.skip')) nav.insertAdjacentHTML('afterbegin', '<a class="skip" href="#main" data-skip>Skip to content</a>');
+  app.prepend(nav);
+  const main = app.querySelector('main');
+  if (main) main.id = 'main';
+}
+
 let leave = null;
 // Runs when the person leaves the current screen (e.g. to switch the camera off).
 export const onLeave = (fn) => { leave = fn; };
@@ -44,6 +73,7 @@ export function show(html, onSubmit) {
   app.dataset.hash = location.hash;
   if (!sameScreen) carryToast();
   app.innerHTML = html;
+  placeNav();
   if (!sameScreen) scrollTo(0, 0);   // a new screen starts at the top
   const form = app.querySelector('form');
   if (form && onSubmit) {
@@ -59,6 +89,15 @@ export function show(html, onSubmit) {
   const first = app.querySelector('input:not([readonly])');
   if (first && matchMedia('(min-width: 700px)').matches) first.focus();
 }
+
+// Clicks anywhere in the app: table rows that open a page, links that leave the app, "Skip to content".
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a');
+  if (a?.dataset.skip !== undefined && a?.hasAttribute('data-skip')) { e.preventDefault(); const m = document.getElementById('main'); m?.setAttribute('tabindex', '-1'); m?.focus(); return; }
+  if (a && a.target === '_blank' && /^https?:/.test(a.href) && !a.hasAttribute('download')) { e.preventDefault(); openExternal(a.href); return; }
+  const row = e.target.closest('tr[data-href]');
+  if (row && !e.target.closest('a, button, input, label, select')) location.hash = row.dataset.href;
+});
 
 export const go = (hash) => (location.hash === hash ? dispatchEvent(new HashChangeEvent('hashchange')) : (location.hash = hash));
 export const reloadMe = () => dispatchEvent(new Event('pinga:reload'));
@@ -105,6 +144,7 @@ export function wireSignOut(guard) {
     if (guard && !(await guard())) return;
     await api.signOut();
     clearToast();
+    setNav('');
     reloadMe();
     go('#/');
   };

@@ -1,7 +1,7 @@
 // Keeps the app's own files on the phone so Pinga opens with no signal.
 // VERSION and FILES are written by `npm run stamp`; a new version replaces the old one in full.
-const VERSION = 'b87a6006e7cb';
-const FILES = ["css/app.css","fonts/OFL.txt","fonts/nunito-400.woff2","fonts/nunito-700.woff2","fonts/nunito-800.woff2","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png","icons/pin.svg","index.html","js/admin.js","js/api.js","js/billing.js","js/camera.js","js/config.js","js/export.js","js/field.js","js/getstarted.js","js/gps.js","js/icons.js","js/image.js","js/main.js","js/outbox.js","js/overview.js","js/phone.js","js/queue.js","js/receipt-lines.js","js/receipts.js","js/report.js","js/sheet.js","js/staff.js","js/stock.js","js/sync.js","js/till.js","js/today.js","js/ui.js","js/xlsx.js","manifest.webmanifest","r.html"];
+const VERSION = '05ef0ca78fc5';
+const FILES = ["css/app.css","fonts/OFL.txt","fonts/nunito-400.woff2","fonts/nunito-700.woff2","fonts/nunito-800.woff2","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png","icons/pin.svg","index.html","js/admin.js","js/api.js","js/billing.js","js/camera.js","js/config.js","js/device.js","js/dialog.js","js/export.js","js/field.js","js/getstarted.js","js/gps.js","js/icons.js","js/image.js","js/main.js","js/outbox.js","js/overview.js","js/phone.js","js/queue.js","js/receipt-lines.js","js/receipts.js","js/report.js","js/sheet.js","js/staff.js","js/stock.js","js/sync.js","js/till-keys.js","js/till.js","js/today.js","js/ui.js","js/xlsx.js","manifest.webmanifest","r.html"];
 
 const CACHE = 'pinga-' + VERSION;
 

@@ -69,7 +69,8 @@ export async function overview(me, tabs) {
       ${tabs('Overview')}
       <p class="muted dateline">${fmtDay(day + 'T12:00:00Z', tz)}</p>
 
-      ${progress && !setupDone(progress, me.companies.business_type) ? checklist(progress, me.companies.business_type) : ''}
+      <div class="dash">
+      ${progress && !setupDone(progress, me.companies.business_type) ? `<div class="span-all">${checklist(progress, me.companies.business_type)}</div>` : ''}
 
       ${sh && sh.shops.length ? shopsCard(sh) : ''}
 
@@ -88,7 +89,7 @@ export async function overview(me, tabs) {
       </section>`}
 
       ${f.reps.length ? `
-      <section class="card block" aria-labelledby="field-h">
+      <section class="card block${d.stores.length ? ' span-2' : ''}" aria-labelledby="field-h">
         <h2 id="field-h">Field visits</h2>
         <p class="big-line"><b>${f.done} of ${f.planned}</b> planned visits done</p>
         <div class="meter"><i style="width:${visitPct}%"></i></div>
@@ -113,7 +114,8 @@ export async function overview(me, tabs) {
           : "To see this in naira, add monthly pay on each person's page (Team)."}</p>
       </section>` : ''}
 
-      ${nobody ? '' : '<a class="secondary button" href="#/export">Export register (Excel or PDF)</a>'}
+      </div>
+      ${nobody ? '' : '<a class="secondary button export-btn" href="#/export">Export register (Excel or PDF)</a>'}
     </main>`);
   wireSignOut();
 

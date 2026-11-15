@@ -101,6 +101,26 @@ Shop staff get a Sell tab: search or scroll the price list, tap to add, change t
 - Older app versions with sales still waiting on a phone keep working (cash, link made by the server).
 - Tests: `tests/db/test_receipts.sql`, `tests/unit/receipts.test.js`.
 
+## Screen sizes, keyboard, and getting ready for app stores
+
+One code base, three layouts (tested at 375, 820 and 1440 px in `tests/screens/run.js`, which also fails if anything is wider than the screen or sits under the menu):
+
+- **Phones** (under 768 px): bottom tab bar, one column, cards.
+- **Tablets** (768 px+): side rail; Overview in two columns; Team, Stock, Sales and Payments as tables (fewer columns); the till in two columns (products left, the sale right).
+- **Desktops** (1200 px+): sidebar with the business name and logo; Overview cards in a grid of three; full tables; text kept to a comfortable reading width. The till uses the whole screen (the menu shrinks to icons).
+- One nav element (`.appnav`) changes shape by size; it comes first for the keyboard, with a "Skip to content" link. Sub-screens keep the side menu on tablets and desktops (`setNav` in `ui.js`).
+
+**Till keyboard** (`web/js/till-keys.js`, downloaded only on screens 768 px+): type or scan in the search box and press Enter to add (a USB/Bluetooth barcode scanner types the product's code and presses Enter, so a scan adds straight away; the product's Code is its barcode); ↑ ↓ choose; F6 Cash, F7 Transfer, F8 POS card; F9 or Ctrl/⌘+Enter completes the sale; Esc clears the search or starts the next sale; F2 or / jumps to search.
+
+**Mouse and keyboard everywhere:** hover states, a visible orange focus outline, sensible Tab order, and Pinga's own dialog box (`dialog.js`, closes with Esc) instead of the browser's confirm/prompt.
+
+**Ready for packaging (Tauri for Windows/Mac, Capacitor for iOS/iPadOS/Android; not added yet):**
+- Hash routing, relative paths, no server needed: the `web/` folder is the app.
+- Everything a native app does differently goes through small helpers, to be swapped for native versions in one place: `device.js` (open external links, copy, save a file, print, the public web address for shared links), `camera.js`, `gps.js`. No `confirm()`/`prompt()`, no direct downloads.
+- A packaged build sets `PINGA_ENV = 'live'` (or staging) before the app loads; links shared from the app (receipts, invites) use the public web address, not the app's internal one.
+- The offline outbox uses IndexedDB, which works in both. The service worker is skipped where the app shell doesn't support it.
+- Still to do when packaging: Paystack checkout opens in the system browser and returns to the app by a deep link.
+
 ## Manager's Today page
 
 Managers land on **Today**: everyone (office staff and sales reps) with their status for the day.

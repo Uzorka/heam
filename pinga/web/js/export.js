@@ -1,4 +1,5 @@
 // Export the attendance register for a period: real Excel (.xlsx), or a clean page to save as PDF.
+import { saveFile, printPage } from './device.js';
 import * as api from './api.js';
 import { show, esc, Say, wireSignOut, app, ROLE, fmtTime, fmtDay, localDate, backLink } from './ui.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
@@ -50,13 +51,7 @@ async function run(me, from, to, how) {
   const title = `${me.companies.name} register ${from} to ${to}`;
 
   if (how === 'xlsx') {
-    const blob = new Blob(xlsxParts('Register', [head, ...body], [12, 24, 13, 13, 14, 10, 10, 10, 8, 11, 9]), { type: XLSX_TYPE });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${title.replace(/[^\w-]+/g, '-')}.xlsx`;
-    document.body.append(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    saveFile(new Blob(xlsxParts('Register', [head, ...body], [12, 24, 13, 13, 14, 10, 10, 10, 8, 11, 9]), { type: XLSX_TYPE }), `${title.replace(/[^\w-]+/g, '-')}.xlsx`);
     return;
   }
   // PDF: a clean printable page; the phone or computer's own "Save as PDF" does the rest.
@@ -65,6 +60,6 @@ async function run(me, from, to, how) {
     <p>${esc(fmtDay(from + 'T12:00:00Z', tz))} to ${esc(fmtDay(to + 'T12:00:00Z', tz))}</p>
     <table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-  window.print();
+  printPage();
 }
 

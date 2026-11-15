@@ -4,7 +4,7 @@
 // Safety rule: the app uses LIVE only on the live web addresses below.
 // Everything else (localhost, staging addresses, previews) uses STAGING.
 
-const LIVE_HOSTS = ['app.usepinga.com', 'app.pinga.com.ng'];
+const LIVE_HOSTS = ['pinga.elvisuzorka.com', 'app.usepinga.com', 'app.pinga.com.ng'];   // pilot address first
 
 const PROJECTS = {
   staging: { url: 'https://zgwgszomktveikhecmiz.supabase.co', key: 'sb_publishable_cp82R2d3yddf5HUTlvEmxg_JqrgGF5b', sentryDsn: '' },

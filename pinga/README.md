@@ -129,6 +129,18 @@ To switch on (staging): Paystack Dashboard (Test mode) → Settings → API Keys
 
 Nobody in a company can change their own billing status or trial. People are deactivated, never deleted, so their history is kept.
 
+## Pilot: CHF Heron (live)
+
+- **Live app:** https://pinga.elvisuzorka.com (Hostinger), live Supabase project **Pinga** (`ltizbbzhfmexwezjdszs`, Free plan for the pilot; upgrade to Pro before more companies join).
+- **Staging app:** https://staging.elvisuzorka.com, project **Pinga Staging**. Try every change here first.
+- Live has the same database, functions and security rules as staging (all 239 rule checks pass on live, rolled back, nothing written). Face check, evening email and payments are off until their keys are added to the live project's secrets.
+
+Owner set-up on the live app:
+1. https://pinga.elvisuzorka.com/#/signup → your name, "CHF Heron", email, password → confirm the email → you land on **Get started**.
+2. **Add an office or branch:** stand in the Yaba office and tap "Use my current location"; repeat in Ikeja (radius 100 m to start).
+3. **Invite your staff** (Team → Invite someone, by phone number; send the link on WhatsApp). Each person sets a PIN and takes one reference photo.
+4. For sales reps: Setup → Stores (add stores), then each rep's page → Assigned stores and visits per day.
+
 ## Staging and live
 
 There are two Supabase projects: **staging** (for testing) and **live** (real customers). Every change goes to staging first.

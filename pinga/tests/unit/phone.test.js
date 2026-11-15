@@ -47,3 +47,12 @@ test('deploy targets match the app settings (staging is staging, live is live)',
     assert.ok(line.includes(CONFIG_FOR[env].key), env + ' key');
   }
 });
+
+test('the app uses LIVE only on the live address, and staging everywhere else', async () => {
+  const { CONFIG_FOR } = await import('../../scripts/projects.js');
+  const cfg = readFileSync(new URL('../../web/js/config.js', import.meta.url), 'utf8');
+  const hosts = JSON.parse(/const LIVE_HOSTS = (\[[^\]]*\])/.exec(cfg)[1].replace(/'/g, '"'));
+  assert.ok(hosts.includes(new URL(CONFIG_FOR.live.site).hostname), 'the live site is a live host');
+  assert.ok(!hosts.includes(new URL(CONFIG_FOR.staging.site).hostname), 'the staging site is never treated as live');
+  assert.ok(!hosts.includes('localhost'));
+});

@@ -56,8 +56,12 @@ export async function adminRoute(me, name, arg) {
 // ── Team ────────────────────────────────────────────────────
 
 async function team(me) {
-  const people = await api.select('members',
-    `select=id,full_name,phone,role,joined_at&company_id=eq.${me.company_id}&active=is.true&order=full_name`);
+  const [people, assigned] = await Promise.all([
+    api.select('members', `select=id,full_name,phone,role,joined_at,daily_visit_target&company_id=eq.${me.company_id}&active=is.true&order=full_name`),
+    api.select('store_assignments', `select=member_id&company_id=eq.${me.company_id}`),
+  ]);
+  const storesOf = (id) => assigned.filter((a) => a.member_id === id).length;
+  const repLine = (p) => { const n = storesOf(p.id); return n ? `${n} store${n === 1 ? '' : 's'} · ${p.daily_visit_target ?? 4} visits a day` : '<span class="late">No stores assigned yet</span>'; };
   show(`
     <main class="page">
       ${header(me, 'Team')}
@@ -66,7 +70,8 @@ async function team(me) {
       <ul class="list">
         ${people.map((p) => `
           <li><a class="card row" href="#/person/${p.id}">
-            <span><strong>${esc(p.full_name)}</strong><br><span class="muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</span></span>
+            <span><strong>${esc(p.full_name)}</strong><br><span class="muted">${ROLE[p.role]}${p.phone ? ' · ' + esc(displayPhone(p.phone)) : ''}</span>
+              ${p.role === 'rep' ? `<br><span class="muted small">${repLine(p)}</span>` : ''}</span>
             ${p.joined_at ? '<span class="pill ok">Joined</span>' : '<span class="pill wait">Not joined</span>'}
           </a></li>`).join('')}
       </ul>
@@ -263,19 +268,30 @@ const whereText = (k, b) => (k.table !== 'stores' ? `${k.area} ${b.radius_m} m`
   : b.location_source === 'first_visit' ? 'Location from first visit · please check' : `${k.area} ${b.radius_m} m`);
 
 async function places(me, k) {
-  const cols = k.table === 'stores' ? 'id,name,address,radius_m,lat,location_source' : 'id,name,address,radius_m';
-  const list = await api.select(k.table, `select=${cols}&company_id=eq.${me.company_id}&order=name`);
+  const isStores = k.table === 'stores';
+  const cols = isStores ? 'id,name,address,radius_m,lat,location_source' : 'id,name,address,radius_m';
+  const [list, assigned, reps] = await Promise.all([
+    api.select(k.table, `select=${cols}&company_id=eq.${me.company_id}&order=name`),
+    isStores ? api.select('store_assignments', `select=store_id,member_id&company_id=eq.${me.company_id}`) : [],
+    isStores ? api.select('members', `select=id,full_name&company_id=eq.${me.company_id}&role=eq.rep&active=is.true&order=full_name`) : [],
+  ]);
+  const repName = new Map(reps.map((x) => [x.id, firstName(x.full_name)]));
+  const coveredBy = (sid) => assigned.filter((a) => a.store_id === sid && repName.has(a.member_id)).map((a) => repName.get(a.member_id));
+  const unassigned = isStores ? list.filter((b) => !coveredBy(b.id).length).length : 0;
   show(`
     <main class="page">
       ${header(me, k.plural)}
       ${tabs('Setup')}
       ${backLink('#/setup', 'Setup')}
       <a class="primary button" href="#/${k.path}/new">Add ${k.one}</a>
+      ${isStores && list.length && !reps.length ? '<p class="banner tip">Invite a sales rep (Team → Invite someone), then tap a store to choose who visits it.</p>' : ''}
+      ${isStores && reps.length && unassigned ? `<p class="banner tip">${unassigned} store${unassigned === 1 ? " isn't" : "s aren't"} assigned to a sales rep yet. Tap a store to choose who visits it.</p>` : ''}
       ${list.length ? '' : `<p class="muted center empty">${k.empty}</p>`}
       <ul class="list">
         ${list.map((b) => `
           <li><a class="card row" href="#/${k.path}/${b.id}">
-            <span><strong>${esc(b.name)}</strong><br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span></span>
+            <span><strong>${esc(b.name)}</strong><br><span class="muted">${b.address ? esc(b.address) + ' · ' : ''}${whereText(k, b)}</span>
+              ${isStores ? `<br>${coveredBy(b.id).length ? `<span class="small">Visited by ${esc(coveredBy(b.id).join(', '))}</span>` : '<span class="pill wait">Not assigned yet</span>'}` : ''}</span>
             ${chev}
           </a></li>`).join('')}
       </ul>
@@ -285,8 +301,15 @@ async function places(me, k) {
 
 async function placeForm(me, k, id) {
   const isNew = id === 'new';
-  const b = isNew ? { radius_m: 100 } : (await api.select(k.table, `select=*&id=eq.${encodeURIComponent(id)}`))[0];
+  const isStore = k.table === 'stores';
+  const [found, reps, had] = await Promise.all([
+    isNew ? [{ radius_m: 100 }] : api.select(k.table, `select=*&id=eq.${encodeURIComponent(id)}`),
+    isStore ? api.select('members', `select=id,full_name,phone&company_id=eq.${me.company_id}&role=eq.rep&active=is.true&order=full_name`) : [],
+    isStore && !isNew ? api.select('store_assignments', `select=member_id&store_id=eq.${encodeURIComponent(id)}`) : [],
+  ]);
+  const b = found[0];
   if (!b) return go(k.back);
+  const hadReps = new Set(had.map((a) => a.member_id));
   show(`
     <main class="page narrow">
       ${backLink(k.back, k.plural)}
@@ -299,10 +322,14 @@ async function placeForm(me, k, id) {
         <button type="button" class="secondary" id="here">Use my current location</button>
         <label>${k.area} (metres)<input name="radius_m" type="number" min="20" max="2000" value="${b.radius_m}" required>
           <span class="hint muted">${k.areaHint}</span></label>
+        ${isStore ? `<fieldset class="choices"><legend>Sales reps who visit this store</legend>
+          ${reps.length ? reps.map((x) => `<label class="choice"><input type="checkbox" name="rep" value="${x.id}"${hadReps.has(x.id) ? ' checked' : ''}><span><strong>${esc(x.full_name)}</strong>${x.phone ? `<br><span class="muted">${esc(displayPhone(x.phone))}</span>` : ''}</span></label>`).join('')
+            : '<p class="muted small">No sales reps yet. Invite one from Team, then come back to choose who visits this store.</p>'}
+        </fieldset>` : ''}
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Save</button>
       </form>
-    </main>`, async ({ name, address, where, radius_m }) => {
+    </main>`, async ({ name, address, where, radius_m }, form) => {
     const pos = where.trim() ? parseLatLng(where) : null;
     if (where.trim() && !pos) throw new Say('Location should look like 6.5095, 3.3711.');
     if (k.needsLocation && !pos) throw new Say('Please add the location.');
@@ -311,12 +338,20 @@ async function placeForm(me, k, id) {
       const moved = !pos || pos.lat !== b.lat || pos.lng !== b.lng;
       row.location_source = !pos ? null : moved ? 'manager' : b.location_source;
     }
+    let saved = b;
     try {
-      if (isNew) await api.insert(k.table, { company_id: me.company_id, ...row });
+      if (isNew) saved = await api.insert(k.table, { company_id: me.company_id, ...row });
       else await api.update(k.table, `id=eq.${b.id}`, row);
     } catch (x) {
       if (x.code === '23505') throw new Say(`You already have an ${k.one} with this name.`);
       throw x;
+    }
+    if (isStore) {
+      const now = new Set(new FormData(form).getAll('rep'));
+      const add = [...now].filter((r) => !hadReps.has(r));
+      const drop = [...hadReps].filter((r) => !now.has(r));
+      if (add.length) await api.insertRows('store_assignments', add.map((member_id) => ({ company_id: me.company_id, member_id, store_id: saved.id })));
+      if (drop.length) await api.remove('store_assignments', `store_id=eq.${saved.id}&member_id=in.(${drop.join(',')})`);
     }
     toast(`${k.one[0].toUpperCase() + k.one.slice(1)} saved`);
     go(k.back);

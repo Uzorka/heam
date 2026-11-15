@@ -81,7 +81,8 @@ async function fakeSupabase(route) {
     const uid = param(q, 'user_id');
     if (uid) { const x = people.find((y) => y.user === uid); return json(route, x ? [{ ...x, company_id: 'c1', companies: company }] : []); }
     if (param(q, 'id')) return json(route, people.filter((x) => x.id === param(q, 'id')));
-    return json(route, [...people].sort((a, b) => a.full_name.localeCompare(b.full_name)));
+    const role = param(q, 'role');
+    return json(route, people.filter((x) => !role || x.role === role).sort((a, b) => a.full_name.localeCompare(b.full_name)));
   }
   if (p === '/rest/v1/members' && m === 'POST') {
     if (people.some((x) => x.phone === body.phone)) return json(route, { code: '23505', message: 'duplicate' }, 409);
@@ -115,11 +116,16 @@ async function fakeSupabase(route) {
   }
   if (p === '/rest/v1/stores' && m === 'POST') { const x = { id: 's' + (stores.length + 10), active: true, ...body }; stores.push(x); return json(route, [x]); }
   if (p === '/rest/v1/stores' && m === 'PATCH') { Object.assign(stores.find((x) => x.id === param(q, 'id')), body); return json(route, []); }
-  if (p === '/rest/v1/store_assignments' && m === 'GET') return json(route, assignments.filter((a) => a.member_id === param(q, 'member_id')).map((a) => ({ store_id: a.store_id })));
+  if (p === '/rest/v1/store_assignments' && m === 'GET') {
+    const mid = param(q, 'member_id'), sid = param(q, 'store_id');
+    return json(route, assignments.filter((a) => (!mid || a.member_id === mid) && (!sid || a.store_id === sid)).map((a) => ({ store_id: a.store_id, member_id: a.member_id })));
+  }
   if (p === '/rest/v1/store_assignments' && m === 'POST') { assignments.push(...body); return route.fulfill({ status: 201 }); }
   if (p === '/rest/v1/store_assignments' && m === 'DELETE') {
-    const ids = /store_id=in\.\(([^)]*)\)/.exec(decodeURIComponent(q))[1].split(',');
-    for (const id of ids) assignments.splice(assignments.findIndex((a) => a.member_id === param(q, 'member_id') && a.store_id === id), 1);
+    const dq = decodeURIComponent(q);
+    const stores = /store_id=in\.\(([^)]*)\)/.exec(dq)?.[1].split(',') || [param(q, 'store_id')];
+    const members = /member_id=in\.\(([^)]*)\)/.exec(dq)?.[1].split(',') || [param(q, 'member_id')];
+    for (let i = assignments.length - 1; i >= 0; i--) if (stores.includes(assignments[i].store_id) && members.includes(assignments[i].member_id)) assignments.splice(i, 1);
     return route.fulfill({ status: 204 });
   }
   if (p === '/rest/v1/members' && m === 'PATCH') { Object.assign(people.find((x) => x.id === param(q, 'id')), body); return json(route, []); }
@@ -406,6 +412,9 @@ await shot('owner-add-store');
 await page.getByRole('button', { name: 'Save' }).click();
 await page.getByText('No location yet · first visit will save it').waitFor();
 step('owner adds a store with just a name and address');
+await page.getByText("3 stores aren't assigned to a sales rep yet. Tap a store to choose who visits it.").waitFor();
+assert.equal(await page.locator('.pill.wait', { hasText: 'Not assigned yet' }).count(), 3);
+step('Stores shows which stores have no sales rep yet, with a reminder');
 await shot('owner-stores');
 await page.getByRole('link', { name: 'Team', exact: true }).click();
 await page.getByRole('link', { name: /Remi Okafor/ }).click();
@@ -422,6 +431,30 @@ await page.getByRole('button', { name: 'Save' }).click();
 await page.getByText('Remi now covers 3 stores').waitFor();
 assert.equal(assignments.length, 3);
 step('owner sets a daily target and ticks the stores a rep covers');
+await page.getByRole('link', { name: 'Back to Team' }).click();
+await page.getByText('3 stores · 3 visits a day').waitFor();
+step('Team shows each sales rep\'s stores and visits a day');
+await page.getByRole('link', { name: 'Setup', exact: true }).click();
+await page.getByRole('link', { name: /^Stores/ }).click();
+await page.getByText('Visited by Remi').first().waitFor();
+assert.equal(await page.locator('.pill.wait', { hasText: 'Not assigned yet' }).count(), 0);
+await page.getByRole('link', { name: /Spar Lekki/ }).click();
+await page.getByRole('group', { name: 'Sales reps who visit this store' }).waitFor();
+assert.ok(await page.getByRole('checkbox', { name: /Remi Okafor/ }).isChecked(), 'store screen shows Remi already visits it');
+await page.getByRole('checkbox', { name: /Remi Okafor/ }).uncheck();
+await page.getByRole('button', { name: 'Save' }).click();
+await page.getByText("1 store isn't assigned to a sales rep yet. Tap a store to choose who visits it.").waitFor();
+assert.equal(assignments.length, 2);
+await shot('owner-stores-coverage');
+await page.getByRole('link', { name: /Spar Lekki/ }).click();
+await page.getByRole('checkbox', { name: /Remi Okafor/ }).check();
+await shot('owner-store-assign-reps');
+await page.getByRole('button', { name: 'Save' }).click();
+await until(() => assignments.length === 3, 'the store to be assigned again');
+await page.getByText('Visited by Remi', { exact: false }).first().waitFor();
+step('a store can be assigned to sales reps from the store screen too (untick, save, tick again)');
+await page.getByRole('link', { name: 'Team', exact: true }).click();
+await page.getByRole('link', { name: /Remi Okafor/ }).click();
 await page.getByRole('link', { name: 'Back to Team' }).click();
 await page.getByRole('button', { name: 'Sign out' }).click();
 
@@ -566,10 +599,16 @@ await page.getByRole('heading', { name: /, Elvis$/ }).waitFor();
 await page.getByRole('link', { name: 'Today', exact: true }).click();
 await page.getByRole('heading', { name: 'Today' }).waitFor();
 const statusOf = (name) => page.locator('.brow', { hasText: name }).locator('.right').innerText();
-assert.match(await statusOf('Sade Bello'), /Late · 12 min\n2 to check/);  // outside the office + face didn't match
-assert.match(await statusOf('Remi Okafor'), /Present\n1 to check/);
+// Waits (up to 5 s) for the Today list to show the expected status after an action.
+const statusIs = async (name, re) => {
+  let last = '';
+  for (let i = 0; i < 50; i++) { last = await statusOf(name).catch(() => ''); if (re.test(last)) return; await page.waitForTimeout(100); }
+  assert.match(last, re);
+};
+await statusIs('Sade Bello', /Late · 12 min\n2 to check/);  // outside the office + face didn't match
+await statusIs('Remi Okafor', /Present\n1 to check/);
 assert.match(await page.locator('.brow', { hasText: 'Remi Okafor' }).innerText(), /3 of 3 visits/);
-assert.match(await statusOf('Tunde Ade'), /No check-in/);
+await statusIs('Tunde Ade', /No check-in/);
 step('Today shows everyone: Late (12 min), Present with "3 of 3 visits", No check-in, and records to check');
 await shot('owner-today');
 
@@ -581,7 +620,7 @@ await shot('owner-today-bulk-bar');
 await page.getByRole('button', { name: 'Leave', exact: true }).click();     // one person: no confirm needed
 await page.getByText('1 person marked On leave').waitFor();
 await page.getByRole('button', { name: /^All/ }).click();
-assert.match(await statusOf('Tunde Ade'), /Leave\nset by manager/);
+await statusIs('Tunde Ade', /Leave\nset by manager/);
 step('filter "No check-in", tick one, tap Leave: marked "set by manager" (no confirm for one person)');
 
 let asked = '';
@@ -591,7 +630,7 @@ await page.getByText('3 selected').waitFor();
 await page.getByRole('button', { name: 'Present', exact: true }).click();
 await page.getByText('3 people marked Present').waitFor();
 assert.match(asked, /^Mark 3 people as Present on today\?$/);
-assert.match(await statusOf('Sade Bello'), /Present\nset by manager/);
+await statusIs('Sade Bello', /Present\nset by manager/);
 step('select all, Present: asks "Mark 3 people as Present on today?" first');
 
 page.once('dialog', (d) => { asked = d.message(); d.accept(); });
@@ -599,18 +638,18 @@ await page.getByRole('checkbox', { name: 'Select all shown' }).check();
 await page.getByRole('button', { name: 'Clear' }).click();
 await page.getByText('Cleared 3 people').waitFor();
 assert.match(asked, /clock-ins and visits are not changed/);
-assert.match(await statusOf('Sade Bello'), /Late · 12 min/);
-assert.match(await statusOf('Tunde Ade'), /No check-in/);
+await statusIs('Sade Bello', /Late · 12 min/);
+await statusIs('Tunde Ade', /No check-in/);
 step('Clear removes only what managers set: Sade is back to Late from her clock-in');
 
 const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date(Date.now() - 864e5));
 await page.locator('#day').fill(yesterday);
 await page.getByRole('link', { name: 'Back to today' }).waitFor();
-assert.match(await statusOf('Tunde Ade'), /Absent/);
+await statusIs('Tunde Ade', /Absent/);
 await page.getByRole('checkbox', { name: 'Select Tunde Ade' }).check();
 await page.getByRole('button', { name: 'Off', exact: true }).click();
 await page.getByText('1 person marked Off').waitFor();
-assert.match(await statusOf('Tunde Ade'), /Off\nset by manager/);
+await statusIs('Tunde Ade', /Off\nset by manager/);
 assert.ok(dayStatus.has('m3|' + yesterday));
 step('fix a past date: yesterday shows Absent; marked Off');
 await shot('owner-fix-past-date');

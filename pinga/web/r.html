@@ -34,17 +34,12 @@
   .cancelled-banner small { display: block; font-size: 14px; letter-spacing: 0; font-weight: 700; }
   .is-cancelled .total span:last-child { text-decoration: line-through; }
   .is-cancelled::after { content: "CANCELLED"; position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-24deg); font-size: 56px; font-weight: 800; color: rgba(198,40,40,.07); pointer-events: none; white-space: nowrap; }
-  .actions { display: flex; gap: 10px; margin-top: 16px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .actions .primary { flex-basis: 100%; }
   button { flex: 1; font: inherit; font-weight: 800; font-size: 16px; min-height: 50px; border-radius: 14px; border: 1.5px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
   button.primary { background: var(--mango); border-color: var(--mango); }
   .msg { text-align: center; padding: 40px 10px; }
   .msg h1 { font-size: 22px; }
-  @media print {
-    body { background: #fff; }
-    main { padding: 0; }
-    .paper { border: 0; box-shadow: none; }
-    .actions { display: none; }
-  }
 </style>
 </head>
 <body>
@@ -52,7 +47,8 @@
 <script type="module">
   import { CONFIG } from './js/config.js';
   import { receiptLines, when, naira, PAY, properFirst } from './js/receipt-lines.js';
-  import { saveFile, printPage } from './js/device.js';
+  import { saveFile } from './js/device.js';
+  import { printReceipt } from './js/print.js';
 
   const app = document.getElementById('app');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -102,10 +98,13 @@
         <p class="by">Receipt by Pinga</p>
       </article>
       <div class="actions">
-        <button class="primary" id="img">Save as image</button>
+        <button class="primary" id="print">Print</button>
+        <button id="img">Save as image</button>
         <button id="pdf">Save as PDF</button>
       </div>`;
-    document.getElementById('pdf').onclick = () => printPage();   // the phone's own "Save as PDF"
+    // Printed from here, it's a copy: marked "Reprint". The PDF is the A4 layout (choose "Save as PDF" in the print window).
+    document.getElementById('print').onclick = () => printReceipt(r, { paper: r.paper || '80', reprint: true, logo: logoUrl(r.logo_path) });
+    document.getElementById('pdf').onclick = () => printReceipt(r, { paper: 'a4', logo: logoUrl(r.logo_path) });
     document.getElementById('img').onclick = () => saveImage(r);
   }
 

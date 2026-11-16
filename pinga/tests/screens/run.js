@@ -394,7 +394,7 @@ async function fakeSupabase(route) {
     return json(route, { business: company.name, logo_path: b.logo_path || company.logo_path || null, shop: b.name, address: b.address || null, phone: b.phone || null,
       number: x.receipt_code, at: x.happened_at, timezone: 'Africa/Lagos', served_by: x.seller_name.split(' ')[0],
       items: x.sale_items.map((i) => ({ name: i.product_name, qty: i.qty, price: i.unit_price })), discount: x.discount, total: x.total,
-      payment: x.payment_method, note: company.receipt_note, cancelled: !!x.cancelled_at });
+      payment: x.payment_method, payments: x.payments || null, customer: x.customer_name || null, paper: b.receipt_paper || '80', note: company.receipt_note, cancelled: !!x.cancelled_at });
   }
   if (p.startsWith('/storage/v1/object/photos/') && m === 'POST') {
     const path = p.replace('/storage/v1/object/photos/', '');
@@ -1348,11 +1348,24 @@ assert.equal(sold.payment_method, 'transfer', 'payment method saved with the sal
 assert.match(sold.receipt_token, /^[A-Za-z0-9_-]{32}$/, 'the receipt link was made on the phone');
 await page.getByLabel(/Customer's WhatsApp number/).fill('0803 123 4567');
 await page.waitForFunction(() => /YAB-000/.test(decodeURIComponent(document.getElementById('wa').href)));
-const wa = decodeURIComponent(await page.getByRole('link', { name: 'Send receipt on WhatsApp' }).getAttribute('href'));
+const wa = decodeURIComponent(await page.getByRole('link', { name: 'Send via WhatsApp' }).getAttribute('href'));
 assert.ok(wa.startsWith('https://wa.me/2348031234567?text=Thank you for shopping at Mama Put Stores (Yaba shop). Your receipt YAB-'), wa);
 assert.ok(wa.endsWith(`r.html#${sold.receipt_token}`), 'the message carries the receipt link');
 await shot('till-send-receipt');
-step('Sale: payment method chosen; "Send receipt" opens WhatsApp to the customer with the receipt number and link');
+step('Sale: payment method chosen; "Send via WhatsApp" opens WhatsApp to the customer with the receipt number and link');
+// Print: the device's print window, with the receipt on the shop's paper. Copy link is under More.
+const stubPrint = (pg) => pg.evaluate(() => { window.__printed = []; window.print = () => { window.__printed.push({ html: document.getElementById('print-area').innerText, css: document.getElementById('print-css').textContent }); setTimeout(() => dispatchEvent(new Event('afterprint'))); }; });
+await stubPrint(page);
+await page.getByRole('button', { name: 'Print' }).click();
+await page.waitForFunction(() => window.__printed.length === 1);
+const printed = await page.evaluate(() => window.__printed[0]);
+assert.ok(printed.html.includes(sold.receipt_code) && printed.html.includes('Peak Milk 400g') && printed.html.includes('Mama Put Stores'), 'Print: the receipt with its number, items and business');
+assert.ok(!printed.html.includes('REPRINT'), 'the first print is not marked Reprint');
+assert.ok(printed.css.includes('size: 80mm auto'), 'Print: on the shop\'s paper (80 mm by default)');
+assert.equal(await page.getByRole('button', { name: 'Copy receipt link' }).isVisible(), false, 'Copy link is tucked away');
+await page.getByText('More', { exact: true }).click();
+assert.ok(await page.getByRole('button', { name: 'Copy receipt link' }).isVisible(), '...under More');
+step('After a sale: "Send via WhatsApp" and "Print" (the device\'s print window, shop\'s paper size); Copy link under More');
 
 // No signal: the receipt waits, then is ready to send.
 await page.getByRole('button', { name: 'Next sale' }).click();
@@ -1360,9 +1373,15 @@ networkDown = true;
 await page.locator('.pick', { hasText: 'Indomie Chicken 70g' }).click();
 await openBasket();
 await page.getByRole('button', { name: 'Complete sale' }).click();
-await page.getByRole('button', { name: 'Send receipt when online' }).waitFor();
+await page.getByRole('button', { name: 'Send when online' }).waitFor();
+// Printing works with no signal (from the sale on the phone; the number comes with the link later).
+await stubPrint(page);
+await page.getByRole('button', { name: 'Print' }).click();
+await page.waitForFunction(() => window.__printed.length === 1);
+const offlinePrint = await page.evaluate(() => window.__printed[0].html);
+assert.ok(offlinePrint.includes('Indomie Chicken 70g') && offlinePrint.includes('Number on the receipt link'), 'no signal: the receipt still prints');
 await page.getByLabel(/Customer's WhatsApp number/).fill('0803 765 4321');
-await page.getByRole('button', { name: 'Send receipt when online' }).click();
+await page.getByRole('button', { name: 'Send when online' }).click();
 await page.getByText('Receipt will send when online').first().waitFor();
 await shot('till-receipt-offline');
 networkDown = false;
@@ -1383,6 +1402,26 @@ await rp.waitForFunction(() => document.querySelector('.head img')?.naturalWidth
 await rp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-receipt.png`, fullPage: true });
 const [img] = await Promise.all([rp.waitForEvent('download'), rp.getByRole('button', { name: 'Save as image' }).click()]);
 assert.equal(img.suggestedFilename(), `Receipt-${sold.receipt_code}.png`);
+// Print from the receipt page: marked Reprint. The print layout itself, on each paper size:
+await stubPrint(rp);
+await rp.getByRole('button', { name: 'Print' }).click();
+await rp.waitForFunction(() => window.__printed.length === 1);
+assert.ok((await rp.evaluate(() => window.__printed[0].html)).includes('REPRINT'), 'receipt page: Print makes a reprint');
+await rp.emulateMedia({ media: 'print' });
+for (const [paper, w] of [['58', 220], ['80', 302], ['a4', 794]]) {
+  await rp.setViewportSize({ width: w, height: 900 });
+  await rp.evaluate(async ([pp, token]) => {
+    const [{ printReceipt }, { CONFIG }] = await Promise.all([import('./js/print.js'), import('./js/config.js')]);
+    const r = await (await fetch(CONFIG.url + '/rest/v1/rpc/receipt', { method: 'POST', headers: { apikey: CONFIG.key, 'content-type': 'application/json' }, body: JSON.stringify({ p_token: token }) })).json();
+    window.print = () => {};
+    await printReceipt(r, { paper: pp, logo: CONFIG.url + '/storage/v1/object/public/logos/' + r.logo_path });
+  }, [paper, sold.receipt_token]);
+  await rp.waitForTimeout(300);
+  await rp.screenshot({ path: `${out}${String(++n).padStart(2, '0')}-print-${paper}.png`, fullPage: true });
+}
+await rp.emulateMedia({ media: 'screen' });
+await rp.setViewportSize({ width: 375, height: 812 });
+await rp.evaluate(() => document.getElementById('print-area')?.remove());
 step('Receipt page: opens with no sign-in; logo, shop, number, staff, items, total, payment, thank-you note; saves as an image');
 sold.cancelled_at = new Date().toISOString();
 await rp.reload();
@@ -1488,6 +1527,32 @@ for (const [size, width, height, extra] of SIZES) {
   };
   await signIn('owner');
   await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+  // Every owner page shows the same full menu (and a Sell button at the top).
+  {
+    const FULL = ['Overview', 'Today', 'Sell', 'Stock', 'Team', 'Setup'];
+    const pages = ['#/overview', '#/today', '#/stock', '#/team', '#/setup', '#/offices', `#/office/${shopId}`, '#/office/new', '#/hours', '#/brand', '#/business', '#/billing',
+      '#/invite', '#/person/m1', '#/product/new', '#/import', '#/imports', `#/sales/${shopId}`, '#/export', '#/face'];
+    for (const h of pages) {
+      await pg.evaluate((x) => { location.hash = x; }, h);
+      await pg.waitForFunction((x) => location.hash === x && document.querySelector('main') && !document.querySelector('.loading'), h);
+      await pg.waitForTimeout(300);
+      const items = await pg.locator('#appnav a:visible span').allTextContents();
+      assert.deepEqual(items, FULL, `${size} ${h}: the full menu (got ${items.join(', ')})`);
+      assert.equal(await pg.locator('main .sell-top').getAttribute('href'), '#/sell', `${size} ${h}: Sell button at the top`);
+    }
+    await pg.evaluate(() => { location.hash = '#/overview'; });
+    await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+    console.log(`ok - ${size}: every owner page shows the full menu and a Sell button at the top`);
+    // Reprint from the sales list.
+    await pg.evaluate((x) => { location.hash = x; }, `#/sales/${shopId}`);
+    await pg.locator('[data-print]').first().waitFor();
+    await pg.evaluate(() => { window.__printed = []; window.print = () => { window.__printed.push(document.getElementById('print-area').innerText); setTimeout(() => dispatchEvent(new Event('afterprint'))); }; });
+    await pg.locator('[data-print]').first().click();
+    await pg.waitForFunction(() => window.__printed.length === 1);
+    assert.ok((await pg.evaluate(() => window.__printed[0])).includes('REPRINT'), `${size}: Print in the sales list makes a reprint`);
+    await pg.evaluate(() => { location.hash = '#/overview'; });
+    await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
+  }
   const nav = await pg.locator('#appnav').boundingBox();
   if (size === 'phone') assert.ok(nav.y > height - 100 && nav.width === width, 'phone: tab bar along the bottom');
   if (size === 'tablet') assert.ok(nav.x === 0 && nav.width < 120 && nav.height >= height - 1, 'tablet: side rail');
@@ -1519,6 +1584,9 @@ for (const [size, width, height, extra] of SIZES) {
   await pg.goto(base + '#/sales/' + shopId);
   await pg.getByRole('heading', { name: /^Sales/ }).waitFor();
   await snap('sales');
+  await pg.goto(base + '#/office/' + shopId);
+  await pg.getByLabel('Receipt printer paper').waitFor();
+  await snap('shop-settings');
   await pg.goto(base + '#/overview');
   await pg.getByRole('heading', { name: /, Elvis$/ }).waitFor();
   await pg.getByRole('button', { name: 'Sign out' }).click();
@@ -1570,6 +1638,9 @@ for (const [size, width, height, extra] of SIZES) {
     assert.equal(await pg.getByLabel('Price each for Peak Milk 400g').inputValue(), '2,400', 'commas appear as you type');
     await pg.getByText('Transfer', { exact: true }).click();
     await snap('sell', false);
+    await pg.getByRole('button', { name: 'Complete sale' }).click();
+    await pg.getByRole('heading', { name: /^Sale saved/ }).waitFor();
+    await snap('sell-saved', false);
   }
   await pg.goto(base + '#/home');
   await pg.getByRole('button', { name: 'Sign out' }).waitFor();
@@ -1667,6 +1738,14 @@ for (const [size, width, height, extra] of SIZES) {
   await pg.goto(base + '#/person/' + kemiP.id);
   await pg.getByRole('heading', { name: 'Kemi Yaba' }).waitFor();
   assert.equal(await pg.getByRole('button', { name: /new PIN link|Remove/ }).count(), 0, 'manager: cannot reset PINs or remove staff without the right');
+  // The manager's menu is the same on every page, with Sell at the top.
+  for (const h of ['#/overview', '#/today', '#/stock', '#/team', '#/setup', '#/offices', '#/person/' + kemiP.id, `#/sales/${shopId}`, '#/product/new']) {
+    await pg.evaluate((x) => { location.hash = x; }, h);
+    await pg.waitForFunction((x) => location.hash === x && document.querySelector('main'), h);
+    await pg.waitForTimeout(300);
+    assert.deepEqual(await pg.locator('#appnav a:visible span').allTextContents(), ['Overview', 'Today', 'Sell', 'Stock', 'Team', 'Setup'], `${size} manager ${h}: the full menu`);
+    assert.equal(await pg.locator('main .sell-top').count(), 1, `${size} manager ${h}: Sell at the top`);
+  }
   await signOut();
 
   // 3. Owner: Team → manager → rights switches.

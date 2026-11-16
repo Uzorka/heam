@@ -48,19 +48,29 @@ async function receiptPanel(me, sale, onDone) {
     <p class="muted">Paid by ${PAID[sale.payment] || 'Cash'}</p>
     ${sale.change > 0 ? `<p class="change-big">Change to give: <b>${naira(sale.change)}</b></p>` : ''}
     <label><span>Customer's WhatsApp number <span class="muted">(optional)</span></span><input id="cphone" type="tel" inputmode="tel" placeholder="0803 123 4567" autocomplete="off" value="${esc(sale.phone || '')}"></label>
-    ${sent ? `<a class="primary button" id="wa" target="_blank" rel="noopener" href="#">Send receipt on WhatsApp</a>
-      <button class="secondary" id="copy">Copy receipt link</button>`
-      : `<button class="primary" id="later">Send receipt when online</button>
-      <p class="muted small">No signal right now. The receipt will be ready to send as soon as you're online.</p>`}
+    <div class="receipt-actions">
+      ${sent ? `<a class="primary button" id="wa" target="_blank" rel="noopener" href="#">Send via WhatsApp</a>`
+        : '<button class="primary" id="later">Send when online</button>'}
+      <button class="secondary" id="print">${ICON.receipt}Print</button>
+    </div>
+    ${sent ? '' : '<p class="muted small">No signal right now. Printing works; the WhatsApp receipt will be ready as soon as you\'re online.</p>'}
+    ${sent ? `<details class="more-menu"><summary>More</summary><button class="link" id="copy">Copy receipt link</button></details>` : ''}
     <button class="link block" id="next">Next sale</button>`;
   let text = receiptMessage({ business: me.companies.name, total: sale.total, url });
+  let server = null;   // the receipt as the server has it (with its number), once it's there
   const phone = () => document.getElementById('cphone').value.trim();
   const wa = document.getElementById('wa');
   const setHref = () => { if (wa) wa.href = whatsappHref(phone(), text); };
-  if (sent) receiptInfo(sale.token).then((r) => { if (r) { text = receiptMessage({ business: r.business, shop: r.shop, number: r.number, total: r.total, url }); setHref(); } });
+  if (sent) receiptInfo(sale.token).then((r) => { if (r) { server = r; text = receiptMessage({ business: r.business, shop: r.shop, number: r.number, total: r.total, url }); setHref(); } });
   setHref();
   document.getElementById('cphone').addEventListener('input', setHref);
   if (wa) wa.addEventListener('click', () => { dropReceipt(sale.token); setTimeout(onDone, 300); });
+  document.getElementById('print').onclick = async () => {
+    const { printReceipt } = await import('./print.js');
+    const shop = shopInfo(sale.shopId);
+    const r = server || (sent ? await receiptInfo(sale.token) : null) || localReceipt(me, sale, shop);
+    printReceipt(r, { paper: r.paper || shop.paper, logo: logoUrl(r.logo_path) });
+  };
   const copy = document.getElementById('copy');
   if (copy) copy.onclick = async () => {
     if (!(await copyText(url))) { await ask('Copy this receipt link:', { input: url, ok: 'Done', cancel: 'Close' }); return; }
@@ -74,6 +84,21 @@ async function receiptPanel(me, sale, onDone) {
   };
   document.getElementById('next').onclick = onDone;
 }
+
+// What the till knows about its shop for printing (kept on the phone, so printing works with no signal).
+const remembered = new Set();
+const SHOP_KEY = (id) => 'pinga.shop.' + id;
+function shopInfo(id) { try { return JSON.parse(localStorage.getItem(SHOP_KEY(id))) || {}; } catch { return {}; } }
+async function rememberShop(id) {
+  const [b] = await api.select('branches', `select=name,address,phone,logo_path,receipt_paper&id=eq.${id}`).catch(() => []);
+  if (b) try { localStorage.setItem(SHOP_KEY(id), JSON.stringify({ ...b, paper: b.receipt_paper })); } catch { /* full */ }
+}
+// A receipt made from the sale on this phone (before it reaches the server: no number yet).
+const localReceipt = (me, sale, shop) => ({
+  business: me.companies.name, logo_path: shop.logo_path || me.companies.logo_path, shop: shop.name, address: shop.address, phone: shop.phone,
+  number: null, at: sale.at, timezone: me.companies.timezone, served_by: firstName(me.full_name), customer: sale.customer,
+  items: sale.items || [], discount: 0, total: sale.total, payment: sale.payment, payments: sale.payments, note: me.companies.receipt_note, cancelled: false,
+});
 
 // Receipts asked for with no signal: "will send when online", then "ready to send" once the sale is in.
 async function pendingList(me) {
@@ -153,6 +178,7 @@ export async function sell(me, opts = {}) {
   const shopName = opts.shopName || '';
   const exitTo = opts.exitTo || '#/home';
   const again = () => sell(me, opts).catch(report);
+  if (!remembered.has(shopId)) { remembered.add(shopId); rememberShop(shopId); }   // name, address, logo, paper: for printing offline
   // The owner's till rules for shop staff (the server enforces them too).
   const staffRule = me.role === 'staff';
   const manages = !staffRule;
@@ -502,7 +528,8 @@ export async function sell(me, opts = {}) {
       if (payments) rec.payments = payments;
       if (customer.name.trim()) rec.customer_name = customer.name.trim();
       await sync.add(rec);
-      justSold = { id: rec.id, token: rec.receipt_token, total: sum, payment: rec.payment, phone: customer.phone, change: payment === 'cash' && received != null ? received - sum : null };
+      justSold = { id: rec.id, token: rec.receipt_token, total: sum, payment: rec.payment, phone: customer.phone, change: payment === 'cash' && received != null ? received - sum : null,
+        shopId, at: rec.happened_at, customer: rec.customer_name, payments, items: rec.items.map((i) => ({ name: i.name, qty: i.qty, price: i.unit_price })) };
       basket = []; payment = 'cash'; received = null; split = { cash: null, transfer: null, card: null }; customer = { name: '', phone: '' }; keep();
       save.textContent = 'Saving…';
       await sync.flush();   // with signal the sale is sent now, so the receipt can go straight away
@@ -623,7 +650,7 @@ export async function mySales(me) {
   wireSignOut(safeToSignOut);
   app.querySelectorAll('.resend').forEach((btn) => {
     btn.onclick = () => {
-      justSold = { id: btn.closest('.sale').dataset.id, token: btn.dataset.token, total: Number(btn.dataset.total), payment: btn.dataset.pay };
+      justSold = { id: btn.closest('.sale').dataset.id, token: btn.dataset.token, total: Number(btn.dataset.total), payment: btn.dataset.pay, shopId: me.branch_id };
       location.hash = '#/sell';
     };
   });

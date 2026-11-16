@@ -67,6 +67,7 @@ select tests.eq((select j->'items'->0->>'name' || ' ' || (j->'items'->0->>'qty')
 select tests.eq((select j->>'note' from r), 'Thank you! Come again.', '...and the owner''s thank-you note');
 select tests.ok((select (j->>'logo_path') like '%/logo-abc.png' from r), '...and the logo');
 select tests.eq((select (j->>'cancelled')::boolean from r), false, 'not cancelled');
+select tests.eq((select j->>'paper' from r), '80', 'receipts print on 80 mm paper unless the shop says otherwise');
 select tests.eq(public.receipt('tok_doesnotexistdoesnotexist00'), null::jsonb, 'an unknown link shows nothing');
 select tests.eq(public.receipt('x'), null::jsonb, 'a short link shows nothing');
 select tests.refused($$ select count(*) from public.sales $$, 'the link gives no other access (no sales list)');
@@ -77,6 +78,12 @@ select tests.act_as('e0000000-0000-0000-0000-000000000001');
 update public.branches set logo_path = (select id from co)::text || '/shop-yaba.png' where id = '51000000-0000-0000-0000-000000000001';
 reset role;
 select tests.ok((public.receipt('tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1')->>'logo_path') like '%/shop-yaba.png', 'a shop''s own logo is used on its receipts');
+
+select tests.act_as('e0000000-0000-0000-0000-000000000001');
+update public.branches set receipt_paper = '58' where id = '51000000-0000-0000-0000-000000000001';
+select tests.refused($$ update public.branches set receipt_paper = 'a3' where id = '51000000-0000-0000-0000-000000000001' $$, 'paper is 58 mm, 80 mm or A4');
+reset role;
+select tests.eq(public.receipt('tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1')->>'paper', '58', 'the shop''s paper size comes with its receipts');
 
 -- ── Cancelled: the link says so; numbers are never reused ──
 select tests.act_as('e0000000-0000-0000-0000-000000000003');

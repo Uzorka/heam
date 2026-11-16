@@ -2,7 +2,7 @@
 import * as api from './api.js';
 import { normalizePhone, loginEmailFor, validPin, PHONE_LOGIN_DOMAIN } from './phone.js';
 import { catchAll } from './report.js';
-import { show, go, esc, Say, friendly, toast, firstName, setNav } from './ui.js';
+import { show, go, esc, Say, friendly, toast, firstName, setNav, setSell } from './ui.js';
 import { wordmark } from './icons.js';
 
 let me = null; // { id, role, full_name, company_id, reference_photo_path, companies: {...} }
@@ -125,6 +125,7 @@ async function route() {
   if (!api.getSession()) {
     me = null;
     setNav('');
+    setSell(null);
     if (name === 'signup' || name === 'verify') return import('./signup.js').then((m) => (name === 'signup' ? m.signUp(arg) : m.verify()));
     return name === 'owner' ? ownerSignIn() : phoneSignIn();
   }
@@ -136,6 +137,7 @@ async function route() {
   }
   // Managers' screens are downloaded only by managers, keeping the staff app small.
   if (me.role === 'owner' || me.role === 'admin') return (await import('./admin.js')).adminRoute(me, name, arg);
+  setSell(null);   // staff open Sell from their own tab bar
   return (await import('./staff.js')).staffRoute(me, name, arg);
 }
 

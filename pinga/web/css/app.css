@@ -137,8 +137,6 @@ body.toasting #app > main { padding-bottom: calc(var(--tabbar) + 88px + env(safe
 .tabbar a span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tabbar a.on { color: var(--mango); font-weight: 800; }
 .has-tabs { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
-/* Sub-screens on phones have a back link instead of the tab bar. */
-.appnav.sub { display: none; }
 .nav-brand { display: none; }
 /* "Skip to content": invisible until a keyboard user reaches it. */
 .appnav a.skip { position: absolute; left: -9999px; top: 0; width: auto; }
@@ -706,3 +704,25 @@ body.has-paybar .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 .wiz-go .button.big + .button.big { margin-top: 0; }
 .foot .link { min-height: 0; padding: 0; display: inline; font-size: inherit; }
 .wiz-list .row { justify-content: flex-start; }
+
+/* "Sell" at the top right of every owner/manager page in a business with shops. */
+.sell-top { display: inline-flex; align-items: center; gap: 6px; background: var(--mango); color: var(--ink); font-weight: 800; border-radius: 12px; padding: 0 14px; min-height: 40px; font-size: 16px; box-shadow: 0 2px 0 rgba(20,33,61,.12); white-space: nowrap; }
+.sell-top .ic { width: 20px; height: 20px; }
+.sell-top:hover { background: var(--mango-press); text-decoration: none; }
+.bar-end { display: flex; align-items: center; gap: 4px; flex: none; }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.topline > .back { margin-bottom: 0; }
+.topline > .sell-top { margin-left: auto; }
+
+/* After a sale: WhatsApp and Print side by side; Copy link under More. */
+.receipt-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.more-menu { margin-top: 2px; }
+.more-menu summary { cursor: pointer; color: var(--mango-ink); font-weight: 700; padding: 8px 0; list-style: none; text-align: center; }
+.more-menu summary::-webkit-details-marker { display: none; }
+.more-menu summary::after { content: " ▾"; }
+.more-menu[open] summary::after { content: " ▴"; }
+.more-menu .link { display: block; margin: 0 auto; }
+
+.print-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; font-size: 14px; padding: 0 2px; }
+.print-btn .ic { width: 18px; height: 18px; }
+td.end .print-btn { margin-left: auto; }

@@ -53,7 +53,7 @@ function placeNav() {
     nav.classList.add('sub');
   }
   document.body.classList.toggle('with-nav', !!nav);
-  document.body.classList.toggle('nav-phone', !!own);
+  document.body.classList.toggle('nav-phone', !!nav);   // the same menu on every page, sub-pages included
   document.body.classList.toggle('till-mode', !!app.querySelector('main.till'));
   if (!nav) return;
   nav.id = 'appnav';
@@ -62,6 +62,23 @@ function placeNav() {
   app.prepend(nav);
   const main = app.querySelector('main');
   if (main) main.id = 'main';
+  if (main && sellHref) addSellButton(main);
+}
+
+// Owners and managers of businesses with shops: a "Sell" button at the top right of every page (opens the full-screen till).
+let sellHref = null;
+export const setSell = (href) => { sellHref = href; };
+function addSellButton(main) {
+  const btn = `<a class="sell-top" href="${sellHref}">${ICON.shop}<span>Sell</span></a>`;
+  const bar = main.querySelector(':scope > header.bar');
+  const out = bar?.querySelector('#signout');
+  if (out) { out.insertAdjacentHTML('beforebegin', `<div class="bar-end">${btn}</div>`); bar.querySelector('.bar-end').append(out); return; }
+  const back = main.querySelector(':scope > a.back');
+  const line = document.createElement('div');
+  line.className = 'topline';
+  if (back) back.replaceWith(line), line.append(back);
+  else main.prepend(line);
+  line.insertAdjacentHTML('beforeend', btn);
 }
 
 let leave = null;
@@ -147,6 +164,7 @@ export function wireSignOut(guard) {
     await api.signOut();
     clearToast();
     setNav('');
+    setSell(null);
     reloadMe();
     go('#/');
   };

@@ -5,7 +5,7 @@ import { watchBest, parseLatLng } from './gps.js';
 import { ICON } from './icons.js';
 import { publicBase, copyText } from './device.js';
 import { ask } from './dialog.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl, setNav, moneyInput, parseMoney, properName } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, onLeave, reloadMe, app, ROLE, fmtTime, fmtDay, fmtDistance, flagLabel, backLink, chev, firstName, feats, BUSINESS, logoUrl, setNav, setSell, moneyInput, parseMoney, properName } from './ui.js';
 
 let banner = '';
 let flags = null;   // what's switched on (payments, face check); loaded once per visit
@@ -59,6 +59,7 @@ export async function adminRoute(me, name, arg) {
   F = feats(me);
   ME = me;
   NAV = F.shop ? NAV_SHOP : NAV_FIELD;
+  setSell(F.shop ? '#/sell' : null);
   PLACE.office = officeKind(F);
   // A new owner goes through the setup wizard first (full screen, no menu). Any other screen still opens.
   if (name === 'welcome' && me.role === 'owner') { setNav(''); return import('./welcome.js').then((m) => m.welcome(me, arg)); }
@@ -506,6 +507,8 @@ async function placeForm(me, k, id) {
         </fieldset>` : ''}
         <label><span>Address <span class="muted">(optional)</span></span><input name="address" value="${esc(b.address)}"></label>
         ${shopish ? `<label><span>Shop phone <span class="muted">(optional, shown on receipts)</span></span><input name="phone" type="tel" value="${esc(b.phone)}" placeholder="0803 123 4567" maxlength="30"></label>` : ''}
+        ${shopish ? `<label>Receipt printer paper<select name="receipt_paper">${[['80', '80 mm roll (most till printers)'], ['58', '58 mm roll (small printers)'], ['a4', 'A4 paper']].map(([v, t]) => `<option value="${v}"${(b.receipt_paper || '80') === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <span class="hint muted">Receipts from this shop print in this size. The printer itself is chosen when printing.</span></label>` : ''}
         ${shopish && me.role === 'owner' ? logoField('Shop logo <span class="muted">(optional)</span>', b.logo_path, 'Only if this shop uses a different logo from the business. Shown on this shop\'s receipts and its staff\'s app.') : ''}
         <label><span>Location${k.needsLocation ? '' : ' <span class="muted">(optional)</span>'}</span><input name="where" id="where" value="${b.lat != null ? `${b.lat}, ${b.lng}` : ''}" placeholder="6.5095, 3.3711" inputmode="decimal"${k.needsLocation ? ' required' : ''}>
           <span class="hint muted">${b.location_source === 'first_visit' ? 'Saved from the first visit. Change it if it looks wrong.' : k.hint}</span></label>
@@ -519,12 +522,12 @@ async function placeForm(me, k, id) {
         <p class="error" role="alert"></p>
         <button type="submit" class="primary">Save</button>
       </form>
-    </main>`, async ({ name, address, where, radius_m, kind, phone }, form) => {
+    </main>`, async ({ name, address, where, radius_m, kind, phone, receipt_paper }, form) => {
     const pos = where.trim() ? parseLatLng(where) : null;
     if (where.trim() && !pos) throw new Say('Location should look like 6.5095, 3.3711.');
     if (k.needsLocation && !pos) throw new Say('Please add the location.');
     const row = { name: name.trim(), address: address.trim() || null, lat: pos?.lat ?? null, lng: pos?.lng ?? null, radius_m: Number(radius_m) };
-    if (shopish) row.phone = (phone || '').trim() || null;
+    if (shopish) { row.phone = (phone || '').trim() || null; row.receipt_paper = ['58', '80', 'a4'].includes(receipt_paper) ? receipt_paper : '80'; }
     if (k.kind === 'choose') row.kind = kind === 'shop' ? 'shop' : 'office';
     if (k.kind === 'shop' && isNew) row.kind = 'shop';
     if (k.table === 'stores') {

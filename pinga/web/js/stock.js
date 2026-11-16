@@ -3,7 +3,8 @@
 import { saveFile } from './device.js';
 import { ask } from './dialog.js';
 import * as api from './api.js';
-import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev, dateField, fmtDate, moneyInput, parseMoney, properName } from './ui.js';
+import { show, go, esc, Say, friendly, toast, header, wireSignOut, app, backLink, fmtTime, fmtDay, localDate, chev, dateField, fmtDate, moneyInput, parseMoney, properName, logoUrl } from './ui.js';
+import { ICON } from './icons.js';
 import { xlsxParts, XLSX_TYPE } from './xlsx.js';
 import { readFile, readStockList, TEMPLATE_HEADER } from './sheet.js';
 
@@ -346,7 +347,7 @@ export async function shopSales(me, arg) {
   const day = salesDay || today;
   const [sum, list] = await Promise.all([
     api.rpc('shop_sales_summary', { p_branch: shop.id, p_day: day }),
-    api.select('sales', `select=id,happened_at,seller_name,total,discount,flags,payment_method,receipt_code,cancelled_at,cancelled_by_name,cancel_reason,mistake_note,sale_items(product_name,qty,line)&branch_id=eq.${shop.id}&local_date=eq.${day}&order=happened_at.desc`),
+    api.select('sales', `select=id,happened_at,seller_name,total,discount,flags,payment_method,receipt_code,receipt_token,cancelled_at,cancelled_by_name,cancel_reason,mistake_note,sale_items(product_name,qty,line)&branch_id=eq.${shop.id}&local_date=eq.${day}&order=happened_at.desc`),
   ]);
   const first = list.filter((x) => !x.cancelled_at && (x.mistake_note || x.flags.length));
   const items = (x) => [...x.sale_items].sort((a, b) => a.line - b.line).map((i) => `${i.qty} × ${esc(i.product_name)}`).join(', ');
@@ -363,7 +364,8 @@ export async function shopSales(me, arg) {
       <td class="d wrap">${items(x)}</td>
       <td class="d">${PAYM[x.payment_method] || 'Cash'}</td>
       <td class="d dx wrap">${pills(x)}</td>
-      <td class="end qty"><b>${naira(x.total)}</b>${Number(x.discount) ? `<span class="muted small">−${naira(x.discount)}</span>` : ''}</td>
+      <td class="end qty"><b>${naira(x.total)}</b>${Number(x.discount) ? `<span class="muted small">−${naira(x.discount)}</span>` : ''}
+        <button type="button" class="link print-btn" data-print="${esc(x.receipt_token)}" aria-label="Print receipt ${esc(x.receipt_code || '')}">${ICON.receipt}Print</button></td>
     </tr>`;
   const table = (rows) => `<div class="tablewrap"><table class="rtable sales">
     <thead><tr><th>Time</th><th class="d dx">Receipt</th><th class="d dx">Sold by</th><th class="d">Items</th><th class="d">Paid by</th><th class="d dx">To check</th><th class="num">Total</th></tr></thead>
@@ -384,6 +386,22 @@ export async function shopSales(me, arg) {
       ${list.length ? table(list) : '<p class="muted center empty">No sales on this day.</p>'}
     </main>`);
   document.getElementById('day').onchange = (e) => { salesDay = e.target.value || null; shopSales(me, shop.id); };
+  wirePrint();
+}
+
+// Print buttons (sales list, sale page): a reprint of the receipt, on the shop's paper.
+function wirePrint() {
+  app.querySelectorAll('[data-print]').forEach((b) => {
+    b.onclick = async (e) => {
+      e.stopPropagation();
+      b.disabled = true;
+      try {
+        const [r, { printReceipt }] = await Promise.all([api.rpc('receipt', { p_token: b.dataset.print }), import('./print.js')]);
+        if (!r) throw new Say('This receipt is not ready yet. Try again in a moment.');
+        await printReceipt(r, { paper: r.paper, reprint: true, logo: logoUrl(r.logo_path) });
+      } catch (x) { toast(friendly(x)); } finally { b.disabled = false; }
+    };
+  });
 }
 
 export async function saleDetail(me, id) {
@@ -396,7 +414,8 @@ export async function saleDetail(me, id) {
       ${backLink('#/sales/' + x.branch_id, 'Sales')}
       <h1>${naira(x.total)}</h1>
       <p class="muted">${esc(x.receipt_code)} · ${fmtDay(x.happened_at, tz)} · ${fmtTime(x.happened_at, tz)} · sold by ${esc(properName(x.seller_name))} · ${PAYM[x.payment_method] || 'Cash'}</p>
-      <p><a href="r.html#${esc(x.receipt_token)}" target="_blank" rel="noopener">Open the receipt</a></p>
+      <div class="btn-pair"><button type="button" class="secondary" data-print="${esc(x.receipt_token)}">${ICON.receipt}Print receipt</button>
+        <a class="secondary button" href="r.html#${esc(x.receipt_token)}" target="_blank" rel="noopener">Open the receipt</a></div>
       ${x.flags.includes('clock_changed') ? '<p class="banner">The phone clock was changed: the time may not be right.</p>' : ''}
       <ul class="board">${lines.map((i) => `
         <li class="brow"><span class="grow"><strong>${i.qty} × ${esc(i.product_name)}</strong>
@@ -417,4 +436,5 @@ export async function saleDetail(me, id) {
     toast('Sale cancelled · stock put back');
     saleDetail(me, id);
   });
+  wirePrint();
 }

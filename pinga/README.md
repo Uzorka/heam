@@ -170,7 +170,9 @@ Steps 1–2 are kept on the phone until the business is created. After that, the
 
 ## Email from usepinga.com (Resend)
 
-Once usepinga.com is bought:
+**Now (staging):** emails come from `pinga.elvisuzorka.com`, which is verified in Resend: `no-reply@` for sign-up codes and `summary@` for the evening email. The domain is set in one place, `MAIL_DOMAIN` in `scripts/projects.js`. On each deploy it sets the sign-up sender, the `SUMMARY_FROM` secret and the code email. The SMTP password (the Resend key) is only ever entered in the Supabase dashboard.
+
+Once usepinga.com is bought (then set `MAIL_DOMAIN = 'usepinga.com'` and deploy):
 1. In Resend, go to Domains → Add domain → `usepinga.com`, region **eu-west-1 (Ireland)**.
 2. Add the records Resend shows in Hostinger → Domains → usepinga.com → DNS records. They look like this, but copy the exact values from Resend (the DKIM key is unique):
 

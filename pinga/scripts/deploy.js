@@ -12,7 +12,7 @@
 //   3. Sets the minimum password length to 6 (staff PINs are 6 digits).
 //   4. Smoke test with the publishable key.
 import { readdirSync, readFileSync } from 'node:fs';
-import { CONFIG_FOR } from './projects.js';
+import { CONFIG_FOR, MAIL_DOMAIN } from './projects.js';
 
 const env = process.argv[2];
 const project = CONFIG_FOR[env];
@@ -63,7 +63,7 @@ for (const [slug, files] of [['accept-invite', ['index.ts', 'handler.js']], ['da
 // Evening summary: app address for the email's button, and the hourly schedule.
 // The schedule proves itself with a random key that is created in the database and never leaves it.
 if (project.site) {
-  await call('/secrets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify([{ name: 'APP_URL', value: project.site }]) });
+  await call('/secrets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify([{ name: 'APP_URL', value: project.site }, { name: 'SUMMARY_FROM', value: `Pinga <summary@${MAIL_DOMAIN}>` }]) });
 }
 await sql(`create extension if not exists pg_net;
   create extension if not exists pg_cron;
@@ -103,9 +103,11 @@ const authNow = await call('/config/auth');
 console.log(`  logins: minimum password length 6${project.site ? `, app address ${project.site}` : ''}; sign-up codes 6 digits, 1 hour`);
 if (authNow.smtp_host) {
   const codeEmail = readFileSync(new URL('../supabase/templates/confirm-code.html', import.meta.url), 'utf8');
+  // The sender follows MAIL_DOMAIN (the SMTP password itself is only ever entered in the Supabase dashboard).
   await call('/config/auth', { method: 'PATCH', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ mailer_subjects_confirmation: 'Your Pinga code: {{ .Token }}', mailer_templates_confirmation_content: codeEmail }) });
-  console.log(`  sign-up email: the code email, sent through ${authNow.smtp_host} as ${authNow.smtp_admin_email}`);
+    body: JSON.stringify({ smtp_admin_email: `no-reply@${MAIL_DOMAIN}`, smtp_sender_name: 'Pinga', rate_limit_email_sent: Math.max(30, authNow.rate_limit_email_sent || 0),
+      mailer_subjects_confirmation: 'Your Pinga code: {{ .Token }}', mailer_templates_confirmation_content: codeEmail }) });
+  console.log(`  sign-up email: the code email, through ${authNow.smtp_host}, from no-reply@${MAIL_DOMAIN}; evening email from summary@${MAIL_DOMAIN}`);
 } else {
   console.log("  sign-up email: Supabase's standard email with a link (2 an hour, team addresses only) until Resend is added as SMTP in Supabase → Authentication → Emails → SMTP; then deploy again for the code email");
 }
